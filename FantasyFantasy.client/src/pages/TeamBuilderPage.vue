@@ -77,19 +77,26 @@
           <h5 class="modal-title" id="teamColorModalLabel">Choose Team Colors</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <div class="modal-body">
-          <div class="card">
-            <div class="card-body text-center d-flex justify-content-center align-items-center flex-column">
-              <p>Click the dark square to activate the Color Picker</p>
-              <div id="color-picker-1" class="mx-auto"></div>
+        <div class="modal-body container">
+          <div class="row d-flex justify-content-center">
+            <div class="col-8 my-3 d-flex">
+              <input type="color" name="primaryColor" v-model="state.editable.primaryColor" @blur="setColor('primary')">
+              <label class="ms-5" for="primaryColor">Primary Color</label>
             </div>
+            <div class="col-8 my-3 d-flex">
+              <input type="color" name="secondaryColor" v-model="state.editable.secondaryColor" @blur="setColor('secondary')">
+              <label class="ms-5" for="secondaryColor">Seconday Color</label>
+            </div>
+          </div>
+          <div class="row">
+            <Logo :logo="state.editable.logo" />
           </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-primary" data-bs-target="#teamLogoModal" data-bs-toggle="modal"
             data-bs-dismiss="modal">Back</button>
-          <button class="btn btn-primary" data-bs-target="#exampleModalToggle" data-bs-toggle="modal"
-            data-bs-dismiss="modal">Next</button>
+          <button class="btn btn-primary" data-bs-target="#teamColorModal" data-bs-toggle="modal"
+            data-bs-dismiss="modal">Complete</button>
         </div>
       </div>
     </div>
@@ -102,8 +109,10 @@
 import { Modal } from "bootstrap"
 import { onMounted, reactive } from 'vue';
 import { logger } from "../utils/Logger";
+import Logo from '../components/Logo.vue';
 
 export default {
+  components: { Logo },
   setup() {
     const state = reactive({
       editable: {},
@@ -127,6 +136,15 @@ export default {
           }
         }
         state.editable.logo = choice
+      },
+
+      setColor() {
+        console.log(state.editable.primaryColor)
+        // if (input === 'primary') { 
+        //   state.editable.primaryColor = this.form
+        // } else {
+        //   state.editable.secondaryColor = 
+        // }
       },
 
       createTeam() {
