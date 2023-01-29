@@ -1,0 +1,71 @@
+@import "./_variables.scss";
+@import "bootstrap";
+@import "./_overrides.scss";
+@import "./utilities.scss";
+@import "./loaders.scss";
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@800&family=The+Nautigal:wght@700&display=swap');
+
+body{
+  overscroll-behavior: none;
+}
+
+.title-font {
+  font-family: 'Orbitron', sans-serif;
+}
+
+.cursive-font {
+  font-family: 'The Nautigal', cursive;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: $body-bg;
+}
+
+main {
+  flex-grow: 1;
+}
+
+a {
+  text-decoration: none;
+}
+
+input,
+textarea,
+select {
+  &:not(:placeholder-shown) {
+    &:valid {
+      border: 1px solid $success;
+    }
+    &:invalid {
+      border: 1px solid $danger;
+    }
+  }
+}
+
+form:invalid button[type="submit"] {
+  filter: grayscale(1);
+  pointer-events: none;
+}
+
+.st0 {
+  fill: #171730;
+  stroke: #171730;
+}
+
+.st1 {
+  fill: #FFFFFF;
+  stroke: #FFFFFF;
+}
+
+.st2 {
+  fill: #C2C2CE;
+  stroke: #C2C2CE;
+}
+
+.st3 {
+  fill: #8D8D8D;
+  stroke: #8D8D8D;
+}
