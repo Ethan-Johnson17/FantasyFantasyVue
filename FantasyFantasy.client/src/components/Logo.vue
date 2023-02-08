@@ -785,4 +785,12 @@ export default {
 .wolf {
   transform: scale(1.65);
 }
+
+#knight {
+  transform: scale(1.5);
+}
+
+#bird {
+  margin: -40px 0px -20px 0px;
+}
 </style>

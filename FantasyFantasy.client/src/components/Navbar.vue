@@ -40,15 +40,15 @@
             :to="{ name: 'Team' }"
             class="btn text-black selectable text-uppercase"
           >
-            My Team
+            My Teams
           </router-link>
         </li>
         <li>
           <router-link
-            :to="{ name: 'Squad' }"
+            :to="{ name: 'Party' }"
             class="btn text-black selectable text-uppercase"
           >
-            My Squad
+            My Parties
           </router-link>
         </li>
       </ul>

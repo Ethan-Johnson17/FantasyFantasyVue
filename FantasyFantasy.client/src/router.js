@@ -19,7 +19,8 @@ const routes = [
   {
     path: '/team',
     name: 'Team',
-    component: loadPage('TeamPage')
+    component: loadPage('TeamPage'),
+    beforeEnter: authGuard
   },
   {
     path: '/teambuilder',
@@ -27,9 +28,9 @@ const routes = [
     component: loadPage('TeamBuilderPage')
   },
   {
-    path: '/squad',
-    name: 'Squad',
-    component: loadPage('SquadPage')
+    path: '/party',
+    name: 'Party',
+    component: loadPage('PartyPage')
   },
   {
     path: '/account',

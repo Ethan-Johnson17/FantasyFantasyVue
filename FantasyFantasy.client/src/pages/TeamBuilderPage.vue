@@ -1,6 +1,14 @@
 <template>
   <h2>Team Builder</h2>
-  <!-- <form name="teamBuilder"> -->
+  <!-- This can be made into a component -->
+  <ol>
+    <li>1. Choose your team name</li>
+    <li>2. Choose your team logo</li>
+    <li>3. Choose your team colors</li>
+  </ol>
+  <button>Open</button>
+
+
     <div class="modal fade" id="teamNameModal" aria-hidden="true" aria-labelledby="teamNameModalLabel"
       tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
@@ -13,12 +21,12 @@
             <div class="row">
               <div class="col m-2">
                 <input type="text" aria-label="name" placeholder="Enter Team Name..." class="form-control"
-                  v-model="state.editable.name" required />
+                  v-model="state.editable.teamName" required />
               </div>
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn btn-primary" :disabled="!state.editable.name" data-bs-target="#teamLogoModal" data-bs-toggle="modal"
+            <button class="btn btn-primary" :disabled="!state.editable.teamName" data-bs-target="#teamLogoModal" data-bs-toggle="modal"
               data-bs-dismiss="modal">Next</button>
           </div>
         </div>
@@ -33,29 +41,29 @@
             <h5 class="modal-title" id="teamLogoModalLabel">Choose Team Logo</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
-          <div class="modal-body container p-5">
+          <div class="modal-body container px-5 pb-5">
+            <div class="row mb-3">
+              <div class="col-12">
+              <h5>Team Name: {{ state.editable.teamName }}</h5>
+              </div>
+            </div>
             <div class="row">
               <!-- TODO Knight and wolf need to scale and the x padding should be reduced for both. Additionally, the black background shouldn't cover other logos -->
               <div class="col-4" @click="selectLogo('racoon')">
                 <img src="../assets/img/racoon.svg" class="racoon logoSVG" alt="Racoon">
-                <!-- <Racoon></Racoon> -->
               </div>
               <div class="col-4" @click="selectLogo('wolf')">
-              <!-- <Wolf></Wolf> -->
                 <img src="../assets/img/wolf.svg" class="wolf mt-2 logoSVG" alt="wolf">
               </div>
               <div class="col-4" @click="selectLogo('fox')">
-              <!-- <Fox></Fox> -->
                 <img src="../assets/img/fox.svg" class="fox logoSVG" alt="fox">
               </div>
             </div>
             <div class="row d-flex justify-content-center">
               <div class="col-4" @click="selectLogo('bird')">
-                <!-- <Bird></Bird> -->
                 <img src="../assets/img/bird.svg" class="bird logoSVG" alt="bird">
               </div>
               <div class="col-4" @click="selectLogo('knight')">
-              <!-- <Knight></Knight> -->
                 <img src="../assets/img/knight.svg" class="knight mt-5 logoSVG" alt="knight">
               </div>
             </div>
@@ -64,7 +72,7 @@
             <button class="btn btn-primary" data-bs-target="#teamNameModal" data-bs-toggle="modal"
               data-bs-dismiss="modal">Back</button>
             <button class="btn btn-primary" data-bs-target="#teamColorModal" data-bs-toggle="modal"
-              data-bs-dismiss="modal" :disabled="!state.editable.logo">Next</button>
+              data-bs-dismiss="modal" :disabled="!state.editable.teamLogo">Next</button>
           </div>
         </div>
       </div>
@@ -79,18 +87,23 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body container">
+            <div class="row mb-3">
+              <div class="col-12">
+                <h5 :style="{color: state.editable.primaryColor}" class="textOutline">Team Name: {{ state.editable.teamName }}</h5>
+              </div>
+            </div>
             <div class="row d-flex justify-content-center">
               <div class="col-8 my-3 d-flex">
-                <input type="color" name="primaryColor" v-model="state.editable.primaryColor">
+                <input type="color" name="primaryColor" v-model="state.editable.primaryColor" required>
                 <label class="ms-5" for="primaryColor">Primary Color</label>
               </div>
               <div class="col-8 my-3 d-flex">
-                <input type="color" name="secondaryColor" v-model="state.editable.secondaryColor">
+                <input type="color" name="secondaryColor" v-model="state.editable.secondaryColor" required>
                 <label class="ms-5" for="secondaryColor">Secondary Color</label>
               </div>
             </div>
             <div class="row">
-              <Logo :logo="state.editable.logo" :primaryColor="state.editable.primaryColor" />
+              <Logo :logo="state.editable.teamLogo" :primaryColor="state.editable.primaryColor" :secondaryColor="state.editable.secondaryColor"/>
             </div>
           </div>
           <div class="modal-footer">
@@ -102,7 +115,6 @@
         </div>
       </div>
     </div>
-  <!-- </form> -->
   <PlayersList />
 </template>
 
@@ -111,6 +123,8 @@ import { Modal } from "bootstrap"
 import { onMounted, reactive } from 'vue';
 import { logger } from "../utils/Logger";
 import Logo from '../components/Logo.vue';
+import { teamService } from "../services/TeamService";
+import { AppState } from "../AppState";
 
 export default {
   components: { Logo },
@@ -138,7 +152,7 @@ export default {
             e.classList.remove('selectedLogo')
           }
         }
-        state.editable.logo = choice
+        state.editable.teamLogo = choice
       },
 
       setColor() {
@@ -178,8 +192,10 @@ export default {
       },
       
 
-      createTeam() {
+      async createTeam() {
         logger.log(state)
+        let team = state.editable
+        await teamService.createTeam(team)
       }
     }
   }
@@ -204,5 +220,9 @@ export default {
 .selectedLogo {
   background-color: rgb(75, 75, 75);
   transform: scale(1.5);
+}
+
+.textOutline {
+  text-shadow: 2px 2px 2px black;
 }
 </style>

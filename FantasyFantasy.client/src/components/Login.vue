@@ -34,6 +34,16 @@
             Manage Account
           </div>
         </router-link>
+        <router-link :to="{ name: 'Team' }">
+          <div class="list-group-item list-group-item-action hoverable">
+            My Teams
+          </div>
+        </router-link>
+        <router-link :to="{ name: 'Party' }">
+          <div class="list-group-item list-group-item-action hoverable">
+            My Parties
+          </div>
+        </router-link>
         <div
           class="list-group-item list-group-item-action hoverable text-danger"
           @click="logout"
