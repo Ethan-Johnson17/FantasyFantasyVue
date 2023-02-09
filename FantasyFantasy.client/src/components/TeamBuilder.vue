@@ -1,6 +1,7 @@
 <template>
-  <div class="row">
-    <div class="col-12 ps-5">
+  <div class="row mt-5 d-flex justify-content-center" v-if="teams.length === 0">
+    <h3 class="text-center">No team created.</h3>
+    <div class="col-9 ps-5">
       <h4>Follow the steps below to build your winning team!</h4>
       <ol>
         <li>Choose your team logo</li>
@@ -10,6 +11,11 @@
     </div>
     <div class="col-4">
       <button class="btn btn-primary" data-bs-target="#teamLogoModal" data-bs-toggle="modal">Start</button>
+    </div>
+  </div>
+  <div class="row" v-else>
+    <div class="col mt-2">
+      <button class="btn btn-outline-primary" data-bs-target="#teamLogoModal" data-bs-toggle="modal">Add Team</button>
     </div>
   </div>
 
@@ -93,11 +99,11 @@
           </div>
           <div class="row d-flex justify-content-center">
             <div class="col-8 my-3 d-flex">
-              <input type="color" name="primaryColor" v-model="state.editable.primaryColor" required>
+              <input type="color" name="primaryColor" v-model="state.editable.primaryColor" class="zIndex" required>
               <label class="ms-5" for="primaryColor">Primary Color</label>
             </div>
             <div class="col-8 my-3 d-flex">
-              <input type="color" name="secondaryColor" v-model="state.editable.secondaryColor" required>
+              <input type="color" name="secondaryColor" v-model="state.editable.secondaryColor" class="zIndex" required>
               <label class="ms-5" for="secondaryColor">Secondary Color</label>
             </div>
           </div>
@@ -127,6 +133,11 @@ import { AppState } from "../AppState";
 
 export default {
   components: { Logo },
+  props: {
+    teams: {
+      type: Object
+    }
+  },
   setup() {
     let primaryElems = []
     let secondaryElems = []
@@ -134,9 +145,6 @@ export default {
       editable: {},
     });
     let newColor = ''
-    // onMounted(() => {
-    //   Modal.getOrCreateInstance(document.getElementById('teamNameModal')).show()
-    // })
     return {
       state,
       newColor,
@@ -155,7 +163,6 @@ export default {
       },
 
       setColor() {
-        let logo = document.getElementsByTagName('svg')[0]
         let paths = document.getElementsByClassName('st0');
         for (let i = 0; i < paths.length; i++) {
           const e = paths[i];
@@ -223,5 +230,9 @@ export default {
 
 .textOutline {
   text-shadow: 2px 2px 2px black;
+}
+
+.zIndex {
+  z-index: 500;
 }
 </style>

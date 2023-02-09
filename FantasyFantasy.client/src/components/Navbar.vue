@@ -51,6 +51,14 @@
             My Parties
           </router-link>
         </li>
+        <li>
+          <router-link
+            :to="{ name: 'Leagues' }"
+            class="btn text-black selectable text-uppercase"
+          >
+            My Leagues
+          </router-link>
+        </li>
       </ul>
       <!-- LOGIN COMPONENT HERE -->
       <Login />

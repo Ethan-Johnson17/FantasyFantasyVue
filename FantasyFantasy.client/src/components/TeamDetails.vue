@@ -17,6 +17,9 @@
         <div class="row">
           <div class="col-6"><p class="fs-5">Party Name:</p></div>
         </div>
+        <div class="row">
+          <div class="col-6"><p class="fs-5">Salary Cap:</p></div>
+        </div>
       </div>
     </div>
     <div class="row border rounded d-flex justify-content-center mx-5" :class="{'mt-5' : team.teamLogo !== 'bird'}">
@@ -106,5 +109,17 @@ export default {
 
 .mt-neg {
   margin-top: -50px;
+}
+
+#bird {
+  margin: -40px 0px -20px 0px;
+}
+
+#knight {
+  margin-top: 20px;
+}
+
+#wolf {
+  margin-top: 20px;
 }
 </style>

@@ -25,5 +25,11 @@ export default {
 </script>
 
 <style>
+#knight {
+  transform: scale(1.5);
+}
 
+#wolf {
+  transform: scale(1.5);
+}
 </style>

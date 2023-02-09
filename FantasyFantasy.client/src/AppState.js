@@ -8,4 +8,5 @@ export const AppState = reactive({
   players: [],
   allTeams: [],
   myTeams: [],
+  leagues: []
 })
