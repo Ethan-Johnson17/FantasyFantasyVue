@@ -6,20 +6,21 @@ export const LeagueSchema = new Schema({
     leagueName: { type: String, required: true },
     teams: { type: Array },
     participants: { type: Array },
-    style: { type: String, enum: ['classic', 'classic-crossover', 'co-op', 'free-for-all', 'lone-wolf']},
-    hostId: { type: ObjectId, ref: 'Profile', required: true },
+    leagueStyle: { type: String, enum: ['classic', 'crossover', 'coOp', 'freeForAll', 'loneWolf'], required: true},
+    hostId: { type: ObjectId, ref: 'Account', required: true },
     schedule: { type: Object },
     stats: { type: Object },
     standings: { type: Object },
-    pin: { type: String, unique: true, required: true },
+    privacyStatus: { type: String, required: true },
+    pin: { type: String, unique: true },
   },
   { timestamps: true, toJSON: { virtuals: true } }
 )
 
-LeagueSchema.virtual('profile', {
+LeagueSchema.virtual('account', {
   localField: 'hostId',
   foreignField: '_id',
   justOne: true,
-  ref: 'Profile'
+  ref: 'Account'
 })
 

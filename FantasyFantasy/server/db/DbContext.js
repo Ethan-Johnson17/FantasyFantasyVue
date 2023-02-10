@@ -8,9 +8,9 @@ import { TeamSchema } from '../models/Team';
 class DbContext {
   Account = mongoose.model('Account', AccountSchema);
   Team = mongoose.model('Team', TeamSchema);
-  // Party = mongoose.model('Party', PartySchema);
-  // League = mongoose.model('League', LeagueSchema);
-  // Hero = mongoose.model('Hero', HeroSchema);
+  Party = mongoose.model('Party', PartySchema);
+  League = mongoose.model('League', LeagueSchema);
+  Hero = mongoose.model('Hero', HeroSchema);
 }
 
 export const dbContext = new DbContext()
