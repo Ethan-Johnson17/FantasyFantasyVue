@@ -29,6 +29,12 @@ const routes = [
     beforeEnter: authGuard
   },
   {
+    path: '/leagueDetails/:id',
+    name: 'LeagueDetails',
+    component: loadPage('LeagueDetails'),
+    beforeEnter: authGuard
+  },
+  {
     path: '/teambuilder',
     name: 'TeamBuilder',
     component: loadPage('TeamBuilderPage')

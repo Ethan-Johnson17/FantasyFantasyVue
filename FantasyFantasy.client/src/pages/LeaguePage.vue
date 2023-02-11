@@ -1,5 +1,5 @@
 <template>
-  <div class="container-fluid" v-if="!toggleStartLeague">
+  <div class="container-fluid" v-if="!toggleStartLeague && !leagueCreated">
       <div class="row mt-3">
       <div class="col-12 d-flex">
         <h2>My Leagues</h2>
@@ -32,8 +32,12 @@
     </div>
   </div>
 
-  <div class="container pt-5" v-else>
-    <StartLeague />
+  <div class="container pt-5" id="startLeagueContainer" v-else-if="toggleStartLeague">
+    <StartLeague @league-created="test($event)" />
+  </div>
+
+  <div class="container d-none" id="leagueCreatedContainer">
+    <LeagueCreated />
   </div>
 </template>
 
@@ -44,11 +48,18 @@ import { AppState } from '../AppState';
 export default {
   setup() {
     let toggleStartLeague = ref(false)
+    let leagueCreated = ref(false)
     return {
       toggleStartLeague,
+      leagueCreated,
       account: computed(() => AppState.account),
       hostedLeagues: computed(() => AppState.leagues.filter(l => l.hostId == account.id)),
       joinedLeagues: computed(() => AppState.leagues.filter(l => l.participants.contains(account.id))),
+
+      test(event) {
+        document.getElementById('startLeagueContainer').classList.add('d-none')
+        document.getElementById('leagueCreatedContainer').classList.remove('d-none')
+      }
     }
   }
 }

@@ -4,7 +4,7 @@
       <h2>Start a League!</h2>
     </div>
   </div>
-  <form @submit.prevent="startLeague">
+  <form @submit.prevent="startLeague()">
   <div class="row d-flex mt-3">
     <div class="col-md-6 my-3">
         <label for="leagueName" class="form-label fs-5">League Name</label>
@@ -33,9 +33,16 @@
   </div>
   <div class="row d-flex justify-content-center">
     <div class="col-2">
-      <button class="btn btn-lg fs-5 btn-secondary w-100">Start</button>
+      <button class="btn btn-lg fs-5 btn-secondary w-100" @click="$emit('leagueCreated', true)">Start</button>
     </div>
   </div>
+  <!-- TODO this should be on a success page after creation -->
+  <!-- <div class="row d-flex justify-content-center mt-3">
+    <div class="col-8 d-flex justify-content-center">
+      <p v-if="state.editable.privacyStatus === true">Upon creation of the league, a pin will be assigned. This pin can be
+        used by friends to join the league.</p>
+    </div>
+  </div> -->
 </form>
 
 
@@ -49,15 +56,50 @@
 </template>
 
 <script>
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
+import { AppState } from '../AppState';
+import { teamService } from '../services/TeamService';
+import { leagueService } from '../services/LeagueService';
+import { logger } from '../utils/Logger';
+import Pop from '../utils/Pop';
 
 export default {
+  emits: ['leagueCreated'],
+  methods: {
+    submit() {
+      this.$emit('leagueCreated')
+    }
+  },
   setup() {
+    // const emit = defineE(['leagueCreated', leagueCreated])
     const state = reactive({
       editable: {}
     })
+    // let leagueCreated = ref(false)
     return {
-    state
+      state,
+
+      async startLeague() {
+        try {
+          // await leagueService.startLeague(state.editable)
+          // const league = AppState.activeLeague
+          // if (league.pin) {
+          //   await teamService.joinLeague(league.pin)
+          // } else {
+          //   await teamService.joinLeague()
+          // }
+          // router.push({
+          //   name: "LeagueDetails",
+          //   params: { id: AppState.activeLeague.id }
+          // })
+          // state.editable = {}
+          // this.$emit('leagueCreated', true)
+
+        } catch (error) {
+          logger.error(error)
+          Pop.toast(error.message, 'error')
+        }
+      }
   }
 }
 }

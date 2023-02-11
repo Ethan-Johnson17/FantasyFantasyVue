@@ -15,6 +15,11 @@ class LeagueService {
     const digit = 100000 + (Math.floor(Math.random() * 100000))
     return digit
   }
+
+  async getMyLeagues(query = {}) {
+    const myLeagues = await dbContext.Team.find(query).populate('league')
+    return myLeagues
+  }
 }
 
 export const leagueService = new LeagueService()
