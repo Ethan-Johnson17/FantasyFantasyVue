@@ -10,15 +10,25 @@
       <div class="col-2 me-3" :class="{'mt-neg' : team.teamLogo === 'bird'}">
         <Logo class="teamDetailsLogo" :logo="team.teamLogo" :primaryColor="team.primaryColor" :secondaryColor="team.secondaryColor" />
       </div>
-      <div class="col-6 p-4 h-50 me-2 border rounded">
+      <div class="col-lg-6 p-4 h-50 me-2 border rounded">
         <div class="row">
-          <div class="col-6"><p class="fs-5">League Name:</p></div>
+          <div class="col-6" v-if="team.league"><p class="fs-5">League Name: {{ team.league?.leagueName }}</p></div>
+          <div class="col-6 d-flex" v-else>
+            <p class="fs-5">League Name:</p>
+            <router-link
+              :to="{ name: 'Leagues' }"
+              class="selectable"
+            >
+              <p class="fs-5 ms-2">Join a league</p>
+              <!-- TODO Instead of the router link, we could use the router and open the modal right away -->
+            </router-link>
+          </div>
         </div>
         <div class="row">
           <div class="col-6"><p class="fs-5">Party Name:</p></div>
         </div>
         <div class="row">
-          <div class="col-6"><p class="fs-5">Salary Cap:</p></div>
+          <div class="col-6"><p class="fs-5">Salary Cap: {{ team.salary }}</p></div>
         </div>
       </div>
     </div>
@@ -89,14 +99,21 @@
 </template>
 
 <script>
+import { onMounted } from 'vue'
 export default {
   props: {
     team: {
       type: Object
     }
   },
-  setup() {
-    return {}
+  setup(props) {
+    onMounted(() => {
+      console.log(props.team)
+    })
+    return {
+
+
+    }
   }
 
 }

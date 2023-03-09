@@ -1,3 +1,4 @@
+import { Auth0Provider } from "@bcwdev/auth0provider";
 import { partyService } from "../services/PartyService";
 import BaseController from "../utils/BaseController";
 
@@ -8,6 +9,7 @@ export class PartyController extends BaseController {
     this.router
       .get('', this.getAllParties)
       .get('/:id', this.getPartyById)
+      .use(Auth0Provider.getAuthorizedUserInfo)
       .post('', this.createParty)
       .put('/:id', this.editParty)
   }

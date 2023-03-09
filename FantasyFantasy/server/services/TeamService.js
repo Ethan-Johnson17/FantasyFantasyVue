@@ -4,12 +4,12 @@ import { BadRequest, Forbidden } from '../utils/Errors'
 
 class TeamService {
    async getAllTeams(query = {}) {
-    const team = await dbContext.Team.find(query)
+    const team = await dbContext.Team.find(query).populate('account').populate('party').populate('league')
     return team
   }
 
   async getMyTeams(query = {}) {
-    const teams = await dbContext.Team.find(query)
+    const teams = await dbContext.Team.find(query).populate('party').populate('league')
     return teams
   }
 
@@ -23,7 +23,7 @@ class TeamService {
 
   async createTeam(body) {
     const team = await dbContext.Team.create(body)
-    return team.populate('account')
+    return team
   }
 
    async editTeam(id, body) {

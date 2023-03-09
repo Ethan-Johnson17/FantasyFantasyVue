@@ -3,7 +3,7 @@ import { logger } from '../utils/Logger'
 import { api } from './AxiosService'
 
 class TeamService {
-    async getMyTeams(query = {}) {
+  async getMyTeams(query = {}) {
     try {
         const res = await api.get(query)
         AppState.myTeams = res.data
@@ -24,10 +24,10 @@ class TeamService {
 
   async editTeam(teamId, teamData) {
     try {
-      const res = await api.put('api/teams/' + teamId, teamData)
+      let res = await api.put('api/teams/' + teamId, teamData)
       let newTeam = res.data
-      const myTeamsIndex = AppState.myTeams.findIndex(g => g.id === newTeam.id)
-      const allTeamsIndex = AppState.allTeams.findIndex(g => g.id === newTeam.id)
+      let myTeamsIndex = AppState.myTeams.findIndex(g => g.id === newTeam.id)
+      let allTeamsIndex = AppState.allTeams.findIndex(g => g.id === newTeam.id)
       logger.log(myTeamsIndex)
       if (myTeamsIndex === -1) {
         AppState.myTeams.unshift(newTeam)

@@ -7,9 +7,10 @@ export const TeamSchema = new Schema({
     teamLogo: { type: String, required: true },
     primaryColor: { type: String, required: true },
     secondaryColor: { type: String, required: true },
+    rank: {type: Number },
     players: { type: Array },
     stats: { type: Object },
-    salary: { type: Number, default: 50000},
+    salary: { type: String, default: "$50,000"},
     accountId: { type: ObjectId, ref: 'Account', required: true },
     partyId: { type: ObjectId, ref: 'Party' },
     leagueId: { type: ObjectId, ref: 'League'}
