@@ -12,7 +12,7 @@
   </div>
   <hr>
   <div>
-    <h5>Classic Crossover (coming soon)</h5>
+    <h5>Classic Crossover</h5>
     <h6>Party-on-party, team-on-team</h6>
     <div class="progress">
       <div class="progress-bar bg-success" role="progressbar" style="width: 55%" aria-valuenow="100" aria-valuemin="0"

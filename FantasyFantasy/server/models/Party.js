@@ -4,9 +4,12 @@ const ObjectId = mongoose.Types.ObjectId
 
 export const PartySchema = new Schema({
     partyName: { type: String, required: true },
+    logoColor: { type: String, required: true },
     heroes: { type: Array },
+    rank: {type: Number},
     questId: { type: ObjectId, ref: 'Quest' },
     accountId: { type: ObjectId, ref: 'Account', required: true },
+    leagueId: { type: ObjectId, ref: 'League' }
   },
   { timestamps: true, toJSON: { virtuals: true } }
 )
@@ -23,4 +26,11 @@ PartySchema.virtual('quest', {
   foreignField: '_id',
   justOne: true,
   ref: 'Quest'
+})
+
+PartySchema.virtual('league', {
+  localField: 'leagueId',
+  foreignField: '_id',
+  justOne: true,
+  ref: 'League'
 })

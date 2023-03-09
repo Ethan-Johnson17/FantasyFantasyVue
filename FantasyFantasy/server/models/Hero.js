@@ -6,15 +6,20 @@ export const HeroSchema = new Schema({
     heroName: { type: String, required: true },
     heroClass: { type: String, required: true },
     heroRace: { type: String, required: true },
-    weapon: { type: String, enum: ['sword', 'spear', 'bow', 'dagger'] },
-    attack: { type: String },
-    defense: { type: String },
-    armorRating: { type: String },
+    weapon: { type: String, require: true, enum: ['Sword and Shield', 'Spear', 'Bow', 'Dagger', 'Staff'] },
+    attack: { type: Number, required: true },
+    defense: { type: Number, required: true },
+    magic: { type: Number, required: true },
+    armorRating: { type: Number },
     items: { type: Array },
+    lifeStatus: { type: String, default: 'active' },
     skills: { type: Array },
+    gender: { type: String },
     questId: { type: ObjectId, ref: 'Quest' },
     accountId: { type: ObjectId, ref: 'Account', required: true },
-    partyId: { type: ObjectId, ref: 'Party'}
+    partyId: { type: ObjectId, ref: 'Party' },
+    playerId: { type: ObjectId, ref: 'Player' },
+    FDPPlayerId: { type: ObjectId, ref: 'FDPPlayer' },
   },
   { timestamps: true, toJSON: { virtuals: true } }
 )
@@ -38,4 +43,18 @@ HeroSchema.virtual('quest', {
   foreignField: '_id',
   justOne: true,
   ref: 'Quest'
+})
+
+HeroSchema.virtual('player', {
+  localField: 'playerId',
+  foreignField: '_id',
+  justOne: true,
+  ref: 'Player'
+})
+
+HeroSchema.virtual('FDPPlayer', {
+  localField: 'FDPPlayerId',
+  foreignField: '_id',
+  justOne: true,
+  ref: 'FDPPlayer'
 })

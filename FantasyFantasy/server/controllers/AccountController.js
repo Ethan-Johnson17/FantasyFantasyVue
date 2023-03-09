@@ -13,6 +13,7 @@ export class AccountController extends BaseController {
       .get('', this.getUserAccount)
       .get('/myTeams', this.getMyTeams)
       .get('/leagues', this.getMyLeagues)
+      .get('/myParties', this.getMyParties)
   }
 
   async getUserAccount(req, res, next) {
@@ -47,7 +48,7 @@ export class AccountController extends BaseController {
   async getMyLeagues(req, res, next) {
     try {
       const accountId = req.userInfo.id
-      const attending = await leagueService.getMyLeagues({ accountId: accountId })
+      const attending = await leagueService.getMyLeagues({ hostId: accountId })
       return res.send(attending)
     } catch (error) {
       next(error)
