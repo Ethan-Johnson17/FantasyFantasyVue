@@ -89,32 +89,34 @@ export default {
             qbsA.push(pA?.player_name) 
           } else if (pA?.position === 'WR') {
             wrsA.push(pA?.player_name) 
-          } else if (pA?.position === 'RB' && pA?.position === 'HB') {
+          } else if (pA?.position === 'RB' || pA?.position === 'HB') {
             rbsA.push(pA?.player_name) 
           } else if(pA?.position === 'TE') {
             tesA.push(pA?.player_name)
           } else {
             miscA.push(pA?.player_name)
           }
+
           if (pB?.position === 'QB') {
             qbsB.push(pB?.player_name) 
           } else if (pB?.position === 'WR') {
             wrsB.push(pB?.player_name) 
-          } else if (pB?.position === 'RB' && pB?.position === 'HB') {
+          } else if (pB?.position === 'RB' || pB?.position === 'HB') {
             rbsB.push(pB?.player_name) 
           } else if (pB?.position === 'TE') {
-            tesA.push(pB?.player_name)
+            tesB.push(pB?.player_name)
           } else {
             miscB.push(pB?.player_name)
           }
+
           if (pC?.position === 'QB') {
             qbsC.push(pC?.player_name) 
           } else if (pC?.position === 'WR') {
             wrsC.push(pC?.player_name) 
-          } else if (pC?.position === 'RB' && pC?.position === 'HB') {
+          } else if (pC?.position === 'RB' || pC?.position === 'HB') {
             rbsC.push(pC?.player_name) 
           } else if (pC?.position === 'TE') {
-            tesA.push(pC?.player_name)
+            tesC.push(pC?.player_name)
           } else {
             miscC.push(pC?.player_name)
           }
@@ -171,11 +173,13 @@ export default {
         });
 
         await playersService.createFDPPlayers(finalPlayers)
+        console.log(finalPlayers)
+        finalPlayers = []
       },
 
       async getFDPPlayers() {
         let players = await playersService.getMyFDPPlayerData('api/players/fdpPlayers/' + state.editable.season)
-        console.log(players)
+        console.log(players.filter(p => p.playerName === 'Alvin Kamara'))
       }
     }
   }

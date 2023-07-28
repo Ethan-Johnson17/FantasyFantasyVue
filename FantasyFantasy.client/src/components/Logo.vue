@@ -829,6 +829,10 @@ export default {
     ); */
 }
 
+#shield {
+  width: 200px;
+}
+
 .logoLetter {
   font-size: 155px;
   font-family: 'Shalimar', cursive;

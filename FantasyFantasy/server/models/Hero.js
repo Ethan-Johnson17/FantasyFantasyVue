@@ -18,6 +18,7 @@ export const HeroSchema = new Schema({
     questId: { type: ObjectId, ref: 'Quest' },
     accountId: { type: ObjectId, ref: 'Account', required: true },
     partyId: { type: ObjectId, ref: 'Party' },
+    leagueId: { type: ObjectId, ref: 'League' },
     playerId: { type: ObjectId, ref: 'Player' },
     FDPPlayerId: { type: ObjectId, ref: 'FDPPlayer' },
   },
@@ -57,4 +58,11 @@ HeroSchema.virtual('FDPPlayer', {
   foreignField: '_id',
   justOne: true,
   ref: 'FDPPlayer'
+})
+
+HeroSchema.virtual('league', {
+  localField: 'leagueId',
+  foreignField: '_id',
+  justOne: true,
+  ref: 'League'
 })

@@ -1,5 +1,5 @@
 <template>
-  <div class="container-fluid" v-if="!toggleStartLeague">
+  <div class="container" v-if="!toggleStartLeague">
     <div class="row mt-3">
       <div class="col-12 d-flex">
         <h2>My Leagues</h2>
@@ -86,7 +86,7 @@
       </div>
     </div> -->
   </div>
-
+<!-- FIXME This should be displayed dependent on the route params -->
   <div class="container pt-5" id="startLeagueContainer" v-else-if="toggleStartLeague">
     <div class="col-md-2 backBtn fw-bold" @click="toggleStartLeague = !toggleStartLeague"><i class="mdi mdi-arrow-left"></i> Back</div>
     <StartLeague :account="account" />

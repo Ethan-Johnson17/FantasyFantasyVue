@@ -1,5 +1,5 @@
 <template>
-  <div class="container-fluid">
+  <div class="container">
     <div class="row mt-3">
       <div class="col-12 d-flex">
         <h2 class="me-3">My Parties</h2>

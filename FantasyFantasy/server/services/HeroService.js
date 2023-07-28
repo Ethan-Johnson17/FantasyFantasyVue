@@ -3,20 +3,20 @@ import { BadRequest } from "../utils/Errors"
 
 class HeroService {
   async getMyHeroes(query = {}) {
-    const heroes = await dbContext.Hero.find(query).populate('party').populate('quest').populate('player').populate('account').populate('FDPPlayer')
+    const heroes = await dbContext.Hero.find(query).populate('party').populate('quest').populate('player').populate('account').populate('FDPPlayer').populate('league')
     return heroes
   }
 
   async getHeroesByParty(query) {
-    const heroes = await dbContext.Hero.find({query}).populate('party').populate('quest').populate('player').populate('account').populate('FDPPlayer')
+    const heroes = await dbContext.Hero.find({query}).populate('party').populate('quest').populate('player').populate('account').populate('FDPPlayer').populate('league')
     return heroes
   }
   async getAllHeroes(query) {
-    const heroes = await dbContext.Hero.find({query}).populate('party').populate('quest').populate('player').populate('account').populate('FDPPlayer')
+    const heroes = await dbContext.Hero.find({query}).populate('party').populate('quest').populate('player').populate('account').populate('FDPPlayer').populate('league')
     return heroes
   }
   async getHeroById(id) {
-    const hero = await dbContext.Hero.findById(id).populate('party').populate('quest').populate('player').populate('account')
+    const hero = await dbContext.Hero.findById(id).populate('party').populate('quest').populate('player').populate('account').populate('league')
     if (!hero) {
       throw new BadRequest("Requested {Hero} cannot be found")
     }

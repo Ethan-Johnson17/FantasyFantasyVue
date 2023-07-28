@@ -11,6 +11,7 @@ export class LeagueController extends BaseController {
       .post('', this.createLeague)
       .get('/:id', this.getById)
       .put('/:id', this.joinLeague)
+      .put('/:id', this.editLeague)
       .put('/:id', this.deactivateLeague)
       .delete('/:id', this.deleteLeague)
   }

@@ -16,7 +16,7 @@ class TeamService {
     try {
       const res = await api.post('api/teams', teamData)
       AppState.myTeam = res.data
-      AppState.teams.push(res.data)
+      AppState.allTeams.push(res.data)
     } catch (error) {
       logger.log('Error creating team', error)
     }

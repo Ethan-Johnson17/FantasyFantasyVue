@@ -10,36 +10,78 @@
       <h4>Opponents: {{ league.teams[0].teamName }}</h4> -->
       <h4>Standings</h4>
       <table class="table">
-    <thead>
-      <tr>
-        <th scope="col">Place</th>
-        <th scope="col">Team</th>
-        <th scope="col">Wins</th>
-        <th scope="col">Losses</th>
-        <th scope="col">Total Points</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr v-for="team in league.teams" :key="team.id">
-        <th scope="row">1</th>
-        <td>{{ team.teamName }}</td>
-        <td>team.stats.wins</td>
-        <td>team.stats.losses</td>
-        <td>team.stats.totalPoints</td>
-      </tr>
-      <tr>
-        <th scope="row">2</th>
-        <td>Jacob</td>
-        <td>Thornton</td>
-        <td>@fat</td>
-      </tr>
-      <tr>
-        <th scope="row">3</th>
-        <td colspan="2">Larry the Bird</td>
-        <td>@twitter</td>
-      </tr>
-    </tbody>
-  </table>
+        <thead>
+          <tr>
+            <th scope="col">Place</th>
+            <th scope="col">Team</th>
+            <th scope="col">Wins</th>
+            <th scope="col">Losses</th>
+            <th scope="col">Total Points</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="team in league.teams" :key="team.id">
+            <th scope="row">1</th>
+            <td>{{ team.teamName }}</td>
+            <td>team.stats.wins</td>
+            <td>team.stats.losses</td>
+            <td>team.stats.totalPoints</td>
+          </tr>
+          <tr>
+            <th scope="row">2</th>
+            <td>Jacob</td>
+            <td>Thornton</td>
+            <td>@fat</td>
+          </tr>
+          <tr>
+            <th scope="row">3</th>
+            <td colspan="2">Larry the Bird</td>
+            <td>@twitter</td>
+          </tr>
+        </tbody>
+      </table>
+      <!-- SECTION Heroes -->
+      <div v-if="league.leagueStyle === 'classic'">
+        <h4>Heroes</h4>
+        <div v-if="league.heroes.length === 0">
+          <p>No heroes found.</p>
+          <button class="btn btn-primary" @click="generateHeroes(league.id)">Generate heroes</button>
+        </div>
+        <div v-else>
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Place</th>
+                <th scope="col">Team</th>
+                <th scope="col">Wins</th>
+                <th scope="col">Losses</th>
+                <th scope="col">Total Points</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="team in league.teams" :key="team.id">
+                <th scope="row">1</th>
+                <td>{{ team.teamName }}</td>
+                <td>team.stats.wins</td>
+                <td>team.stats.losses</td>
+                <td>team.stats.totalPoints</td>
+              </tr>
+              <tr>
+                <th scope="row">2</th>
+                <td>Jacob</td>
+                <td>Thornton</td>
+                <td>@fat</td>
+              </tr>
+              <tr>
+                <th scope="row">3</th>
+                <td colspan="2">Larry the Bird</td>
+                <td>@twitter</td>
+              </tr>
+            </tbody>
+          </table>  
+        </div>
+      </div>
+      <!-- SECTION END Heroes -->
     </div>
   </div>
 </template>

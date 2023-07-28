@@ -13,8 +13,8 @@
       </div>
       <div class="col-lg-6 p-4 h-50 me-2 border rounded">
         <div class="row">
-          <div class="col-6" v-if="party.league">
-            <p class="fs-5">League Name: {{ party.league?.leagueName }}</p>
+          <div class="col-12" v-if="party.league">
+            <p class="fs-5"><strong>League Name:</strong> {{ party.league?.leagueName }}</p>
           </div>
           <div class="col-6 d-flex" v-else>
             <p class="fs-5">League Name:</p>
@@ -26,7 +26,7 @@
         </div>
         <div class="row">
           <div class="col-6">
-            <p class="fs-5">Party Name:</p>
+            <p class="fs-5"><strong>Party Name:</strong> {{ party.partyName }}</p>
           </div>
         </div>
       </div>
@@ -36,10 +36,10 @@
         <h4 class="mb-2">Heroes</h4>
       </div>
       <div class="col-2 mb-2">
-        <button class="btn btn-primary" data-bs-target="#addHero" data-bs-toggle="offcanvas" @click="generateHeroes()">Add Heroes</button>
+        <button class="btn btn-primary" data-bs-target="#addHero" data-bs-toggle="offcanvas">Add Heroes</button>
       </div>
-      <div class="col-12">
-        <CreateHero :heroes="heroes"></CreateHero>
+      <div class="col-12" v-if="party.league">
+        <ViewHeroes :heroes="party?.league?.heroes" :party="party"></ViewHeroes>
       </div>
       <div class="col-11">
         <div class="row">

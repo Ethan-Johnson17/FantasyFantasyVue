@@ -2,14 +2,14 @@
   <div class="row mt-5 d-flex justify-content-center" v-if="teams.length === 0">
     <h3 class="text-center">No team created.</h3>
     <div class="col-9 ps-5">
-      <h4>Follow the steps below to build your winning team!</h4>
+      <h4>Use the team builder to build your winning team!</h4>
       <ol>
         <li>Choose your team logo</li>
         <li>Choose your team name</li>
         <li>Choose your team colors</li>
       </ol>
     </div>
-    <div class="col-4">
+    <div class="col-4 text-center">
       <button class="btn btn-primary" data-bs-target="#teamLogoModal" data-bs-toggle="modal">Start</button>
     </div>
   </div>

@@ -1,11 +1,10 @@
 <template>
-  <div class="container-fluid">
+  <div class="container">
     <div class="row">
       <div class="col-12 d-flex">
         <h2 class="me-3">My Teams</h2>
         <TeamBuilder :teams="teams"></TeamBuilder>
       </div>
-      <hr class="w-50 ms-2 mt-2">
     </div>
     <div class="row mt-4" v-if="teams.length !== 0">
       <div class="col teamContainer" v-for="team in teams" :key="team.id" :id="'team' + team.id" @click="selectedTeam=team">

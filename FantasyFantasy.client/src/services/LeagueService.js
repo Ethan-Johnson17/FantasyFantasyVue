@@ -41,6 +41,7 @@ class LeagueService {
 
   async joinLeague(league, unit) {
     unit.leagueId = league.id
+    logger.log(unit, league)
     league.participants.push(unit.accountId)
     if (unit.teamId) {
       league.teams.push(unit)
@@ -55,6 +56,18 @@ class LeagueService {
     }
     AppState.leagues.splice(index, 1, res)
   }
+
+  async editLeague(league) {
+    let res = await api.put(`api/leagues/${league.id}`, league)
+    AppState.activeLeague = res
+    const index = AppState.leagues.findIndex(l => l.id === res.id)
+    if (index === -1) {
+      AppState.leagues.unshift(res)
+    }
+    AppState.leagues.splice(index, 1, res)
+  }
+
 }
+
 
 export const leagueService = new LeagueService()
