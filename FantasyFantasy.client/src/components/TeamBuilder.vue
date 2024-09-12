@@ -199,7 +199,6 @@ export default {
 
 
       async createTeam() {
-        logger.log(state)
         let team = state.editable
         await teamService.createTeam(team)
       }

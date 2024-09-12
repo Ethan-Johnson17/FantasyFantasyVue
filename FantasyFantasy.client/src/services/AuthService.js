@@ -5,6 +5,7 @@ import { router } from '../router'
 import { accountService } from './AccountService'
 import { api } from './AxiosService'
 import { socketService } from './SocketService'
+import { Modal } from 'bootstrap'
 
 export const AuthService = initialize({
   domain,
@@ -26,6 +27,10 @@ AuthService.on(AuthService.AUTH_EVENTS.AUTHENTICATED, async function() {
   AppState.user = AuthService.user
   await accountService.getAccount()
   socketService.authenticate(AuthService.bearer)
+  if (!AppState.account.accountComplete) {
+    router.push("/")
+    Modal.getOrCreateInstance(document.getElementById('finishAccountModal')).show()
+  }
   // NOTE if there is something you want to do once the user is authenticated, place that here
 })
 

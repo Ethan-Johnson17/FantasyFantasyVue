@@ -31,7 +31,7 @@
         </div>
       </div>
     </div>
-    <div class="row border rounded d-flex justify-content-start mx-5 p-3">
+    <div class="row border rounded d-flex justify-content-start mx-5 p-3 pb-0">
       <div class="col-2 mb-2">
         <h4 class="mb-2">Heroes</h4>
       </div>
@@ -42,27 +42,28 @@
         <ViewHeroes :heroes="party?.league?.heroes" :party="party"></ViewHeroes>
       </div>
       <div class="col-11">
-        <div class="row">
-          <div class="col-12">
-            <div class="row">
-              <div class="col">
-                Name
-              </div>
-              <div class="col">
-                Race
-              </div>
-              <div class="col">
-                Class
-              </div>
-              <div class="col">
-                Attack
-              </div>
-              <div class="col">
-                Defense
-              </div>
-            </div>
-          </div>
-        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Class</th>
+              <th scope="col">Race</th>
+              <th scope="col">Attack</th>
+              <th scope="col">Defense</th>
+              <th scope="col">Gender</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="hero in party.heroes" :key="hero.id">
+              <td>{{ hero.heroName }}</td>
+              <td>{{ hero.heroClass }}</td>
+              <td>{{ hero.heroRace }}</td>
+              <td>{{ hero.attack }}</td>
+              <td>{{ hero.defense }}</td>
+              <td>{{ hero.gender.charAt(0).toUpperCase() + hero.gender.slice(1) }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -83,10 +84,8 @@ export default {
   },
   setup(props) {
     onMounted(async () => {
-      console.log(props.party)
       await heroService.getAllHeroes()
       await heroService.getHeroesByParty(props.party.id)
-      console.log(AppState.heroes)
     })
     return {
       teamHeroes: computed(() => AppState.teamHeroes),

@@ -26,7 +26,7 @@
             <h5>Style</h5>
           </div>
           <div class="col-md-2">
-            <h5>Status</h5>
+            <h5>Privacy Status</h5>
           </div>
           <div class="col-md-2">
             <h5># of participants</h5>
@@ -39,20 +39,20 @@
         <h3 class="border-bottom border-dark w-50">Hosted Leagues</h3>
         <div class="row my-1" v-for="hl in hostedLeagues" :key="hl.id">
           <div class="col-12 selectable" @click="leagueDetails(hl, 'host')">
-            <div class="row">
-            <div class="col-md-3">
-              <h5>{{ hl.leagueName }}</h5>
+            <div class="row" v-if="hl.leagueName">
+              <div class="col-md-3">
+                <h5>{{ hl.leagueName }}</h5>
+              </div>
+              <div class="col-md-2">
+                <h5>{{ hl.leagueStyle.charAt(0).toUpperCase() + hl.leagueStyle.substr(1) }}</h5>
+              </div>
+              <div class="col-md-2">
+                <h5>{{ hl.privacyStatus ? 'Private' : 'Public' }}</h5>
+              </div>
+              <div class="col-md-2">
+                <h5>{{ hl.teams.length || hl.parties.length }}</h5>
+              </div>
             </div>
-            <div class="col-md-2">
-              <h5>{{ hl.leagueStyle.charAt(0).toUpperCase() + hl.leagueStyle.substr(1) }}</h5>
-            </div>
-            <div class="col-md-2">
-              <h5>{{ hl.privacyStatus }}</h5>
-            </div>
-            <div class="col-md-2">
-              <h5>{{ hl.teams.length }}</h5>
-            </div>
-          </div>
           </div>
         </div>
       </div>
@@ -70,10 +70,10 @@
                 <h5>{{ jl.leagueStyle }}</h5>
               </div>
               <div class="col-md-2">
-                <h5>{{ jl.privacyStatus }}</h5>
+                <h5>{{ jl.privacyStatus ? 'Private' : 'Public' }}</h5>
               </div>
               <div class="col-md-2">
-                <h5>{{ jl.teams.length }}</h5>
+                <h5>{{ jl.teams.length || jl.parties.length }}</h5>
               </div>
             </div>
             </div>
@@ -105,6 +105,7 @@ import { AppState } from '../AppState';
 import { leagueService } from '../services/LeagueService';
 import { teamService } from '../services/TeamService';
 import { partyService } from '../services/PartyService';
+import { logger } from '../utils/Logger';
 export default {
   setup() {
     let router = useRouter()
@@ -113,6 +114,7 @@ export default {
       await leagueService.getMyLeagues();
       await teamService.getMyTeams('account/myTeams')
       await partyService.getMyParties('account/myParties')
+      logger.log(AppState.joinedLeagues, AppState.myLeagues)
       })
     return {
       toggleStartLeague,
@@ -132,8 +134,6 @@ export default {
         await teamService.getMyTeams('account/myTeams')
         await partyService.getMyParties('account/myParties')
       }
-
-      // test(event) {}
     }
   }
 }

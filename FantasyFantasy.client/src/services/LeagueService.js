@@ -15,33 +15,27 @@ class LeagueService {
   }
 
    async getMyLeagues(query = '') {
-    // this res is getting the nights I created
-    const res = await api.get(query)
-
-    // this res2 is getting the nights I've joined
-    //  Need to filter out hosted leagues. For now, this will be used as hosted.
     const res2 = await api.get('account/leagues')
      
-    // logger.log(res.data)
     // sort by date
-    let hosted = (res.data)
-    let joined = (res2.data)
-
-    // separate arrays for nights I created and nights I've joined
+    let hosted = (res2.data.hosting)
+    let joined = res2.data.attending.filter(l => l.hostId !== AppState.account.id)
+    // separate arrays for leagues I created and leagues I've joined
     // AppState.myLeagues = hosted
-    AppState.myLeagues = res2.data
-    // AppState.joinedLeagues = joined
+    AppState.myLeagues = hosted
+    AppState.joinedLeagues = joined
   }
 
   async getById(id) {
     const res = await api.get(`api/leagues/${id}`)
+    // const resParticipants = await api.get(`api/leagues/${id}/participants/`, { params: { ids: res.data.participants.join(',') } })
+    logger.log('GetById', res.data)
+    res.data.participants = res.data.participants
     AppState.activeLeague = res.data
-    logger.log(res.data)
   }
 
   async joinLeague(league, unit) {
     unit.leagueId = league.id
-    logger.log(unit, league)
     league.participants.push(unit.accountId)
     if (unit.teamId) {
       league.teams.push(unit)
@@ -49,22 +43,37 @@ class LeagueService {
       league.parties.push(unit)
     }
     let res = await api.put(`api/leagues/${league.id}`, league)
-    AppState.activeLeague = res
-    const index = AppState.leagues.findIndex(l => l.id === res.id)
+    AppState.activeLeague = res.data
+    const index = AppState.leagues.findIndex(l => l.id === res.data.id)
     if (index === -1) {
-      AppState.leagues.unshift(res)
+      AppState.leagues.unshift(res.data)
     }
-    AppState.leagues.splice(index, 1, res)
+    AppState.leagues.splice(index, 1, res.data)
   }
 
   async editLeague(league) {
+    // TODO add a layer of security to prevent non hosts from editing the league UNLESS they're marking themselves as ready. 
     let res = await api.put(`api/leagues/${league.id}`, league)
-    AppState.activeLeague = res
-    const index = AppState.leagues.findIndex(l => l.id === res.id)
+    AppState.activeLeague = res.data
+    const index = AppState.leagues.findIndex(l => l.id === res.data.id)
     if (index === -1) {
-      AppState.leagues.unshift(res)
+      AppState.leagues.unshift(res.data)
     }
-    AppState.leagues.splice(index, 1, res)
+    AppState.leagues.splice(index, 1, res.data)
+  }
+  
+  async deactivateLeague(leagueId) {
+    let res = await api.put(`api/leagues/${leagueId}`)
+    AppState.activeLeague = res.data
+    const index = AppState.leagues.findIndex(l => l.id === res.data.id)
+    if (index === -1) {
+      AppState.leagues.unshift(res.data)
+    }
+    AppState.leagues.splice(index, 1, res.data)
+  }
+
+  async getLeagueParticipantProfiles(leagueId, participants) {
+    let res = await api.get(`api/leagues/${leagueId}`, { params: { ids: participantIds.join(',') } })
   }
 
 }

@@ -134,13 +134,13 @@ export default {
             league.heroes = await this.generateHeroes()
           }
           league.hostId = props.account.id
-
           await leagueService.startLeague(league)
           let activeLeague = AppState.activeLeague
           let unit = state.editable.unit
           unit.leagueId = league.id
           await leagueService.joinLeague(activeLeague, unit)
-          if (league.leagueStyle === 'classic') {
+          console.log(league.leagueStyle)
+          if (league.leagueStyle.toLowerCase() === 'classic') {
             console.log('party', unit)
             await partyService.editParty(unit.id, unit)
           } else {

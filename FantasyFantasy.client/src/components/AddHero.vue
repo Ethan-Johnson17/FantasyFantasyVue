@@ -1,5 +1,5 @@
 <template>
-  <div class="modal fade addHeroModal" :id="'addHero-' + hero?.heroName" tabindex="-1" aria-labelledby="addHeroLabel" aria-hidden="true">
+  <div class="modal fade addHeroModal" id="addHeroModal" tabindex="-1" aria-labelledby="addHeroLabel" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
@@ -7,12 +7,16 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            <h6>You've selected {{ hero.heroName }}, a {{ hero.gender }} {{ hero.heroClass }} of the {{ hero.heroRace }} race. Would you like to add {{ hero.heroName }} to your party?</h6>
-            <p>Your party has {{ party.heroes.length }} of 5 heroes.</p>
+            <h6>Your party has {{ party.heroes.length }} of 5 heroes.</h6>
+            <ul>
+              <li v-for="hero in party.heroes" :key="hero.id">
+                <h6>{{ hero.heroName }}, a {{ hero.gender }} {{ hero.heroClass }} of the {{ hero.heroRace }} race. </h6>
+              </li>
+            </ul>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-primary" @click="addHero(hero)">Confirm</button>
+            <button type="button" class="btn btn-primary" @click="addHero()">Confirm</button>
           </div>
         </div>
       </div>
@@ -28,6 +32,7 @@ import { heroService } from '../services/HeroService'
 import { AppState } from '../AppState'
 import { partyService } from '../services/PartyService'
 import { leagueService } from '../services/LeagueService'
+import { logger } from '../utils/Logger'
 export default {
   props: {
     hero: {
@@ -38,17 +43,14 @@ export default {
     }
   },
   setup(props) {
-
     return {
       allHeroes: computed(() => AppState.heroes),
 
-      async addHero(hero) {
+      async addHero() {
         let party = props.party
-        party.heroes.push(hero)
         let league = party.league
-        league.heroes = league.heroes.filter(h => h !== hero)
-        // await partyService.editParty(party)
-        // await leagueService.editLeague(league)
+        await partyService.editParty(party.id, party)
+        await leagueService.editLeague(league)
       }
     }
   }

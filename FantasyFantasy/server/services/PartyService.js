@@ -3,15 +3,15 @@ import { BadRequest, Forbidden } from "../utils/Errors"
 
 class PartyService {
   async getMyParties(query = {}) {
-    const parties = await dbContext.Party.find(query).populate('league')
+    const parties = await dbContext.Party.find(query).populate('league account')
     return parties
   }
   async getAllParties(query) {
-    const parties = await dbContext.Party.find(query).populate('league')
+    const parties = await dbContext.Party.find(query).populate('league account')
     return parties
   }
   async getPartyById(id) {
-    const party = await dbContext.Party.findById(id).populate('league')
+    const party = await dbContext.Party.findById(id).populate('league account')
     if (!party) {
       throw new BadRequest("Requested party cannot be found")
     }

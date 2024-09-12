@@ -1,6 +1,7 @@
 import { Auth0Provider } from "@bcwdev/auth0provider";
 import { leagueService } from "../services/LeagueService";
 import BaseController from "../utils/BaseController";
+import { profileService } from "../services/ProfileService";
 
 export class LeagueController extends BaseController {
   constructor() {
@@ -8,8 +9,10 @@ export class LeagueController extends BaseController {
     this.router
       .use(Auth0Provider.getAuthorizedUserInfo)
       .get('', this.getAllLeagues)
+      .get('/:id/participants', this.getLeagueParticipants)
       .post('', this.createLeague)
       .get('/:id', this.getById)
+      .get('/pin/:pin', this.getByPin)
       .put('/:id', this.joinLeague)
       .put('/:id', this.editLeague)
       .put('/:id', this.deactivateLeague)
@@ -29,6 +32,15 @@ export class LeagueController extends BaseController {
     try {
       req.body.id = req.params.id
       const league = await leagueService.getById(req.params.id)
+      return res.send(league)
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async getByPin(req, res, next) {
+    try {
+      const league = await leagueService.getLeagueByPin(req.params.pin)
       return res.send(league)
     } catch (error) {
       next(error)
@@ -88,4 +100,13 @@ export class LeagueController extends BaseController {
     }
   }
   
+  async getLeagueParticipants(req, res, next) {
+    try {
+      const participantIds = req.query.ids.split(',');
+      const participants = await profileService.getLeagueParticipants(participantIds)
+      res.send(participants)
+    } catch (error) {
+      next(error)
+    }
+  }
 }

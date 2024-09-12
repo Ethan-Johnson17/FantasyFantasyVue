@@ -55,7 +55,13 @@ const routes = [
     path: '/players',
     name: 'Player',
     component: loadPage('PlayerPage')
-  }
+  },
+  {
+    path: '/faceoff/:id',
+    name: 'Faceoff',
+    component: loadPage('FaceoffPage'),
+    beforeEnter: authGuard
+  },
 ]
 
 export const router = createRouter({

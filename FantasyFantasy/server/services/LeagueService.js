@@ -3,9 +3,19 @@ import { BadRequest, Forbidden } from '../utils/Errors'
 
 class LeagueService {
   async createLeague(body) {
-    body.pin = this.generatePin()
+      let pin = this.generatePin()
+      // let foundLeague = await this.getLeagueByPin(pin)
+      // if (foundLeague && foundLeague?.pin == pin.toString()) {
+      //   pin = this.generatePin()
+      // }
+      body.pin = pin
     const league = await dbContext.League.create(body)
     return league.populate('account')
+  }
+
+  async getLeagueByPin(pin) {
+    const league = await dbContext.League.findOne({pin}).populate('account')
+    return league
   }
   
   async getAll(query = {}) {

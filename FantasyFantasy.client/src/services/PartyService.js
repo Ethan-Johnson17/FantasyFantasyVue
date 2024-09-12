@@ -27,7 +27,6 @@ class PartyService {
       let newParty = res.data
       let myPartiesIndex = AppState.myParties.findIndex(g => g.id === newParty.id)
     
-      logger.log(myPartiesIndex)
       if (myPartiesIndex === -1) {
         AppState.myParties.unshift(newParty)
       }

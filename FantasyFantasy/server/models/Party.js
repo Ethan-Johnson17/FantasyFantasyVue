@@ -9,7 +9,9 @@ export const PartySchema = new Schema({
     rank: {type: Number},
     questId: { type: ObjectId, ref: 'Quest' },
     accountId: { type: ObjectId, ref: 'Account', required: true },
-    leagueId: { type: ObjectId, ref: 'League' }
+    leagueId: { type: ObjectId, ref: 'League' },
+    faceoffs: { type: Array },
+    readyStatus: { type: Boolean, default: false }
   },
   { timestamps: true, toJSON: { virtuals: true } }
 )

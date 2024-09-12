@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { AccountSchema } from '../models/Account'
+import { AccountSchema, ProfileSchema } from '../models/Account'
 import { HeroSchema } from '../models/Hero';
 import { LeagueSchema } from '../models/League';
 import { PartySchema } from '../models/Party';
@@ -9,6 +9,7 @@ import { FDPPlayerSchema } from '../models/FDPPlayer';
 
 class DbContext {
   Account = mongoose.model('Account', AccountSchema);
+  Profile = mongoose.model('Profile', ProfileSchema, 'accounts');
   Team = mongoose.model('Team', TeamSchema);
   Party = mongoose.model('Party', PartySchema);
   League = mongoose.model('League', LeagueSchema);

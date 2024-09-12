@@ -13,6 +13,8 @@ export const TeamSchema = new Schema({
     salary: { type: String, default: "$50,000"},
     accountId: { type: ObjectId, ref: 'Account', required: true },
     partyId: { type: ObjectId, ref: 'Party' },
+    faceoffs: { type: Array },
+    readyStatus: { type: Boolean, default: false },
     leagueId: { type: ObjectId, ref: 'League'}
   },
   { timestamps: true, toJSON: { virtuals: true } }

@@ -12,6 +12,11 @@ class ProfileService {
     return profile
   }
 
+  async getLeagueParticipants(participantIds) {
+    const participants = await dbContext.Profile.find({ _id: { $in: participantIds } }, 'name picture')
+    return participants;
+  }
+
   /**
     * Returns a list user profiles from a query search of name likeness
     * limits to first 20 without offset

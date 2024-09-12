@@ -1,8 +1,8 @@
 <template>
-  <nav class="navbar navbar-expand-lg navbar-light bg-light px-3 title-font">
-    <router-link class="navbar-brand d-flex" :to="{ name: 'Home' }">
+  <nav class="navbar navbar-expand-lg navbar-light bg-light px-3 title-font border-bottom border-dark">
+    <router-link class="navbar-brand d-flex pt-0 mt-0" :to="{ name: 'Home' }">
       <div class="d-flex align-items-center">
-        <img src="../assets/img/fantasyFantasyLogo.png" alt="Logo" class="logo">
+        <img src="../assets/img/qbNoBG.png" alt="Logo" class="logo">
         <img src="../assets/img/fantasyFantasyTextOnly.png" alt="Logo" class="logoText">
         <!-- <h1 class="title-font">FantasyFantasy</h1> -->
       </div>
@@ -98,6 +98,7 @@ a:hover {
 
 .logo {
   height: 120px;
+  transform: translateY(13px);
 }
 .logoText {
   height: 65px;

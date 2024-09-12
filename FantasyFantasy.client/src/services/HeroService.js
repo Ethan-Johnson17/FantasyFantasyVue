@@ -1,5 +1,7 @@
 import { AppState } from "../AppState"
+import { logger } from "../utils/Logger";
 import { api } from "./AxiosService";
+import { playersService } from "./PlayersService";
 
 class HeroService {
   async createHero() {
@@ -35,5 +37,7 @@ class HeroService {
     }
   }
 }
+
+
 
 export const heroService = new HeroService()

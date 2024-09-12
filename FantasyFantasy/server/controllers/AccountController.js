@@ -11,6 +11,7 @@ export class AccountController extends BaseController {
     this.router
       .use(Auth0Provider.getAuthorizedUserInfo)
       .get('', this.getUserAccount)
+      .put('', this.updateAccount)
       .get('/myTeams', this.getMyTeams)
       .get('/leagues', this.getMyLeagues)
       .get('/myParties', this.getMyParties)
@@ -48,8 +49,22 @@ export class AccountController extends BaseController {
   async getMyLeagues(req, res, next) {
     try {
       const accountId = req.userInfo.id
-      const attending = await leagueService.getMyLeagues({ hostId: accountId })
-      return res.send(attending)
+      const hosting = await leagueService.getMyLeagues({ hostId: accountId })
+      const attending = await leagueService.getMyLeagues({
+      'participants.id': accountId, // Match leagues where the account is in participants array
+      hostId: { $ne: accountId } // Ensure they are not the host
+    });
+      return res.send({attending: attending, hosting: hosting})
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async updateAccount(req, res, next) {
+    try {
+      req.body.id = req.userInfo.id
+      const updatedAccount = await accountService.updateAccount(req.userInfo, req.body)
+      return res.send(updatedAccount)
     } catch (error) {
       next(error)
     }

@@ -1,6 +1,7 @@
 <template>
   <div class="container-fluid">
     <div class="row justify-content-center mb-3">
+      <div class="col-12"><h6>Find a public league to join or search for a league by name or pin.</h6></div>
       <div class="col-md-12">
         <div class="search">
           <div class="mb-3 m-3">
@@ -36,19 +37,34 @@
         <h6>League Host</h6>
       </div>
     </div>
-    <div class="row pt-2 pb-0" :class="{'selectedLeague': selectedLeague === league}" v-for="league in results" :key="league.id" @click="selectedLeague = league">
-      <div class="col-4">
-        <h6>{{ league.leagueName }}</h6>
+    <div v-if="search.length >= 3">
+      <div class="row pt-2 pb-0" :class="{'selectedLeague': selectedLeague === league}" v-for="league in results" :key="league.id" @click="selectedLeague = league">
+        <div class="col-4">
+          <h6>{{ league.leagueName }}</h6>
+        </div>
+        <div class="col-4">
+          <p>{{ league.leagueStyle.toUpperCase() }}</p>
+        </div>
+        <div class="col-4">
+          <p>{{ league.account.name }}</p>
+        </div>
       </div>
-      <div class="col-4">
-        <p>{{ league.leagueStyle.toUpperCase() }}</p>
-      </div>
-      <div class="col-4">
-        <p>{{ league.account.name }}</p>
+    </div>
+    <div v-else>
+      <div class="row pt-2 pb-0" :class="{'selectedLeague': selectedLeague === league}" v-for="league in publicLeagues" :key="league.id" @click="selectedLeague = league">
+        <div class="col-4">
+          <h6>{{ league.leagueName }}</h6>
+        </div>
+        <div class="col-4">
+          <p>{{ league.leagueStyle.toUpperCase() }}</p>
+        </div>
+        <div class="col-4">
+          <p>{{ league?.account?.name }}</p>
+        </div>
       </div>
     </div>
     <!-- SECTION Team based leagues -->
-    <div class="row mt-3 border-top border-dark d-flex justify-content-center" v-if="selectedLeague.leagueStyle !== 'classic'">
+    <div class="row mt-3 border-top border-dark d-flex justify-content-center" :class="!selectedLeague.leagueId ? 'd-none' : ''" v-if="selectedLeague.leagueStyle !== 'classic'">
       <div class="col-8 mt-3">
         <h5 class="mb-3 text-center">Select a team to use in your chosen league</h5>
         <select name="assignTeamSelect" v-model="selectedTeam" id="assignTeamSelect" class="form-select" aria-label="Assign team to league">
@@ -134,6 +150,7 @@ export default {
       selectedTeam,
       selectedParty,
       enteredPin,
+      publicLeagues: computed(() => AppState.leagues.filter(l => l.privacyStatus === false)),
       leagues: computed(() => AppState.leagues),
       myLeagues: computed(() => AppState.myLeagues),
       myTeams: computed(() => AppState.myTeams.filter(t => !t.leagueId)),
@@ -146,7 +163,7 @@ export default {
           if (search.value.length < 3) {
             return
           }
-          this.results = this.leagues.filter(l => l.leagueName.toLowerCase().includes(search.value.toLowerCase()) || l.pin == search.value)
+          this.results = this.leagues.filter(l => l.leagueName.toLowerCase().includes(search.value.toLowerCase()) || l.pin == search.value || l.account.name.toLowerCase() === search.value.toLowerCase())
         } catch (error) {
           logger.error(error)
         }
@@ -154,6 +171,7 @@ export default {
 
       async joinLeague() {
         console.log(selectedParty, selectedLeague)
+        
         try {
           if (selectedLeague.value.leagueStyle === 'classic') {
             if (!selectedParty || !selectedLeague) {
@@ -163,7 +181,7 @@ export default {
             let party = selectedParty.value
             party.leagueId = selectedLeague.value.id
             // TODO need notification telling what's missing
-            await leagueService.joinLeague(selectedLeague.value, party)
+            await leagueService.joinLeague(selectedLeague.value, selectedParty.value)
             await partyService.editParty(party.id, party)
             search.value = ''
           } else {
@@ -175,7 +193,7 @@ export default {
             let team = selectedTeam.value
             team.leagueId = selectedLeague.value.id
             // TODO need notification telling what's missing
-            await leagueService.joinLeague(selectedLeague.value, team)
+            await leagueService.joinLeague(selectedLeague.value, account.id)
             await teamService.editTeam(team.id, team)
             search.value = ''
             

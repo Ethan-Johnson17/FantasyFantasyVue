@@ -25,17 +25,18 @@ import { computed, watchEffect } from '@vue/runtime-core'
 import { onMounted, ref } from 'vue';
 import { AppState } from '../AppState';
 import { partyService } from '../services/PartyService';
+import { logger } from '../utils/Logger';
 export default {
   setup() {
     let selectedParty = ref({})
     onMounted(async () => {
       await partyService.getMyParties('account/myParties')
+      logger.log(AppState.myParties)
     })
     return {
       parties: computed(() => AppState.myParties),
       partyDetails: computed(() => AppState.myParties.filter(t => t.id == selectedParty.value.id)[0]),
       selectedParty,
-
     }
   }
 }
@@ -55,9 +56,6 @@ export default {
   transition: 500ms;
 }
 
-#partyDetailsSection {
-  height: 60vh;
-}
 </style>
 
 <!-- Check for players, if no players in the team, show build team button -->
