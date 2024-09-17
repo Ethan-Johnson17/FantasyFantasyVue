@@ -1,5 +1,6 @@
 <template>
   <div class="container">
+    <Loader v-if="loading"></Loader>
     <div class="row mt-3">
       <div class="col-12 d-flex">
         <h2 class="me-3">My Parties</h2>
@@ -29,14 +30,18 @@ import { logger } from '../utils/Logger';
 export default {
   setup() {
     let selectedParty = ref({})
+    let loading = ref(true)
     onMounted(async () => {
       await partyService.getMyParties('account/myParties')
-      logger.log(AppState.myParties)
+      if (AppState.myParties) {
+        loading.value = false
+      }
     })
     return {
       parties: computed(() => AppState.myParties),
       partyDetails: computed(() => AppState.myParties.filter(t => t.id == selectedParty.value.id)[0]),
       selectedParty,
+      loading
     }
   }
 }

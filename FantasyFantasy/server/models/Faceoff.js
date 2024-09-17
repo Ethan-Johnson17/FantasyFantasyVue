@@ -8,6 +8,7 @@ export const FaceoffSchema = new Schema({
     leagueId: { type: ObjectId, ref: 'League' },
     unitAId: { type: ObjectId, ref: 'Unit' },
     unitBId: { type: ObjectId, ref: 'Unit' },
+    score: { type: Object},
     victor: { type: String },
   },
   { timestamps: true, toJSON: { virtuals: true } }

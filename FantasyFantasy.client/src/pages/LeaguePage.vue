@@ -1,5 +1,6 @@
 <template>
   <div class="container" v-if="!toggleStartLeague">
+    <Loader v-if="loading"></Loader>
     <div class="row mt-3">
       <div class="col-12 d-flex">
         <h2>My Leagues</h2>
@@ -110,14 +111,18 @@ export default {
   setup() {
     let router = useRouter()
     let toggleStartLeague = ref(false)
+    let loading = ref(true)
     onMounted( async() => {
       await leagueService.getMyLeagues();
       await teamService.getMyTeams('account/myTeams')
       await partyService.getMyParties('account/myParties')
-      logger.log(AppState.joinedLeagues, AppState.myLeagues)
+      if (AppState.leagues) {
+        loading.value = false
+      }
       })
     return {
       toggleStartLeague,
+      loading,
       account: computed(() => AppState.account),
       hostedLeagues: computed(() => AppState.myLeagues),
       joinedLeagues: computed(() => AppState.joinedLeagues),

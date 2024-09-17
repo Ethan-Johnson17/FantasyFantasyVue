@@ -38,7 +38,7 @@
       </div>
     </div>
     <div v-if="search.length >= 3">
-      <div class="row pt-2 pb-0" :class="{'selectedLeague': selectedLeague === league}" v-for="league in results" :key="league.id" @click="selectedLeague = league">
+      <div class="row pt-2 pb-0 selectable" :class="{'selectedLeague': selectedLeague === league}" v-for="league in results" :key="league.id" @click="selectedLeague = league">
         <div class="col-4">
           <h6>{{ league.leagueName }}</h6>
         </div>
@@ -51,7 +51,7 @@
       </div>
     </div>
     <div v-else>
-      <div class="row pt-2 pb-0" :class="{'selectedLeague': selectedLeague === league}" v-for="league in publicLeagues" :key="league.id" @click="selectedLeague = league">
+      <div class="row pt-2 pb-0 selectable" :class="{'selectedLeague': selectedLeague === league}" v-for="league in publicLeagues" :key="league.id" @click="selectedLeague = league">
         <div class="col-4">
           <h6>{{ league.leagueName }}</h6>
         </div>

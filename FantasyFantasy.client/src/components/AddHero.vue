@@ -49,6 +49,7 @@ export default {
       async addHero() {
         let party = props.party
         let league = party.league
+        league.parties.find(p => p.id == party.id).heroes.push(...party.heroes)
         await partyService.editParty(party.id, party)
         await leagueService.editLeague(league)
       }

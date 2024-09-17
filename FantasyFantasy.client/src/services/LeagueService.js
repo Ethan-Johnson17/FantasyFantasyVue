@@ -29,14 +29,13 @@ class LeagueService {
   async getById(id) {
     const res = await api.get(`api/leagues/${id}`)
     // const resParticipants = await api.get(`api/leagues/${id}/participants/`, { params: { ids: res.data.participants.join(',') } })
-    logger.log('GetById', res.data)
     res.data.participants = res.data.participants
     AppState.activeLeague = res.data
   }
 
   async joinLeague(league, unit) {
     unit.leagueId = league.id
-    league.participants.push(unit.accountId)
+    league.participants.push(unit.account)
     if (unit.teamId) {
       league.teams.push(unit)
     } else {

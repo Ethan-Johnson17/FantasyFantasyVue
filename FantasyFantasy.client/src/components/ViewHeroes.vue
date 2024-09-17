@@ -2,7 +2,7 @@
   <div class="offcanvas offcanvas-start" tabindex="-1" id="addHero" aria-labelledby="offcanvasLabel">
     <div class="offcanvas-header border-bottom border-dark">
       <h4 class="offcanvas-title" id="offcanvasLabel">Add Hero</h4>
-      <button class="btn btn-primary" :class="heroAdded ? '' : 'd-none'" @click="confirmAddHero()">Confirm Party</button>
+      <button class="btn btn-primary" :disabled="heroAdded > 0 ? false : true" @click="confirmAddHero()">Confirm Party</button>
       <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
     <div class="offcanvas-body container">
@@ -35,7 +35,8 @@
         </div>
         <div class="col-6">
           <label for="filter">Filter</label>
-          <select id="filter" aria-placeholder="Choose Filter" class="form-select form-select-sm" aria-label="Filter" v-model="state.editable.filter">
+          <select id="filter" aria-placeholder="Choose Filter" class="form-select form-select-sm filterSelect" aria-label="Filter" v-model="state.editable.filter">
+            <option class="filterSelect" value="">All</option>
             <optgroup label="Class">
               <option selected value="Mage">Mage</option>
               <option value="Paladin">Paladin</option>
@@ -43,7 +44,7 @@
               <option value="Rogue">Rogue</option>
               <option value="Warrior">Warrior</option>
             </optgroup>
-            <optgroup label="Race">
+            <optgroup class="filterSelect" label="Race">
               <option value="Elf">Elf</option>
               <option value="Halfling">Halfling</option>
               <option value="Dwarf">Dwarf</option>
@@ -80,7 +81,7 @@ import { FDPPlayerApi } from '../services/AxiosService'
 import { playersService } from '../services/PlayersService'
 import { heroService } from '../services/HeroService'
 import { AppState } from '../AppState'
-import { Modal } from 'bootstrap'
+import { Modal, Offcanvas } from 'bootstrap'
 import Pop from '../utils/Pop'
 import { logger } from '../utils/Logger'
 export default {
@@ -116,7 +117,7 @@ export default {
         }
       },
 
-      async addHero(hero) {
+      addHero(hero) {
         let party = props.party
         if (party.heroes.length < 5) {
           party.heroes.push(hero)
@@ -127,8 +128,6 @@ export default {
         else {
           return
         }
-        // await partyService.editParty(party)
-        // await leagueService.editLeague(league)
       },
 
       removeHero(hero) {
@@ -138,7 +137,7 @@ export default {
           party.heroes = party.heroes.filter(h => h !== hero)
           let league = party.league
           league.heroes.push(hero)
-          this.heroAdded--
+          this.heroAdded > 0 ? this.heroAdded-- : ''
         }
         else {
           return
@@ -146,7 +145,9 @@ export default {
       },
 
       confirmAddHero(hero) {
+        state.editable.filter = ''
         Modal.getOrCreateInstance(document.getElementById('addHeroModal')).toggle()
+
       },
 
       sortHeroes(heroes) {
@@ -163,7 +164,6 @@ export default {
           return 0;
         });
         props.heroes = heroesSorted
-        console.log(heroesSorted)
       }
   }
 }
@@ -171,5 +171,7 @@ export default {
 </script>
 
 <style>
-
+.filterSelect {
+  z-index: 100;
+}
 </style>

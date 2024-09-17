@@ -76,6 +76,8 @@ import { AppState } from '../AppState'
 import { heroService } from '../services/HeroService'
 import { playersService } from '../services/PlayersService'
 import { femaleNames, maleNames } from '../heroes'
+import { logger } from '../utils/Logger'
+import { leagueService } from '../services/LeagueService'
 export default {
   props: {
     party: {
@@ -86,6 +88,13 @@ export default {
     onMounted(async () => {
       await heroService.getAllHeroes()
       await heroService.getHeroesByParty(props.party.id)
+      if (!props.party.league && props.party.leagueId) {
+        if (AppState.leagues) {
+          props.party.league = AppState.leagues.find(l => l.id == props.party.leagueId)
+        } else {
+          props.party.league = await leagueService.getById(props.party.leagueId)
+        }
+      }
     })
     return {
       teamHeroes: computed(() => AppState.teamHeroes),

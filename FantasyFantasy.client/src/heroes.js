@@ -1,5 +1,4 @@
 import { playersService } from "./services/PlayersService"
-import { logger } from "./utils/Logger"
 
 export const maleNames = [
 "Alaric the Bold",

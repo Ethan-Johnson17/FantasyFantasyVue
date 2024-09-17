@@ -28,7 +28,6 @@ class TeamService {
       let newTeam = res.data
       let myTeamsIndex = AppState.myTeams.findIndex(g => g.id === newTeam.id)
       let allTeamsIndex = AppState.allTeams.findIndex(g => g.id === newTeam.id)
-      logger.log(myTeamsIndex)
       if (myTeamsIndex === -1) {
         AppState.myTeams.unshift(newTeam)
       }

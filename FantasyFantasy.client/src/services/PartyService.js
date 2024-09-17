@@ -17,12 +17,12 @@ class PartyService {
       const res = await api.post('api/parties', partyData)
       AppState.myParties.push(res.data)
     } catch (error) {
-      logger.log('Error creating party', error)
+      logger.error('Error creating party', error)
     }
   }
 
     async editParty(partyId, partyData) {
-    try {
+      try {
       let res = await api.put('api/parties/' + partyId, partyData)
       let newParty = res.data
       let myPartiesIndex = AppState.myParties.findIndex(g => g.id === newParty.id)

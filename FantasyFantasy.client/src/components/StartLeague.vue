@@ -141,10 +141,8 @@ export default {
           await leagueService.joinLeague(activeLeague, unit)
           console.log(league.leagueStyle)
           if (league.leagueStyle.toLowerCase() === 'classic') {
-            console.log('party', unit)
             await partyService.editParty(unit.id, unit)
           } else {
-            console.log('team', unit)
             await teamService.editTeam(unit.id, unit)
           }
           router.push({

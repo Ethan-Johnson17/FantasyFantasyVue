@@ -47,7 +47,32 @@
             <div class="col-4" @click="selectLogo('knight')">
               <img src="../assets/img/knight.svg" class="knight mt-5 logoSVG" alt="knight">
             </div>
+            <!-- <div class="col-4" @click="selectLogo('bear')">
+              <img src="../assets/img/bear.svg" class="bear mt-4 logoSVG" alt="bear">
+            </div> -->
           </div>
+          <!-- <div class="row d-flex justify-content-center pt-4">
+            <div class="col-4" @click="selectLogo('tiger')">
+              <img src="../assets/img/tiger.svg" class="tiger logoSVG" alt="tiger">
+            </div>
+            <div class="col-4" @click="selectLogo('husky')">
+              <img src="../assets/img/husky.svg" class="husky logoSVG" alt="husky">
+            </div>
+            <div class="col-4" @click="selectLogo('buck')">
+              <img src="../assets/img/buck.svg" class="buck logoSVG" alt="buck">
+            </div>
+          </div>
+          <div class="row d-flex justify-content-center pt-4">
+            <div class="col-4" @click="selectLogo('samurai')">
+              <img src="../assets/img/samurai.svg" class="samurai logoSVG" alt="samurai">
+            </div>
+            <div class="col-4" @click="selectLogo('dragon')">
+              <img src="../assets/img/dragon.svg" class="dragon logoSVG" alt="dragon">
+            </div>
+            <div class="col-4" @click="selectLogo('joker')">
+              <img src="../assets/img/joker.svg" class="joker logoSVG" alt="joker">
+            </div>
+          </div> -->
         </div>
         <div class="modal-footer">
           <button class="btn btn-primary" data-bs-target="#teamNameModal" data-bs-toggle="modal"
@@ -112,7 +137,7 @@
               :secondaryColor="state.editable.secondaryColor" />
           </div>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer zIndex">
           <button class="btn btn-primary" data-bs-target="#teamLogoModal" data-bs-toggle="modal"
             data-bs-dismiss="modal">Back</button>
           <button class="btn btn-primary" data-bs-target="#teamColorModal" data-bs-toggle="modal"
@@ -222,6 +247,10 @@ export default {
   transform: scale(1.5);
 }
 
+.tiger, .husky {
+  height: 7rem;
+}
+
 .selectedLogo {
   background-color: rgb(75, 75, 75);
   transform: scale(1.5);
@@ -234,4 +263,5 @@ export default {
 .zIndex {
   z-index: 500;
 }
+
 </style>
