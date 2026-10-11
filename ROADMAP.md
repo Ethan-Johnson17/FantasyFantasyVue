@@ -33,3 +33,13 @@ These are recorded so they aren't lost. Some will use live NFL scores and show t
 
 Code that exists only for these modes (`Team`, `Unit`, salary cap, team builder) will be removed from the MVP
 codebase during the backend rewrite and rebuilt when the modes are scheduled. It stays in git history for reference.
+
+## Post-MVP backlog (Classic)
+
+Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md](docs/CLASSIC_SCORING.md).
+
+- Hero attributes affect scoring (small multiplier on primary attribute)
+- Live snake draft with pick timer and auto-pick fallback
+- Playoff bracket (NFL weeks 15–17)
+- Simulated turn-based combat (seeded RNG) as an alternative to score-based battles
+- Kicker class
