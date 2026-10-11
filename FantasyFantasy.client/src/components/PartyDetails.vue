@@ -13,8 +13,8 @@
       </div>
       <div class="col-lg-6 p-4 h-50 me-2 border rounded">
         <div class="row">
-          <div class="col-12" v-if="party.league">
-            <p class="fs-5"><strong>League Name:</strong> {{ party.league?.leagueName }}</p>
+          <div class="col-12" v-if="party.leagueId || party.League">
+            <p class="fs-5"><strong>League Name:</strong> {{ league.leagueName || party.league.leagueName }}</p>
           </div>
           <div class="col-6 d-flex" v-else>
             <p class="fs-5">League Name:</p>
@@ -32,7 +32,7 @@
       </div>
     </div>
     <div class="row border rounded d-flex justify-content-start mx-5 p-3 pb-0">
-      <div class="col-2 mb-2">
+      <div class="col-1 mb-2">
         <h4 class="mb-2">Heroes</h4>
       </div>
       <div class="col-2 mb-2">
@@ -54,7 +54,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="hero in party.heroes" :key="hero.id">
+            <tr :class="party.activeHeroes.includes(hero) ? 'activeHero' : ''" v-for="hero in party.heroes" :key="hero.id">
               <td>{{ hero.heroName }}</td>
               <td>{{ hero.heroClass }}</td>
               <td>{{ hero.heroRace }}</td>
@@ -67,7 +67,7 @@
       </div>
     </div>
   </div>
-
+  <EditPartyModal :party="party"></EditPartyModal>
 </template>
 
 <script>
@@ -78,16 +78,22 @@ import { playersService } from '../services/PlayersService'
 import { femaleNames, maleNames } from '../heroes'
 import { logger } from '../utils/Logger'
 import { leagueService } from '../services/LeagueService'
+import EditPartyModal from './EditPartyModal.vue'
 export default {
   props: {
     party: {
       type: Object
     }
   },
+  components: {
+    EditPartyModal,
+  },
   setup(props) {
     onMounted(async () => {
       await heroService.getAllHeroes()
       await heroService.getHeroesByParty(props.party.id)
+      logger.log(AppState.leagues, AppState.myLeagues, AppState.joinedLeagues)
+      logger.log(AppState.leagues.find(l => l.id == props.party.leagueId))
       if (!props.party.league && props.party.leagueId) {
         if (AppState.leagues) {
           props.party.league = AppState.leagues.find(l => l.id == props.party.leagueId)
@@ -99,6 +105,7 @@ export default {
     return {
       teamHeroes: computed(() => AppState.teamHeroes),
       heroes: computed(() => AppState.heroes),
+      league: computed(() => AppState.leagues.find(l => l.id == props.party.leagueId))
 
       // async generateHeroes() {
       //   let allHeroes = []
@@ -230,5 +237,7 @@ export default {
 </script>
 
 <style>
-
+  .activeHero {
+    background-color: midnightblue;
+  }
 </style>

@@ -6,6 +6,10 @@ import { accountService } from './AccountService'
 import { api } from './AxiosService'
 import { socketService } from './SocketService'
 import { Modal } from 'bootstrap'
+import { teamService } from './TeamService'
+import { partyService } from './PartyService'
+import { leagueService } from './LeagueService'
+import { logger } from '../utils/Logger'
 
 export const AuthService = initialize({
   domain,
@@ -31,6 +35,11 @@ AuthService.on(AuthService.AUTH_EVENTS.AUTHENTICATED, async function() {
     router.push("/")
     Modal.getOrCreateInstance(document.getElementById('finishAccountModal')).show()
   }
+  await teamService.getMyTeams('account/myTeams')
+  await partyService.getMyParties('account/myParties')
+  await leagueService.getMyLeagues()
+  AppState.leagues.push(...AppState.myLeagues, ...AppState.joinedLeagues)
+  logger.log('leage service', AppState.leagues)
   // NOTE if there is something you want to do once the user is authenticated, place that here
 })
 

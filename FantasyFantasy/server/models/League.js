@@ -14,6 +14,8 @@ export const LeagueSchema = new Schema({
     schedule: { type: Object },
     stats: { type: Object },
     standings: { type: Object },
+    week: { type: Number },
+    startDate: { type: Date },
     privacyStatus: { type: Boolean, required: true },
     activeStatus: { type: String, default: "inactive", enum: ["active", "inactive", "canceled"] },
     participantsReady: { type: Array },

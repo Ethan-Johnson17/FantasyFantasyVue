@@ -23,10 +23,13 @@ class PartyService {
   }
 
   async editParty(id, body) {
-    // const party = await this.getPartyById(id)
-    //  if (party.accountId?.toString() !== body.accountId) {
-    //    throw new Forbidden('Cannot edit a party that does not belong to you.')
-    //  }
+    const party = await this.getPartyById(id)
+    if (!party) {
+      throw new BadRequest('Party not found')
+    }
+    if (party.accountId.toString() !== body.accountId) {
+      throw new Forbidden('Cannot edit a party that does not belong to you.')
+    }
      const myParty = await dbContext.Party.findByIdAndUpdate(id, body, { new: true })
      return myParty
   }

@@ -27,7 +27,7 @@
       <div class="row my-4 border-top border-black">
         <div class="col-12">
           <h5>Available Heroes</h5>
-          <h6 class="mb-0">A party can have up to 5 active heroes. Select your heroes wisely!</h6>
+          <h6 class="mb-0">A party can have up to 5 active heroes and 3 reserves. You are limited to 2 of the same class in a particular fight. Select your heroes wisely!</h6>
           <p class="mb-1 fst-italic">Names can be changed later.</p>
         </div>
         <div class="col-6">
@@ -54,7 +54,7 @@
           </select>
         </div>
       </div>
-      <div class="row border-top border-dark selectable" :class="state.editable.filter && state.editable.filter !== hero.heroClass && state.editable.filter !== hero.heroRace ? 'd-none' : ''" :disabled="party.heroes.length >= 5" v-for="hero in heroes" :key="hero.player.id" :id="'hero' + hero.player.id" @mouseleave="hideAddHero('hero' + hero.player.id)" @mouseover="showAddHero('hero' + hero.player.id)">
+      <div class="row border-top border-dark selectable" :class="state.editable.filter && state.editable.filter !== hero.heroClass && state.editable.filter !== hero.heroRace ? 'd-none' : ''" :disabled="party.heroes.length >= 8" v-for="hero in heroes" :key="hero.player.id" :id="'hero' + hero.player.id" @mouseleave="hideAddHero('hero' + hero.player.id)" @mouseover="showAddHero('hero' + hero.player.id)">
         <div class="col-10">
           <div class="row">
             <div class="col-7 fw-bold">{{ hero.heroName }}</div>
@@ -64,7 +64,7 @@
           </div>
         </div>
         <div class="col-2 align-self-center">
-          <button v-if="party.heroes.length < 5" class="btn btn-sm btn-secondary" @click="addHero(hero)" :id="'hero' + hero.player.id + 'AddBtn'" hidden>
+          <button v-if="party.heroes.length < 8" class="btn btn-sm btn-secondary" @click="addHero(hero)" :id="'hero' + hero.player.id + 'AddBtn'" hidden>
             Add
           </button>
         </div>
@@ -106,20 +106,20 @@ export default {
       allHeroes: computed(() => AppState.heroes),
       
       showAddHero(id) {
-        if (props.party.heroes.length < 5) {
+        if (props.party.heroes.length < 8) {
           document.getElementById(id + 'AddBtn').hidden = false
         }
       },
       
       hideAddHero(id) {
-        if (props.party.heroes.length < 5) {
+        if (props.party.heroes.length < 8) {
           document.getElementById(id + 'AddBtn').hidden = true
         }
       },
 
       addHero(hero) {
         let party = props.party
-        if (party.heroes.length < 5) {
+        if (party.heroes.length < 8) {
           party.heroes.push(hero)
           let league = party.league
           league.heroes = league.heroes.filter(h => h !== hero)

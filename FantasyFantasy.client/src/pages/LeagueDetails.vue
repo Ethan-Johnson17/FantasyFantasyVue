@@ -106,7 +106,7 @@
               <td>party.stats.totalPoints</td>
               <td>party.stats.totalPoints</td>
               <!-- TODO the remove button should only show on hover -->
-              <div class="d-flex justify-content-center"><i v-if="league.hostId === account.id" :id="party.partyName" hidden="true" class="mdi mdi-account-cancel-outline fs-4 px-2 text-danger selectable" :title="'Remove ' + party.account.name + ' from the league'" @click="leaveLeague(league.id, party.accountId)"></i></div>
+              <div class="d-flex justify-content-center"><i v-if="league.hostId === account.id" :id="party.partyName" hidden="true" class="mdi mdi-account-cancel-outline fs-4 px-2 text-danger selectable" :title="'Remove ' + party.account?.name + ' from the league'" @click="leaveLeague(league.id, party.accountId)"></i></div>
             </tr>
           </tbody>
         </table>
@@ -260,7 +260,10 @@ export default {
         schedule.value = AppState.activeLeague.schedule
       })
       logger.log('ActiveLeague', AppState.activeLeague)
-
+      if (AppState.activeLeague.parties.length == 0) {
+        Pop.toast('No parties found', 'error')
+        console.error('No parties found')
+      }
       heroesFilled.value = AppState.activeLeague.parties.find(p => p.accountId == AppState.account.id).heroes.length >= 5
     })
     // Manually trigger reactivity update
@@ -322,9 +325,11 @@ export default {
               this.league.schedule = this.league.schedule.length < 1 ? this.generateSchedule() : this.league.schedule;
               schedule.value = this.league.schedule
               let week1Faceoff = this.buildFaceoff()
+              this.league.startDate = new Date()
+              this.league.week = 1
               // NOTE add this in when we are ready to start the league
               leagueService.editLeague(this.league)
-
+              startLeague(this.league)
             } else {
               Pop.error('League error-ID does not match', 'error')
             }
@@ -407,7 +412,7 @@ export default {
         // If accountId is host, cancel league. If accountId is not host but user is, remove participant. Else, leave league
         if (this.league.id === leagueId) {
           let yes;
-          // Is user hsot?
+          // Is user host?
           if (accountId === this.league.hostId) {
             yes = await Pop.confirm("Are you sure you want to cancel this league?", "This action cannot be undone. If you still planb to use this leage, simply leave it as inactive.")
             if (yes) {
@@ -423,15 +428,18 @@ export default {
             }
             if (yes) {
               // NOTE This should work for leaving a party and host removing a participant. Has not been tested.
-              let party = this.league.parties.find(p => p.id === accountId)
+              let party = this.league.parties.find(p => p.accountId === accountId)
               party.league = null;
               party.leagueId = null;
+              party.readyStatus = false;
               this.league.heroes.push(...party.heroes)
               party.heroes = []
-              this.league.participants.filter(p => p.id !== accountId)
-              this.league.participantsReady.filter(p => p.id !== accountId)
-              await leagueService.editLeague(this.league)
+              this.league.participants = this.league.participants.filter(p => p.id !== accountId)
+              this.league.participantsReady = this.league.participantsReady.filter(p => p.id !== accountId)
+              this.league.parties = this.league.parties.filter(p => p.accountId !== accountId)
+              // FIXME This would be best done in one request
               await partyService.editParty(party.id, party)
+              await leagueService.editLeague(this.league)
             }
           }
         } else {
@@ -447,7 +455,9 @@ export default {
         }
       },
 
-
+      async startLeague(league) {
+        
+      }
     }
   }
 }

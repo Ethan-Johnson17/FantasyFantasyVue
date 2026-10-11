@@ -17,9 +17,26 @@
   </div>
 
   <div v-else class="home flex-grow-1 container">
-    <div class="row masthead d-flex justify-content-center align-items-center">
+    <div class="row masthead d-flex justify-content-center">
       <div class="col-8 text-grey text-center pt-5">
         <h2>Welcome back, {{ account.name }}</h2>
+        <div class="row mt-5" v-if="myLeagues">
+          <h3>Here's an overview of your leagues</h3>
+          <!-- TODO Link to league details -->
+          <div class="col-12 rounded mt-3 bg-light px-0" v-for="league in myLeagues" :key="league.id">
+            <h4 class="bg-dark rounded">{{ league.leagueName }} <span v-if="league.activeStatus == 'active'">- Week 0</span></h4>
+            <div v-if="league.activestatus= 'active'">
+              <h5 class="text-dark">The top unit is ___</h5>
+              <h6 class="text-dark">Your rank is is ___</h6>
+            </div>
+            <div v-else class="text-dark">
+              <h5>This league is not active.</h5>
+              <h6>Your Ready Status: {{ league.participantsReady.includes(account.id) ? 'Ready' : 'Not Ready' }}</h6>
+              <h6>Number of Units in the League: {{ league.participants.length }} / 6</h6>
+              <h6>Number of Heroes in your Party: {{ league.parties.find(p => p.accountId == account.id)?.heroes.length }} / 8</h6>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -61,19 +78,27 @@ import { AuthService } from "../services/AuthService";
 import { onMounted } from "vue";
 import { logger } from '../utils/Logger';
 import { accountService } from "../services/AccountService";
+import { ref } from "vue";
+import { leagueService } from "../services/LeagueService";
+import { teamService } from "../services/TeamService";
+import { partyService } from "../services/PartyService";
 export default {
   name: 'Home',
   setup() {
     const state = reactive({
       editable: {}
     })
+    onMounted(async () => {
+      })
     return {
       state,
       user: computed(() => AppState.user),
       account: computed(() => AppState.account),
       async login() {
-        AuthService.loginWithPopup();
+        await AuthService.loginWithPopup();
+        logger.log('leagues home', AppState.leagues)
       },
+      myLeagues: computed(() => AppState.leagues),
 
       async finishAccount() {
         this.account.name = this.state.editable.name

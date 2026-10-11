@@ -139,7 +139,6 @@ export default {
           let unit = state.editable.unit
           unit.leagueId = league.id
           await leagueService.joinLeague(activeLeague, unit)
-          console.log(league.leagueStyle)
           if (league.leagueStyle.toLowerCase() === 'classic') {
             await partyService.editParty(unit.id, unit)
           } else {

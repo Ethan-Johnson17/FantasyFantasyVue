@@ -11,7 +11,8 @@ export const PartySchema = new Schema({
     accountId: { type: ObjectId, ref: 'Account', required: true },
     leagueId: { type: ObjectId, ref: 'League' },
     faceoffs: { type: Array },
-    readyStatus: { type: Boolean, default: false }
+    readyStatus: { type: Boolean, default: false },
+    activeHeroes: { type: Array }
   },
   { timestamps: true, toJSON: { virtuals: true } }
 )

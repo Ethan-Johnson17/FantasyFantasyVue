@@ -112,10 +112,12 @@ export default {
     let router = useRouter()
     let toggleStartLeague = ref(false)
     let loading = ref(true)
-    onMounted( async() => {
-      await leagueService.getMyLeagues();
-      await teamService.getMyTeams('account/myTeams')
-      await partyService.getMyParties('account/myParties')
+    onMounted(async () => {
+      if (!AppState.myLeagues && !AppState.joinedLeagues && !AppState.leagues) {
+        await leagueService.getMyLeagues();
+        await teamService.getMyTeams('account/myTeams')
+        await partyService.getMyParties('account/myParties')
+      }
       if (AppState.leagues) {
         loading.value = false
       }

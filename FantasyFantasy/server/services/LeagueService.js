@@ -4,10 +4,12 @@ import { BadRequest, Forbidden } from '../utils/Errors'
 class LeagueService {
   async createLeague(body) {
       let pin = this.generatePin()
-      // let foundLeague = await this.getLeagueByPin(pin)
-      // if (foundLeague && foundLeague?.pin == pin.toString()) {
-      //   pin = this.generatePin()
-      // }
+    let foundLeague = await this.getLeagueByPin(pin)
+    if(foundLeague){
+      if (foundLeague.pin == pin.toString()) {
+        pin = this.generatePin()
+      }
+    }
       body.pin = pin
     const league = await dbContext.League.create(body)
     return league.populate('account')
@@ -49,18 +51,26 @@ class LeagueService {
 
   async deactivateLeague(id, update) {
     const league = await this.getById(id)
-    // if (league?.hostId.toString() !== update.accountId) {
-    //   throw new Forbidden('na')
-    // }
+    if (!league) {
+    throw new Error('League not found');
+  }
+
+  if (league.hostId.toString() !== update.accountId) {
+    throw new Forbidden('Not authorized to deactivate this league');
+  }
     const newLeague = await dbContext.League.findByIdAndUpdate(id, update, { new: true })
     return newLeague
   }
 
   async deleteLeague(leagueId, userId) {
     const league = await this.getById(leagueId)
-    // if (league?.hostId.toString() !== userId) {
-    //   throw new Forbidden('What is your favorite color... wrong')
-    // }
+    if (!league) {
+    throw new Error('League not found');
+  }
+
+  if (league.hostId.toString() !== userId) {
+    throw new Forbidden('Not authorized to deactivate this league');
+  }
     await dbContext.League.findByIdAndDelete(leagueId)
     // await dbContext.Player.deleteMany({ leagueId: leagueId })
     // await dbContext.GameQueue.deleteMany({ leagueId: leagueId })

@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div class="container-fluid">
     <Loader v-if="loading"></Loader>
     <div class="row mt-3">
       <div class="col-12 d-flex">
@@ -13,10 +13,10 @@
         <PartyCarousel :party="party"></PartyCarousel>
       </div>
     </div>
-  </div>
-  <div class="container-fluid" v-if="partyDetails">
-    <div class="row bg-white" id="partyDetailsSection">
-      <PartyDetails :party="partyDetails" />
+    <div class="" v-if="partyDetails">
+      <div class="row bg-white" id="partyDetailsSection">
+        <PartyDetails :party="partyDetails" />
+      </div>
     </div>
   </div>
 </template>

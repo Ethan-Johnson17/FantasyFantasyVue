@@ -7,7 +7,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            <h6>Your party has {{ party.heroes.length }} of 5 heroes.</h6>
+            <h6>Your party has {{ party.heroes.length }} of 8 heroes.</h6>
             <ul>
               <li v-for="hero in party.heroes" :key="hero.id">
                 <h6>{{ hero.heroName }}, a {{ hero.gender }} {{ hero.heroClass }} of the {{ hero.heroRace }} race. </h6>
