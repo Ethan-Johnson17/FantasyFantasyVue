@@ -26,7 +26,6 @@
 <script>
 import { computed, onMounted } from 'vue'
 import { maleNames, femaleNames, races, classes } from '../heroes'
-import { FDPPlayerApi } from '../services/AxiosService'
 import { playersService } from '../services/PlayersService'
 import { heroService } from '../services/HeroService'
 import { AppState } from '../AppState'

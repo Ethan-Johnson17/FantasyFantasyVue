@@ -1,7 +1,5 @@
-import { AppState } from '../AppState'
 import { logger } from '../utils/Logger'
-import { api, FDPPlayerApi, playerApi } from './AxiosService'
-const clientKey = '?key=REMOVED_API_KEY'
+import { api, FDPPlayerApi } from './AxiosService'
 
 class PlayersService {
   async getFDPPlayerData(query = '') {
@@ -24,22 +22,12 @@ class PlayersService {
     }
   }
 
-  async getData(query = '') {
-    try {
-      const res = await playerApi.get('Players' + query + clientKey)
-      logger.log(res.data)
-      AppState.FDPPlayers = res.data
-    } catch (error) {
-      logger.error(error)
-    }
-  }
-
   async createFDPPlayers(players) {
     try {
       const res = await api.post('api/players/fdpPlayers', players)
       logger.log(res.data)
       return res.data
-    } catch {
+    } catch (error) {
       logger.error(error)
     }
   }

@@ -20,7 +20,7 @@
         <label for="leagueStyleSelect" class="form-label fs-5">League Style</label>
         <select class="form-select" aria-label="League Style" v-model="state.editable.leagueStyle">
           <option value="classic" selected>Classic</option>
-          <option value="crossover">Crossover</option>
+          <option value="crossover" disabled>Crossover (coming soon)</option>
           <option value="coOp" disabled>Co-op (coming soon)</option>
           <option value="freeForAll" disabled>Free-for-all (coming soon)</option>
           <option value="loneWolf" disabled>Lone Wolf (coming soon)</option>
