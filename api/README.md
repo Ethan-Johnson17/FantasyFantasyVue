@@ -23,6 +23,7 @@ cp .env.example .env   # then fill in values; .env is gitignored
 | `npm run lint` | ESLint with strict type-aware rules |
 | `npm run typecheck` | TypeScript check |
 | `npm run build` / `npm start` | Compile to `dist/` and run it |
+| `npm run import:stats -- --seasons 2011-2025` | Import nflverse weekly stats into MongoDB (idempotent; safe to re-run) |
 
 ## Conventions
 
@@ -31,3 +32,15 @@ cp .env.example .env   # then fill in values; .env is gitignored
 - **Throw `HttpError` subclasses** (`src/lib/errors.ts`) for expected failures. Anything else is logged and returned as a generic 500.
 - **Identity comes from the verified token only** (`currentAccount(req)`), never from the request body.
 - **Hidden-player rule:** never serialize NFL player identity or a league's season to clients while a league is active.
+
+## NFL stats data
+
+Weekly player and team stats come from [nflverse](https://github.com/nflverse/nflverse-data) under
+[CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). **The app must show visible attribution**,
+e.g. "Stats data provided by nflverse".
+
+- Only regular-season QB / RB / WR / TE lines and team defenses are imported.
+- Team codes are stored as current franchise codes (STL → LA, SD → LAC, OAK → LV).
+- 2011–2025 is about 49 MB including indexes and takes roughly 9 minutes against the Atlas free tier.
+- Scoring lives in `src/modules/scoring` and follows [docs/CLASSIC_SCORING.md](../docs/CLASSIC_SCORING.md).
+  It is verified to match nflverse's own half-PPR numbers for every 2023 player-week.
