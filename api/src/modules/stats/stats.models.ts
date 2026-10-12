@@ -49,7 +49,15 @@ const nflPlayerSchema = new Schema(
     _id: { type: String, required: true },
     name: { type: String, required: true },
     // Position from the most recently imported season
-    position: { type: String, required: true, enum: FANTASY_POSITIONS }
+    position: { type: String, required: true, enum: FANTASY_POSITIONS },
+    // NFL draft slot; absent for undrafted players
+    draft: {
+      type: new Schema(
+        { season: { type: Number, required: true }, round: { type: Number, required: true }, pick: { type: Number, required: true } },
+        { _id: false }
+      ),
+      required: false
+    }
   },
   { timestamps: true }
 )

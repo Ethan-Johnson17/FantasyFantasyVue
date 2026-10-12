@@ -12,7 +12,8 @@ const RELEASES = 'https://github.com/nflverse/nflverse-data/releases/download'
 export const nflverseUrls = {
   playerWeeks: (season: number) => `${RELEASES}/stats_player/stats_player_week_${String(season)}.csv`,
   teamWeeks: (season: number) => `${RELEASES}/stats_team/stats_team_week_${String(season)}.csv`,
-  games: () => `${RELEASES}/schedules/games.csv`
+  games: () => `${RELEASES}/schedules/games.csv`,
+  draftPicks: () => `${RELEASES}/draft_picks/draft_picks.csv`
 }
 
 export const FIRST_AVAILABLE_SEASON = 1999
@@ -87,6 +88,13 @@ const TeamWeekRow = z.object({
   def_pat_blocks: stat
 })
 
+const DraftPickRow = z.object({
+  season: integer,
+  round: integer.min(1),
+  pick: integer.min(1),
+  gsis_id: z.string().optional()
+})
+
 const GameRow = z.object({
   game_id: requiredText,
   home_team: requiredText,
@@ -117,6 +125,12 @@ export interface DefenseWeekDoc {
   gameId: string
   opponent: string
   stats: DefenseStatLine
+}
+
+export interface DraftSlot {
+  season: number
+  round: number
+  pick: number
 }
 
 export interface GameScore {
@@ -197,6 +211,21 @@ function toOffenseStats(row: PlayerWeekRow): OffenseStatLine {
     specialTeamsTds: row.special_teams_tds,
     fumbleRecoveryTds: row.fumble_recovery_tds
   }
+}
+
+/**
+ * NFL draft slot per player id. Rows without an id (mostly pre-2000) are skipped. A few players
+ * were drafted twice after re-entering the draft; their most recent draft wins.
+ */
+export function toDraftSlots(rows: readonly CsvRow[]): Map<string, DraftSlot> {
+  const slots = new Map<string, DraftSlot>()
+  const hasId = (row: CsvRow) => !!row.gsis_id?.trim() && row.gsis_id !== 'NA'
+  for (const row of parseRows(DraftPickRow, rows, 'draft picks', row => !hasId(row))) {
+    const id = row.gsis_id ?? ''
+    const existing = slots.get(id)
+    if (!existing || row.season > existing.season) slots.set(id, { season: row.season, round: row.round, pick: row.pick })
+  }
+  return slots
 }
 
 export function toGameScores(rows: readonly CsvRow[]): Map<string, GameScore> {

@@ -3,10 +3,12 @@ import type { AnyBulkWriteOperation, mongo } from 'mongoose'
 import {
   nflverseUrls,
   toDefenseWeekDocs,
+  toDraftSlots,
   toGameScores,
   toPlayerWeekDocs,
   type CsvRow,
   type DefenseWeekDoc,
+  type DraftSlot,
   type PlayerWeekDoc
 } from './nflverse.js'
 import {
@@ -42,7 +44,10 @@ export interface SeasonImportResult {
  * Seasons should be imported in ascending order so player names and positions end up current.
  */
 export async function importSeasons(seasons: readonly number[], loadCsv: CsvLoader = fetchCsv) {
-  const games = toGameScores(await loadCsv(nflverseUrls.games()))
+  const [games, draftSlots] = await Promise.all([
+    loadCsv(nflverseUrls.games()).then(toGameScores),
+    loadCsv(nflverseUrls.draftPicks()).then(toDraftSlots)
+  ])
   const results: SeasonImportResult[] = []
   for (const season of [...seasons].sort((a, b) => a - b)) {
     const [playerRows, teamRows] = await Promise.all([
@@ -51,7 +56,7 @@ export async function importSeasons(seasons: readonly number[], loadCsv: CsvLoad
     ])
     const playerWeeks = toPlayerWeekDocs(playerRows)
     const defenseWeeks = toDefenseWeekDocs(teamRows, playerRows, games)
-    const players = await savePlayers(playerWeeks)
+    const players = await savePlayers(playerWeeks, draftSlots)
     await bulkWriteInBatches(PlayerWeekStatModel, playerWeeks.map(upsertPlayerWeek))
     await bulkWriteInBatches(DefenseWeekStatModel, defenseWeeks.map(upsertDefenseWeek))
     results.push({ season, players, playerWeeks: playerWeeks.length, defenseWeeks: defenseWeeks.length })
@@ -59,7 +64,10 @@ export async function importSeasons(seasons: readonly number[], loadCsv: CsvLoad
   return results
 }
 
-async function savePlayers(playerWeeks: readonly PlayerWeekDoc[]): Promise<number> {
+async function savePlayers(
+  playerWeeks: readonly PlayerWeekDoc[],
+  draftSlots: ReadonlyMap<string, DraftSlot>
+): Promise<number> {
   // Latest week wins, so a mid-season position change is reflected.
   const latest = new Map<string, PlayerWeekDoc>()
   for (const line of [...playerWeeks].sort((a, b) => a.week - b.week)) latest.set(line.playerId, line)
@@ -67,7 +75,13 @@ async function savePlayers(playerWeeks: readonly PlayerWeekDoc[]): Promise<numbe
   const operations: AnyBulkWriteOperation<NflPlayer>[] = [...latest.values()].map(line => ({
     updateOne: {
       filter: { _id: line.playerId },
-      update: { $set: { name: line.playerName, position: line.position } },
+      update: {
+        $set: {
+          name: line.playerName,
+          position: line.position,
+          ...(draftSlots.has(line.playerId) ? { draft: draftSlots.get(line.playerId) } : {})
+        }
+      },
       upsert: true
     }
   }))
