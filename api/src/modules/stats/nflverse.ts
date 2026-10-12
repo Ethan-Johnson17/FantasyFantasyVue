@@ -194,7 +194,8 @@ function toOffenseStats(row: PlayerWeekRow): OffenseStatLine {
     receivingTds: row.receiving_tds,
     twoPointConversions: row.passing_2pt_conversions + row.rushing_2pt_conversions + row.receiving_2pt_conversions,
     fumblesLost: row.sack_fumbles_lost + row.rushing_fumbles_lost + row.receiving_fumbles_lost,
-    specialTeamsTds: row.special_teams_tds
+    specialTeamsTds: row.special_teams_tds,
+    fumbleRecoveryTds: row.fumble_recovery_tds
   }
 }
 

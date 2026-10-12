@@ -19,7 +19,8 @@ const noOffense: OffenseStatLine = {
   receivingTds: 0,
   twoPointConversions: 0,
   fumblesLost: 0,
-  specialTeamsTds: 0
+  specialTeamsTds: 0,
+  fumbleRecoveryTds: 0
 }
 
 const noDefense: DefenseStatLine = {
@@ -49,7 +50,8 @@ describe('scoreOffense (ruleset v1, half-PPR)', () => {
     ['receiving TD', { receivingTds: 1 }, 6],
     ['2-pt conversion', { twoPointConversions: 1 }, 2],
     ['fumble lost', { fumblesLost: 1 }, -2],
-    ['special teams TD', { specialTeamsTds: 1 }, 6]
+    ['special teams TD', { specialTeamsTds: 1 }, 6],
+    ['fumble recovery TD', { fumbleRecoveryTds: 1 }, 6]
   ])('scores %s', (_label, partial, expected) => {
     expect(scoreOffense({ ...noOffense, ...partial }, RULESET_V1)).toBe(expected)
   })

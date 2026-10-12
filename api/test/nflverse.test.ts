@@ -38,13 +38,22 @@ describe('toPlayerWeekDocs', () => {
     // Excluded: T.J. Watt (OLB), Joe Flacco (postseason), Matt Prater (K)
   })
 
-  it('scores every row the same as nflverse half-PPR: (standard + PPR) / 2', () => {
+  it('scores every row as nflverse half-PPR, plus 6 per offensive fumble-recovery TD', () => {
+    // nflverse's own fantasy points don't credit fumble-recovery TDs; ruleset v1 does.
     const docs = toPlayerWeekDocs(playerRows)
     for (const doc of docs) {
       const source = playerRows.find(row => row.player_id === doc.playerId && Number(row.week) === doc.week)
       const halfPpr = (Number(source?.fantasy_points) + Number(source?.fantasy_points_ppr)) / 2
-      expect(scoreOffense(doc.stats, RULESET_V1), doc.playerName).toBeCloseTo(halfPpr, 6)
+      const expected = halfPpr + 6 * Number(source?.fumble_recovery_tds)
+      expect(scoreOffense(doc.stats, RULESET_V1), doc.playerName).toBeCloseTo(expected, 6)
     }
+  })
+
+  it("credits an offensive player's own end-zone fumble recovery (McLaurin 2023 week 4)", () => {
+    const mclaurin = toPlayerWeekDocs(playerRows).find(doc => doc.playerName === 'Terry McLaurin')
+    expect(mclaurin?.stats.fumbleRecoveryTds).toBe(1)
+    // 8 rec (4) + 86 yds (8.6) + recovery TD (6)
+    expect(mclaurin && scoreOffense(mclaurin.stats, RULESET_V1)).toBe(18.6)
   })
 
   it('combines 2-pt conversions and lost fumbles across play types', () => {

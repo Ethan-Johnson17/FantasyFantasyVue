@@ -16,6 +16,8 @@ export interface OffenseRules {
   twoPointConversion: number
   fumbleLost: number
   specialTeamsTd: number
+  /** An offensive player recovering a fumble (their own or a teammate's) in the end zone */
+  fumbleRecoveryTd: number
 }
 
 export interface DefenseRules {
@@ -48,7 +50,8 @@ export const RULESET_V1: Ruleset = {
     reception: 0.5,
     twoPointConversion: 2,
     fumbleLost: -2,
-    specialTeamsTd: 6
+    specialTeamsTd: 6,
+    fumbleRecoveryTd: 6
   },
   defense: {
     sack: 1,
