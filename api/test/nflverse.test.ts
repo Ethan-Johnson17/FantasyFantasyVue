@@ -3,8 +3,9 @@ import { RULESET_V1 } from '../src/modules/scoring/rulesets.js'
 import { scoreDefense, scoreOffense } from '../src/modules/scoring/scoring.js'
 import {
   toDefenseWeekDocs,
-  toGameScores,
+  toDraftSlots,
   toFranchiseCode,
+  toGameScores,
   toPlayerWeekDocs,
   type CsvRow,
   type DefenseWeekDoc,
@@ -79,6 +80,22 @@ describe('toPlayerWeekDocs', () => {
   it('rejects non-numeric stats instead of silently scoring them', () => {
     const broken = [{ ...playerRows[0], rushing_yards: 'lots' }]
     expect(() => toPlayerWeekDocs(broken)).toThrow(/rushing_yards/)
+  })
+})
+
+describe('toDraftSlots', () => {
+  it('maps player ids to draft slots, skipping rows without ids and keeping the latest re-entry', () => {
+    const slots = toDraftSlots([
+      { season: '1986', round: '1', pick: '1', gsis_id: 'JAC631960' },
+      { season: '1987', round: '7', pick: '183', gsis_id: 'JAC631960' },
+      { season: '1985', round: '2', pick: '40', gsis_id: 'NA' },
+      { season: '1985', round: '3', pick: '70', gsis_id: '' }
+    ])
+    expect([...slots]).toEqual([['JAC631960', { season: 1987, round: 7, pick: 183 }]])
+  })
+
+  it('rejects malformed rows', () => {
+    expect(() => toDraftSlots([{ season: '2020', round: 'first', pick: '1', gsis_id: 'X' }])).toThrow(/draft picks row 1: round/)
   })
 })
 

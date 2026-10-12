@@ -17,7 +17,11 @@ describe('importSeasons', () => {
     expect(mccaffrey?.stats).toMatchObject({ rushingYards: 152, rushingTds: 1, receptions: 3, receivingYards: 17 })
 
     const player = await NflPlayerModel.findById(mccaffrey?.playerId).lean()
-    expect(player).toMatchObject({ name: 'Christian McCaffrey', position: 'RB' })
+    expect(player).toMatchObject({ name: 'Christian McCaffrey', position: 'RB', draft: { season: 2017, round: 1, pick: 8 } })
+
+    // Gipson was undrafted, so has no draft slot.
+    const gipson = await NflPlayerModel.findOne({ name: 'Xavier Gipson' }).lean()
+    expect(gipson?.draft).toBeUndefined()
   })
 
   it('is idempotent: re-importing updates rows instead of duplicating them', async () => {

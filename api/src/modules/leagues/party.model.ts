@@ -7,7 +7,22 @@ const partySchema = new Schema(
     leagueId: { type: Schema.Types.ObjectId, ref: 'League', required: true, immutable: true },
     accountId: { type: Schema.Types.ObjectId, ref: 'Account', required: true, immutable: true },
     name: { type: String, required: true, trim: true, maxlength: PARTY_NAME_MAX },
-    color: { type: String, required: true, match: /^#[0-9a-f]{6}$/i }
+    color: { type: String, required: true, match: /^#[0-9a-f]{6}$/i },
+    // Starting lineup (hero ids by slot); auto-filled after the draft
+    lineup: {
+      type: new Schema(
+        {
+          Mage: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
+          Warrior: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
+          Ranger: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
+          Rogue: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
+          Paladin: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
+          Flex: { type: Schema.Types.ObjectId, ref: 'Hero', required: true }
+        },
+        { _id: false }
+      ),
+      required: false
+    }
   },
   { timestamps: true }
 )

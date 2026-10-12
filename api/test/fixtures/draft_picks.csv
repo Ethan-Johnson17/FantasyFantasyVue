@@ -1,0 +1,9 @@
+season,round,pick,team,gsis_id,pfr_player_id,cfb_player_id,pfr_player_name,hof,position,category,side,college,age,to,allpro,probowls,seasons_started,w_av,car_av,dr_av,games,pass_completions,pass_attempts,pass_yards,pass_tds,pass_ints,rush_atts,rush_yards,rush_tds,receptions,rec_yards,rec_tds,def_solo_tackles,def_ints,def_sacks
+2008,1,18,BAL,00-0026158,FlacJo00,joe-flacco-1,Joe Flacco,FALSE,QB,QB,O,Delaware,23,2026,0,1,12,97,,89,210,4417,7167,48176,272,172,407,925,17,2,32,0,1,,
+2012,4,102,WAS,00-0029604,CousKi00,kirk-cousins-1,Kirk Cousins,FALSE,QB,QB,O,Michigan St.,24,2026,0,4,9,102,,34,178,4027,6043,45726,309,135,353,963,20,1,-1,0,1,,
+2014,2,62,NWE,00-0031345,GaroJi00,,Jimmy Garoppolo,FALSE,QB,QB,O,Eastern Illinois,22,2025,0,0,3,47,,2,85,1304,1936,15828,96,52,196,259,7,2,-3,0,,,
+2017,1,8,CAR,00-0033280,McCaCh01,christian-mccaffrey-1,Christian McCaffrey,FALSE,RB,RB,O,Stanford,21,2026,3,4,6,86,,43,116,2,5,84,2,0,1708,7807,66,642,5512,36,1,,
+2017,1,30,PIT,00-0033886,WattT.00,tj-watt-1,T.J. Watt,FALSE,OLB,LB,D,Wisconsin,22,2026,4,8,9,96,,96,139,0,0,0,0,0,0,0,0,0,0,0,364,10,119.5
+2019,1,8,DET,00-0035229,HockTJ00,tj-hockenson-1,T.J. Hockenson,FALSE,TE,TE,O,Iowa,22,2026,0,2,4,33,,16,101,0,0,0,0,0,2,0,0,455,4635,27,2,,
+2019,3,76,WAS,00-0035659,McLaTe00,terry-mclaurin-1,Terry McLaurin,FALSE,WR,WR,O,Ohio St.,23,2026,0,2,7,51,,51,110,0,0,0,0,0,12,73,0,508,7102,42,5,,
+2022,5,164,LAR,00-0037840,WillKy02,kyren-williams-1,Kyren Williams,FALSE,RB,RB,O,Notre Dame,22,2026,0,1,3,31,,31,59,0,0,0,0,0,892,4128,39,132,918,9,2,,

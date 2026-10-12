@@ -129,6 +129,56 @@ Decided 2026-10-12:
 - **Leaving:** while a league is forming, members can leave and the host can remove members.
   The host cancels the league instead of leaving it.
 
+## Season setup and draft (step 4a)
+
+Decided 2026-10-12. Items marked *(default)* were filled in during implementation; change them in review if needed.
+
+**Scheduling the draft.** Once 2 or more parties have joined, the host picks a draft time, between 10 minutes and
+14 days ahead *(default)*. Scheduling **locks membership** (status `drafting`), because the hero pool is sized to the
+parties. The host can reschedule until the draft runs.
+
+**Hidden season.** When the draft is scheduled, the server picks a random season from 2012–2025, out of those whose
+stats (and the previous season's) are imported. It is never sent to clients until the reveal.
+
+**Hero pool** (about 2× demand). Each party drafts 8 heroes, so the pool per party is
+3 Mages (QB), 5 Warriors (RB), 5 Rangers (WR), 3 Rogues (TE) and 2 Paladins (DEF), 18 in all *(default)*.
+Only players with at least one game in weeks 1–14 of the hidden season are eligible.
+
+- **Veterans** (4 or more games in the previous season) are ranked by previous-season points per game under the
+  league's ruleset. The best fill the pool.
+- **Mystery recruits** are rookies drafted in the hidden season's NFL draft, taking up to 20% of each class's pool
+  *(default)*, best draft picks first. Their exact Level is hidden; they show a **Level range** by draft round:
+  round 1 → 6–10, round 2 → 4–9, round 3 → 3–8, rounds 4–7 → 1–6 *(default)*.
+- Veterans with fewer than 4 games in the previous season are left out of the MVP pool *(default)*.
+
+**Level (1–10).** Within each class in the pool, veterans are split into deciles by previous-season points per game:
+the top 10% are Level 10. Team defenses (Paladins) work the same way, using team defense points per game.
+
+**Hero appearance** (from the original generator):
+
+| Class | Races (50/50) | Weapon | Skill | Male share |
+|---|---|---|---|---|
+| Mage | Gnome, Elf | Staff | Fireball | ~2/3 |
+| Ranger | Human, Elf | Bow | Power Shot | ~2/3 |
+| Warrior | Half-orc, Dwarf | Sword and Shield | Shield Bash | ~3/4 |
+| Rogue | Human, Halfling | Dagger | Sneak | ~2/3 |
+| Paladin | Dragonborn, Aarakocra | Spear | Minor Self-heal | ~3/4 |
+
+Attack, defense and magic are the class base plus a 1–3 roll, as in the original generator (cosmetic only).
+Names are generated from name parts and are unique within a league. All randomness comes from a seeded generator
+stored on the league, so a league's setup can be reproduced and audited.
+
+**Rankings.** Before the draft, each member may rank any part of the pool.
+
+**The automatic snake draft.** At the draft time (processed when anyone opens the league), the snake order is
+randomized. Each pick takes the picker's highest-ranked available hero that keeps their roster completable. If none of
+their ranked heroes is still available and allowed, it takes the highest-Level allowed hero (a mystery recruit counts
+as the midpoint of its range). A pick is not allowed if it would leave the roster unable to fill its required slots, or
+if it would take the last hero of a class that another party still needs.
+
+**After the draft** the league becomes `active`. Each party's starting lineup is auto-filled with its highest-Level
+hero per slot. Week 1 resolves one cadence after the draft time.
+
 ## Attribution
 
 nflverse data is CC-BY-4.0. The app needs a visible credit, e.g., "Stats data provided by nflverse" on the About page.

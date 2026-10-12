@@ -1,7 +1,9 @@
 import mongoose, { type ClientSession, type Types } from 'mongoose'
 import { isDuplicateKeyError } from '../../db/mongoose.js'
-import { Conflict, Forbidden, NotFound } from '../../lib/errors.js'
+import { Conflict, NotFound } from '../../lib/errors.js'
 import { AccountModel, type AccountDocument } from '../accounts/account.model.js'
+import { advanceLeague } from '../draft/draft.service.js'
+import { inTransaction, loadLeagueAsHost } from './league.access.js'
 import { LeagueModel, type LeagueDocument, type LeagueStatus } from './league.model.js'
 import type { CreateLeagueInput, PartyInput, UpdateLeagueInput, UpdatePartyInput } from './league.schemas.js'
 import { PartyModel, type PartyDocument } from './party.model.js'
@@ -52,6 +54,10 @@ export interface LeagueSummaryView {
 export interface LeagueDetailView extends LeagueSummaryView {
   rulesetVersion: number
   parties: PartyView[]
+  /** When the automatic draft runs (set once scheduled) */
+  draftAt: Date | null
+  /** When game week 1 resolves (set once the draft has run) */
+  weekOneAt: Date | null
 }
 
 export interface MyLeagueView extends LeagueSummaryView {
@@ -62,6 +68,7 @@ export interface MyLeagueView extends LeagueSummaryView {
 // Queries
 
 export async function getLeague(viewer: AccountDocument, leagueId: string): Promise<LeagueDetailView> {
+  await advanceLeague(leagueId)
   const league = await LeagueModel.findById(leagueId)
   if (!league) throw new NotFound()
   const parties = await PartyModel.find({ leagueId: league._id }).sort({ createdAt: 1 })
@@ -72,6 +79,8 @@ export async function getLeague(viewer: AccountDocument, leagueId: string): Prom
   return {
     ...toSummary(league, viewer, profiles, isMember),
     rulesetVersion: league.rulesetVersion,
+    draftAt: league.draftAt ?? null,
+    weekOneAt: league.weekOneAt ?? null,
     parties: parties.map(party => ({
       id: party.id,
       name: party.name,
@@ -84,6 +93,7 @@ export async function getLeague(viewer: AccountDocument, leagueId: string): Prom
 
 export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueView[]> {
   const parties = await PartyModel.find({ accountId: viewer._id })
+  for (const party of parties) await advanceLeague(party.leagueId.toString())
   const partyByLeague = new Map(parties.map(party => [party.leagueId.toString(), party]))
   const leagues = await LeagueModel.find({ _id: trusted({ $in: parties.map(party => party.leagueId) }) }).sort({
     updatedAt: -1
@@ -237,11 +247,6 @@ export async function updateParty(owner: AccountDocument, partyId: string, input
 // ---------------------------------------------------------------------------
 // Helpers
 
-/** Runs work in a transaction; retries transient errors and aborts on any thrown error. */
-function inTransaction<T>(work: (session: ClientSession) => Promise<T>): Promise<T> {
-  return mongoose.connection.transaction(work)
-}
-
 async function removePartyFromLeague(league: LeagueDocument, party: PartyDocument): Promise<void> {
   await inTransaction(async session => {
     const released = await LeagueModel.updateOne(
@@ -253,19 +258,6 @@ async function removePartyFromLeague(league: LeagueDocument, party: PartyDocumen
     const deleted = await PartyModel.deleteOne({ _id: party._id }, { session })
     if (deleted.deletedCount === 0) throw new NotFound()
   })
-}
-
-/**
- * Loads a league the viewer hosts. Non-members of private leagues get 404 so the league's
- * existence isn't revealed; members who aren't the host get 403.
- */
-async function loadLeagueAsHost(viewer: AccountDocument, leagueId: string): Promise<LeagueDocument> {
-  const league = await LeagueModel.findById(leagueId)
-  if (!league) throw new NotFound()
-  if (league.hostId.equals(viewer._id)) return league
-  const isMember = await PartyModel.exists({ leagueId: league._id, accountId: viewer._id })
-  if (!isMember && league.visibility !== 'public') throw new NotFound()
-  throw new Forbidden('Only the host can do that')
 }
 
 async function explainJoinFailure(pin: string, session: ClientSession): Promise<Error> {

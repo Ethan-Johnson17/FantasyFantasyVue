@@ -1,12 +1,15 @@
 import { Router } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import { currentAccount } from '../../middleware/auth.js'
+import * as draft from '../draft/draft.service.js'
 import {
   CreateLeagueSchema,
   JoinLeagueSchema,
   PageQuerySchema,
   parseId,
   PinSchema,
+  RankingsSchema,
+  ScheduleDraftSchema,
   UpdateLeagueSchema,
   UpdatePartySchema
 } from './league.schemas.js'
@@ -62,6 +65,22 @@ export function leagueRouter() {
     .delete('/:id/parties/:partyId', async (req, res) => {
       const leagueId = parseId(req.params.id)
       res.json(await leagues.removeParty(currentAccount(req), leagueId, parseId(req.params.partyId)))
+    })
+    .post('/:id/draft', async (req, res) => {
+      const leagueId = parseId(req.params.id)
+      const { draftAt } = ScheduleDraftSchema.parse(req.body)
+      await draft.scheduleDraft(currentAccount(req), leagueId, draftAt)
+      res.json(await leagues.getLeague(currentAccount(req), leagueId))
+    })
+    .get('/:id/heroes', async (req, res) => {
+      res.json(await draft.listHeroes(currentAccount(req), parseId(req.params.id)))
+    })
+    .get('/:id/rankings', async (req, res) => {
+      res.json(await draft.getRankings(currentAccount(req), parseId(req.params.id)))
+    })
+    .put('/:id/rankings', async (req, res) => {
+      const { heroIds } = RankingsSchema.parse(req.body)
+      res.json(await draft.setRankings(currentAccount(req), parseId(req.params.id), heroIds))
     })
 }
 

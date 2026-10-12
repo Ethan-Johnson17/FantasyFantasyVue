@@ -9,6 +9,23 @@ export const MAX_PARTIES = 6
 export const LEAGUE_NAME_MAX = 50
 
 export type LeagueStatus = (typeof LEAGUE_STATUSES)[number]
+export type LeagueCadence = (typeof LEAGUE_CADENCES)[number]
+
+/** How long one game week lasts for each cadence. */
+export const CADENCE_MS: Readonly<Record<LeagueCadence, number>> = {
+  daily: 24 * 60 * 60 * 1000,
+  weekly: 7 * 24 * 60 * 60 * 1000
+}
+
+const draftPickSchema = new Schema(
+  {
+    round: { type: Number, required: true },
+    overall: { type: Number, required: true },
+    partyId: { type: Schema.Types.ObjectId, ref: 'Party', required: true },
+    heroId: { type: Schema.Types.ObjectId, ref: 'Hero', required: true }
+  },
+  { _id: false }
+)
 
 const leagueSchema = new Schema(
   {
@@ -22,7 +39,17 @@ const leagueSchema = new Schema(
     partyCount: { type: Number, required: true, default: 0, min: 0 },
     // Locked at creation so later ruleset changes never alter this league's results.
     rulesetVersion: { type: Number, required: true, immutable: true, default: CURRENT_RULESET_VERSION },
-    pin: { type: String, required: true, unique: true, immutable: true }
+    pin: { type: String, required: true, unique: true, immutable: true },
+
+    // Set when the draft is scheduled. Hidden from clients until the end-of-season reveal.
+    season: { type: Number, select: false },
+    // Seeds the league's hero pool and draft (see lib/random.ts). Never sent to clients.
+    seed: { type: String, select: false },
+    draftAt: { type: Date },
+    // Set when the draft runs
+    draftOrder: { type: [{ type: Schema.Types.ObjectId, ref: 'Party' }], default: undefined },
+    draftPicks: { type: [draftPickSchema], default: undefined },
+    weekOneAt: { type: Date }
   },
   { timestamps: true }
 )

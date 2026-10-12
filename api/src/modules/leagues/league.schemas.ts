@@ -44,6 +44,21 @@ export const UpdatePartySchema = PartyInputSchema.partial()
   .strict()
   .refine(update => Object.keys(update).length > 0, 'provide at least one field to change')
 
+const ObjectIdSchema = z.string().regex(/^[0-9a-f]{24}$/i, 'must be an id')
+
+export const ScheduleDraftSchema = z
+  .object({ draftAt: z.iso.datetime({ offset: true }).transform(value => new Date(value)) })
+  .strict()
+
+export const RankingsSchema = z
+  .object({
+    heroIds: z
+      .array(ObjectIdSchema)
+      .max(200)
+      .refine(ids => new Set(ids.map(id => id.toLowerCase())).size === ids.length, 'heroes may only be ranked once')
+  })
+  .strict()
+
 export const PageQuerySchema = z.object({ page: z.coerce.number().int().min(1).max(100).default(1) })
 
 export type CreateLeagueInput = z.infer<typeof CreateLeagueSchema>
