@@ -42,6 +42,7 @@ Ruleset v1 (half-PPR):
 | 2-pt conversion (pass, rush, rec) | 2 |
 | Fumble lost | −2 |
 | Special teams TD | 6 |
+| Fumble recovery TD (recovering a fumble in the end zone) | 6 |
 
 **Team defense (Paladin):**
 

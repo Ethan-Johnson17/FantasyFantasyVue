@@ -24,7 +24,8 @@ const offenseStatsSchema = new Schema(
     receivingTds: count,
     twoPointConversions: count,
     fumblesLost: count,
-    specialTeamsTds: count
+    specialTeamsTds: count,
+    fumbleRecoveryTds: count
   },
   { _id: false }
 )

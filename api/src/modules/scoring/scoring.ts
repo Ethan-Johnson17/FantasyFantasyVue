@@ -13,6 +13,7 @@ export interface OffenseStatLine {
   twoPointConversions: number
   fumblesLost: number
   specialTeamsTds: number
+  fumbleRecoveryTds: number
 }
 
 /** Raw weekly stats for a team defense. */
@@ -43,7 +44,8 @@ export function scoreOffense(stats: OffenseStatLine, ruleset: Ruleset): number {
       toHundredths(stats.receivingTds, rules.receivingTd) +
       toHundredths(stats.twoPointConversions, rules.twoPointConversion) +
       toHundredths(stats.fumblesLost, rules.fumbleLost) +
-      toHundredths(stats.specialTeamsTds, rules.specialTeamsTd)
+      toHundredths(stats.specialTeamsTds, rules.specialTeamsTd) +
+      toHundredths(stats.fumbleRecoveryTds, rules.fumbleRecoveryTd)
   )
 }
 
