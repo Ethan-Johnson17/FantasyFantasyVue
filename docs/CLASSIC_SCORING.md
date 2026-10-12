@@ -179,6 +179,25 @@ if it would take the last hero of a class that another party still needs.
 **After the draft** the league becomes `active`. Each party's starting lineup is auto-filled with its highest-Level
 hero per slot. Week 1 resolves one cadence after the draft time.
 
+## Season play (step 4b)
+
+Decided 2026-10-13. Items marked *(default)* were filled in during implementation.
+
+- **Schedule:** a round-robin over game weeks 1–14 (the hidden season's NFL weeks 1–14), generated when the draft runs.
+  The party order is shuffled from the league seed; with 2 parties they meet every week.
+- **Dungeon monster:** with an odd number of parties, the party without an opponent each week fights a monster.
+  The monster's damage is that week's league-average party damage. Wins, losses and draws against it count in the standings.
+- **Timing:** game week *k* resolves at `weekOneAt + (k − 1) × cadence`. It is processed the first time anyone opens the
+  league after that time. If several weeks are due at once, they resolve in order.
+- **Lineup lock:** the lineup in place when a week resolves is used. Any lineup change first resolves every week already
+  due, so a late change only affects later weeks. Each week's result stores the lineup that was used.
+- **Resting:** a hero whose player or team has no stats that NFL week is shown as **Resting** for the upcoming week and scores 0.
+- **What users see:** party totals are exact. Each hero's damage is shown **rounded to the nearest whole number**,
+  because exact per-hero weekly points could be matched against public stats to identify the hidden player.
+  Scoring itself always uses exact values.
+- **Standings:** a win is worth 1 and a draw ½ *(default)*. Ties in the standings go to the higher total damage. After
+  week 14 the league is `complete`.
+
 ## Attribution
 
 nflverse data is CC-BY-4.0. The app needs a visible credit, e.g., "Stats data provided by nflverse" on the About page.

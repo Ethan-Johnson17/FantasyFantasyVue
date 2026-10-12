@@ -11,6 +11,7 @@ import { inTransaction, loadLeagueAsHost, loadLeagueAsMember, loadVisibleLeague 
 import { CADENCE_MS, LeagueModel } from '../leagues/league.model.js'
 import { PartyModel } from '../leagues/party.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
+import { roundRobin } from '../season/schedule.js'
 import { loadPoolCandidates, pickSeason } from './candidates.js'
 import { DraftRankingModel } from './ranking.model.js'
 import { runSnakeDraft } from './snakeDraft.js'
@@ -88,7 +89,7 @@ export async function scheduleDraft(host: AccountDocument, leagueId: string, dra
 }
 
 /** Runs the draft if it is due. Safe to call often and concurrently: only one caller runs it. */
-export async function advanceLeague(leagueId: string): Promise<void> {
+export async function runDueDraft(leagueId: string): Promise<void> {
   const due = { _id: leagueId, status: 'drafting' as const, draftAt: trusted({ $lte: new Date() }) }
   if (!(await LeagueModel.exists(due))) return
 
@@ -131,6 +132,10 @@ export async function advanceLeague(leagueId: string): Promise<void> {
         $set: {
           draftOrder: order,
           draftPicks: picks,
+          schedule: roundRobin(
+            parties.map(party => party.id),
+            createRng(league.seed, 'schedule')
+          ),
           weekOneAt: new Date(league.draftAt.getTime() + CADENCE_MS[league.cadence])
         }
       },
@@ -140,7 +145,6 @@ export async function advanceLeague(leagueId: string): Promise<void> {
 }
 
 export async function listHeroes(viewer: AccountDocument, leagueId: string): Promise<HeroView[]> {
-  await advanceLeague(leagueId)
   const league = await loadVisibleLeague(viewer, leagueId)
   const heroes = await HeroModel.find({ leagueId: league._id })
   const classOrder = (hero: HeroDocument) => HERO_CLASSES.indexOf(hero.heroClass)
@@ -150,7 +154,6 @@ export async function listHeroes(viewer: AccountDocument, leagueId: string): Pro
 }
 
 export async function getRankings(member: AccountDocument, leagueId: string): Promise<{ heroIds: string[] }> {
-  await advanceLeague(leagueId)
   const { party } = await loadLeagueAsMember(member, leagueId)
   const ranking = await DraftRankingModel.findOne({ partyId: party._id })
   return { heroIds: ranking?.heroIds.map(String) ?? [] }
@@ -161,7 +164,6 @@ export async function setRankings(
   leagueId: string,
   heroIds: readonly string[]
 ): Promise<{ heroIds: string[] }> {
-  await advanceLeague(leagueId)
   const { league, party } = await loadLeagueAsMember(member, leagueId)
   if (league.status !== 'drafting') throw new Conflict('Rankings can only be changed before the draft runs')
   const inPool = await HeroModel.countDocuments({ leagueId: league._id, _id: trusted({ $in: heroIds }) })
@@ -175,7 +177,7 @@ export async function setRankings(
   return { heroIds: [...heroIds] }
 }
 
-function toHeroView(hero: HeroDocument): HeroView {
+export function toHeroView(hero: HeroDocument): HeroView {
   return {
     id: hero.id,
     name: hero.name,
