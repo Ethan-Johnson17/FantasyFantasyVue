@@ -1,7 +1,6 @@
 import { z } from 'zod'
+import { isDuplicateKeyError } from '../../db/mongoose.js'
 import { AccountModel, DISPLAY_NAME_MAX, type AccountDocument } from './account.model.js'
-
-const DUPLICATE_KEY = 11000
 
 /**
  * Returns the account for an Auth0 subject, creating it on first login.
@@ -37,8 +36,4 @@ export type AccountUpdate = z.infer<typeof AccountUpdateSchema>
 export async function updateAccount(account: AccountDocument, update: AccountUpdate): Promise<AccountDocument> {
   account.set(update)
   return account.save()
-}
-
-function isDuplicateKeyError(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === DUPLICATE_KEY
 }
