@@ -1,0 +1,29 @@
+import js from '@eslint/js'
+import tseslint from 'typescript-eslint'
+
+export default tseslint.config(
+  { ignores: ['dist', 'node_modules'] },
+  js.configs.recommended,
+  ...tseslint.configs.strictTypeChecked,
+  {
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname }
+    }
+  },
+  {
+    rules: {
+      // Leading underscore marks intentionally unused params (Express needs 4-arg error handlers).
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
+    }
+  },
+  {
+    // supertest response bodies are untyped; assertions on them are the point of the tests.
+    files: ['test/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off'
+    }
+  },
+  { files: ['eslint.config.js'], ...tseslint.configs.disableTypeChecked }
+)
