@@ -13,10 +13,12 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "import:stats": "tsx --env-file=.env src/scripts/import-stats.ts"
   },
   "dependencies": {
     "cors": "2.8.6",
+    "csv-parse": "7.0.3",
     "express": "5.3.0",
     "express-oauth2-jwt-bearer": "1.10.0",
     "express-rate-limit": "8.7.1",
