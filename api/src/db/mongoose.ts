@@ -24,3 +24,16 @@ export function jsonOptions(hiddenFields: readonly string[] = []) {
     }
   }
 }
+
+const DUPLICATE_KEY = 11000
+
+/**
+ * True for a unique-index violation. Pass `field` to check which index was violated
+ * (it must be one of the index's keys).
+ */
+export function isDuplicateKeyError(error: unknown, field?: string): boolean {
+  if (typeof error !== 'object' || error === null || !('code' in error) || error.code !== DUPLICATE_KEY) return false
+  if (field === undefined) return true
+  const keyPattern = 'keyPattern' in error ? error.keyPattern : undefined
+  return typeof keyPattern === 'object' && keyPattern !== null && field in keyPattern
+}

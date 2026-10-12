@@ -8,6 +8,7 @@ import type { Env } from './config/env.js'
 import { loadAccount } from './middleware/auth.js'
 import { errorHandler, notFound } from './middleware/errors.js'
 import { accountRouter } from './modules/accounts/account.routes.js'
+import { leagueRouter, partyRouter } from './modules/leagues/league.routes.js'
 import { healthRouter } from './routes/health.js'
 
 export interface AppDependencies {
@@ -35,6 +36,8 @@ export function createApp({ env, logger, authenticate }: AppDependencies) {
   const api = express.Router()
   api.use(authenticate, loadAccount)
   api.use('/account', accountRouter)
+  api.use('/leagues', leagueRouter())
+  api.use('/parties', partyRouter)
   app.use('/api', api)
 
   app.use(notFound)

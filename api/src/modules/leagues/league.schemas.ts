@@ -1,0 +1,58 @@
+import { z } from 'zod'
+import { NotFound } from '../../lib/errors.js'
+import {
+  LEAGUE_CADENCES,
+  LEAGUE_NAME_MAX,
+  LEAGUE_VISIBILITIES,
+  MAX_PARTIES,
+  MIN_PARTIES
+} from './league.model.js'
+import { PARTY_NAME_MAX } from './party.model.js'
+import { PIN_PATTERN } from './pin.js'
+
+export const PartyInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(PARTY_NAME_MAX),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'must be a hex color like #1a2b3c')
+  })
+  .strict()
+
+export const PinSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(PIN_PATTERN, 'must be a 6-character league PIN')
+
+export const CreateLeagueSchema = z
+  .object({
+    name: z.string().trim().min(1).max(LEAGUE_NAME_MAX),
+    visibility: z.enum(LEAGUE_VISIBILITIES),
+    cadence: z.enum(LEAGUE_CADENCES),
+    maxParties: z.number().int().min(MIN_PARTIES).max(MAX_PARTIES),
+    party: PartyInputSchema
+  })
+  .strict()
+
+export const UpdateLeagueSchema = CreateLeagueSchema.omit({ party: true })
+  .partial()
+  .strict()
+  .refine(update => Object.keys(update).length > 0, 'provide at least one field to change')
+
+export const JoinLeagueSchema = z.object({ pin: PinSchema, party: PartyInputSchema }).strict()
+
+export const UpdatePartySchema = PartyInputSchema.partial()
+  .strict()
+  .refine(update => Object.keys(update).length > 0, 'provide at least one field to change')
+
+export const PageQuerySchema = z.object({ page: z.coerce.number().int().min(1).max(100).default(1) })
+
+export type CreateLeagueInput = z.infer<typeof CreateLeagueSchema>
+export type UpdateLeagueInput = z.infer<typeof UpdateLeagueSchema>
+export type PartyInput = z.infer<typeof PartyInputSchema>
+export type UpdatePartyInput = z.infer<typeof UpdatePartySchema>
+
+/** Route ids that aren't valid ObjectIds can't exist, so treat them as not found rather than a 500. */
+export function parseId(id: string | undefined): string {
+  if (!id || !/^[0-9a-f]{24}$/i.test(id)) throw new NotFound()
+  return id
+}

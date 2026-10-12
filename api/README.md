@@ -25,6 +25,26 @@ cp .env.example .env   # then fill in values; .env is gitignored
 | `npm run build` / `npm start` | Compile to `dist/` and run it |
 | `npm run import:stats -- --seasons 2011-2025` | Import nflverse weekly stats into MongoDB (idempotent; safe to re-run) |
 
+## Endpoints
+
+Everything under `/api` requires an Auth0 access token (`Authorization: Bearer ...`).
+
+| Method & path | Who | What |
+|---|---|---|
+| `GET /health` | anyone | Liveness and DB status |
+| `GET /api/account` / `PATCH /api/account` | self | Read or update display name / picture |
+| `POST /api/leagues` | anyone | Create a league along with the host's party |
+| `GET /api/leagues/mine` | self | Leagues I'm in, with my party |
+| `GET /api/leagues/public?page=` | anyone | Public leagues with open slots |
+| `GET /api/leagues/pin/:pin` | anyone (rate-limited) | Preview a league before joining |
+| `POST /api/leagues/join` | anyone (rate-limited) | Join by PIN with a new party |
+| `GET /api/leagues/:id` | members; anyone if public | League details and parties |
+| `PATCH /api/leagues/:id` | host, while forming | Edit name, visibility, cadence, max parties |
+| `POST /api/leagues/:id/cancel` | host | Cancel the league |
+| `POST /api/leagues/:id/leave` | members except host, while forming | Leave the league |
+| `DELETE /api/leagues/:id/parties/:partyId` | host, while forming | Remove a member's party |
+| `PATCH /api/parties/:id` | party owner | Rename or recolor a party |
+
 ## Conventions
 
 - **The server owns all game rules.** Clients send intents ("join league", "set lineup"), never whole documents.
