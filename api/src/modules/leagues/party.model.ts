@@ -1,5 +1,6 @@
 import { model, Schema, type HydratedDocument, type InferSchemaType, type Types } from 'mongoose'
 import type { Lineup } from '../heroes/lineup.js'
+import { CREST_BANNERS, CREST_EMBLEMS } from './crests.js'
 
 export const PARTY_NAME_MAX = 30
 
@@ -8,7 +9,16 @@ const partySchema = new Schema(
     leagueId: { type: Schema.Types.ObjectId, ref: 'League', required: true, immutable: true },
     accountId: { type: Schema.Types.ObjectId, ref: 'Account', required: true, immutable: true },
     name: { type: String, required: true, trim: true, maxlength: PARTY_NAME_MAX },
-    color: { type: String, required: true, match: /^#[0-9a-f]{6}$/i },
+    crest: {
+      type: new Schema(
+        {
+          emblem: { type: String, required: true, enum: CREST_EMBLEMS },
+          banner: { type: String, required: true, enum: CREST_BANNERS }
+        },
+        { _id: false }
+      ),
+      required: true
+    },
     // Swap resting starters for bench heroes (at a points penalty) when a week resolves
     autoSwap: { type: Boolean, required: true, default: true },
     // Starting lineup: one entry per slot of the league's ruleset; auto-filled after the draft

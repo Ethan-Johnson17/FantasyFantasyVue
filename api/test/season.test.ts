@@ -48,11 +48,11 @@ async function draftedLeague(members = [alice]) {
     visibility: 'private',
     cadence: 'daily',
     maxParties: 6,
-    party: { name: 'Host Party', color: '#111111' }
+    party: { name: 'Host Party', crest: { emblem: 'crown', banner: 'crimson' } }
   })
   const { id, pin } = created.body as { id: string; pin: string }
   for (const [i, member] of members.entries()) {
-    await member.post('/api/leagues/join', { pin, party: { name: `Member ${String(i)}`, color: '#222222' } })
+    await member.post('/api/leagues/join', { pin, party: { name: `Member ${String(i)}`, crest: { emblem: 'crown', banner: 'crimson' } } })
   }
   await host.post(`/api/leagues/${id}/draft`, { draftAt: new Date(Date.now() + 3_600_000).toISOString() })
   await LeagueModel.updateOne({ _id: id }, { $set: { draftAt: new Date(Date.now() - 1000) } })
@@ -283,7 +283,7 @@ describe('lineups', () => {
       visibility: 'private',
       cadence: 'daily',
       maxParties: 4,
-      party: { name: 'Host Party', color: '#111111' }
+      party: { name: 'Host Party', crest: { emblem: 'crown', banner: 'crimson' } }
     })
     const placeholder = '64b000000000000000000000'
     const slots = Object.fromEntries(RULESET_V1.lineup.slots.map(slot => [slot.key, placeholder]))

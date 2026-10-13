@@ -43,11 +43,11 @@ async function leagueWithMembers(members = [alice], cadence = 'daily') {
     visibility: 'private',
     cadence,
     maxParties: 4,
-    party: { name: 'Host Party', color: '#111111' }
+    party: { name: 'Host Party', crest: { emblem: 'crown', banner: 'crimson' } }
   })
   const { id, pin } = created.body as { id: string; pin: string }
   for (const [i, member] of members.entries()) {
-    await member.post('/api/leagues/join', { pin, party: { name: `Member ${String(i)}`, color: '#222222' } })
+    await member.post('/api/leagues/join', { pin, party: { name: `Member ${String(i)}`, crest: { emblem: 'crown', banner: 'crimson' } } })
   }
   return { id, pin }
 }
@@ -75,7 +75,7 @@ describe('scheduling the draft', () => {
     expect(heroes).toHaveLength(23 * 2)
 
     // Membership is locked
-    const late = await bob.post('/api/leagues/join', { pin: league.pin, party: { name: 'Late', color: '#333333' } })
+    const late = await bob.post('/api/leagues/join', { pin: league.pin, party: { name: 'Late', crest: { emblem: 'crown', banner: 'crimson' } } })
     expect(late.status).toBe(409)
     expect((await alice.post(`/api/leagues/${league.id}/leave`)).status).toBe(409)
   })
