@@ -1,4 +1,5 @@
-import { HERO_CLASSES, POOL_PER_PARTY, type HeroClass } from './classes.js'
+import type { PoolRules } from '../scoring/rulesets.js'
+import { HERO_CLASSES, type HeroClass } from './classes.js'
 
 /*
  * Hero pool selection and Levels. Pure: candidates in, pool out.
@@ -34,11 +35,14 @@ export interface PoolEntry {
 /** Up to this share of each class's pool is mystery recruits. */
 export const MYSTERY_SHARE = 0.2
 
+/**
+ * Guidance shown for rookies, calibrated on 2012-2025 data: first-round rookies played like
+ * Level 1-2 veterans on average (with upside), later rounds below Level 1.
+ */
 export function mysteryRange(draftRound: number): LevelRange {
-  if (draftRound <= 1) return { min: 6, max: 10 }
-  if (draftRound === 2) return { min: 4, max: 9 }
-  if (draftRound === 3) return { min: 3, max: 8 }
-  return { min: 1, max: 6 }
+  if (draftRound <= 1) return { min: 1, max: 4 }
+  if (draftRound === 2) return { min: 1, max: 2 }
+  return { min: 1, max: 1 }
 }
 
 /** The value used to compare heroes when no ranking applies: Level, or a mystery range's midpoint. */
@@ -48,9 +52,13 @@ export function expectedLevel(entry: { level?: number | null; levelRange?: Level
   return 0
 }
 
-export function selectHeroPool(candidates: readonly PoolCandidate[], partyCount: number): PoolEntry[] {
+export function selectHeroPool(
+  candidates: readonly PoolCandidate[],
+  partyCount: number,
+  rules: PoolRules
+): PoolEntry[] {
   return HERO_CLASSES.flatMap(heroClass => {
-    const need = POOL_PER_PARTY[heroClass] * partyCount
+    const need = rules.perParty[heroClass] * partyCount
     const ofClass = candidates.filter(candidate => candidate.heroClass === heroClass)
 
     const veterans = ofClass

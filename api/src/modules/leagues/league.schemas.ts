@@ -60,16 +60,8 @@ export const RankingsSchema = z
   })
   .strict()
 
-export const LineupSchema = z
-  .object({
-    Mage: ObjectIdSchema,
-    Warrior: ObjectIdSchema,
-    Ranger: ObjectIdSchema,
-    Rogue: ObjectIdSchema,
-    Paladin: ObjectIdSchema,
-    Flex: ObjectIdSchema
-  })
-  .strict()
+/** Hero id by slot key. Which keys are required depends on the league's ruleset (checked in the service). */
+export const LineupSchema = z.record(z.string().regex(/^[A-Za-z0-9]{1,20}$/, 'must be a slot key'), ObjectIdSchema)
 
 export const WeekParamSchema = z.coerce.number().int().min(1).max(14)
 

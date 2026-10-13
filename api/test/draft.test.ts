@@ -1,14 +1,15 @@
 import mongoose from 'mongoose'
 import request from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { FIXED_SLOTS, FLEX_CLASSES, ROSTER_SIZE } from '../src/modules/heroes/classes.js'
 import { HeroModel } from '../src/modules/heroes/hero.model.js'
 import { CADENCE_MS, LeagueModel } from '../src/modules/leagues/league.model.js'
-import { PartyModel } from '../src/modules/leagues/party.model.js'
+import { PartyModel, readLineup } from '../src/modules/leagues/party.model.js'
+import { RULESET_V1 } from '../src/modules/scoring/rulesets.js'
 import { buildTestApp, signToken } from './helpers.js'
 import { EXCLUDED_IDS, SEEDED_SEASON, seedStats } from './statsSeed.js'
 
 const app = buildTestApp()
+const ROSTER_SIZE = RULESET_V1.lineup.rosterSize
 
 function as(sub: string) {
   const withAuth = async (req: request.Test) => req.set('Authorization', await signToken(sub))
@@ -112,7 +113,7 @@ describe('scheduling the draft', () => {
     // 20% of 8 rounds down to 1 mystery recruit: the earliest draft pick
     const recruits = mages.filter(hero => hero.level === null)
     expect(recruits.map(hero => hero.source.id)).toEqual(['QB-rookie-0'])
-    expect(recruits[0]?.levelRange).toEqual({ min: 6, max: 10 })
+    expect(recruits[0]?.levelRange).toEqual({ min: 1, max: 4 })
     // The rest are the best veterans by last season's points per game
     expect(
       mages
@@ -198,8 +199,10 @@ describe('running the draft', () => {
       const roster = heroes.filter(hero => hero.partyId?.equals(party._id))
       expect(roster).toHaveLength(ROSTER_SIZE)
       const byId = new Map(roster.map(hero => [hero._id.toString(), hero]))
-      for (const slot of FIXED_SLOTS) expect(byId.get(String(party.lineup?.[slot]))?.heroClass).toBe(slot)
-      expect(FLEX_CLASSES).toContain(byId.get(String(party.lineup?.Flex))?.heroClass)
+      const lineup = readLineup(party.lineup)!
+      for (const slot of RULESET_V1.lineup.slots) {
+        expect(slot.classes).toContain(byId.get(lineup[slot.key]!)?.heroClass)
+      }
     }
     expect(heroes.filter(hero => hero.partyId)).toHaveLength(ROSTER_SIZE * 3)
   })

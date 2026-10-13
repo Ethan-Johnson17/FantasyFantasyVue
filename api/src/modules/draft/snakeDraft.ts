@@ -1,12 +1,18 @@
 import type { Rng } from '../../lib/random.js'
-import { FIXED_SLOTS, FLEX_CLASSES, HERO_CLASSES, ROSTER_SIZE, type HeroClass } from '../heroes/classes.js'
+import type { HeroClass } from '../heroes/classes.js'
+import { maxFillableSlots } from '../heroes/lineup.js'
+import type { LineupRules, SlotRule } from '../scoring/rulesets.js'
 
 /*
- * Automatic snake draft. Pure: parties, rankings, and pool in; picks out.
+ * Automatic snake draft. Pure: parties, rankings, pool, and lineup rules in; picks out.
  *
- * Fairness invariant: for every class, the heroes still available are never fewer than the parties
- * still missing that class. Each pick preserves it, so every roster can always be completed.
+ * Fairness invariant: for every class with dedicated slots (slots only that class can fill), the
+ * heroes still available are never fewer than the dedicated slots other parties still need to fill
+ * with it. Each pick preserves it, so every roster can always be completed. Multi-class slots draw
+ * from a pool far larger than demand, so they need no protection.
  */
+
+export type DraftRules = Pick<LineupRules, 'rosterSize' | 'slots'>
 
 export interface DraftHero {
   id: string
@@ -34,16 +40,22 @@ export interface DraftResult {
   picks: DraftPick[]
 }
 
-/** Lineup slots a roster still can't fill: missing required classes, plus FLEX if unfillable. */
-export function slotsStillNeeded(roster: readonly HeroClass[]): number {
-  const count = countByClass(roster)
-  const missingFixed = FIXED_SLOTS.filter(heroClass => count[heroClass] === 0).length
-  // Heroes beyond the first of a FLEX-eligible class can fill FLEX.
-  const flexCandidates = FLEX_CLASSES.reduce((sum, heroClass) => sum + Math.max(0, count[heroClass] - 1), 0)
-  return missingFixed + (flexCandidates > 0 ? 0 : 1)
+/** Lineup slots a roster still can't fill. */
+export function slotsStillNeeded(roster: readonly HeroClass[], slots: readonly SlotRule[]): number {
+  return slots.length - maxFillableSlots(roster, slots)
 }
 
-export function runSnakeDraft(parties: readonly DraftParty[], heroes: readonly DraftHero[], rng: Rng): DraftResult {
+/** Slots that only this class can fill. */
+function dedicatedSlots(heroClass: HeroClass, slots: readonly SlotRule[]): number {
+  return slots.filter(slot => slot.classes.length === 1 && slot.classes[0] === heroClass).length
+}
+
+export function runSnakeDraft(
+  parties: readonly DraftParty[],
+  heroes: readonly DraftHero[],
+  rng: Rng,
+  rules: DraftRules
+): DraftResult {
   const order = rng.shuffle(parties.map(party => party.id))
   const rankings = new Map(parties.map(party => [party.id, party.ranking]))
   const rosters = new Map(parties.map(party => [party.id, [] as HeroClass[]]))
@@ -51,11 +63,11 @@ export function runSnakeDraft(parties: readonly DraftParty[], heroes: readonly D
   const byValue = [...heroes].sort((a, b) => b.value - a.value || a.id.localeCompare(b.id))
   const picks: DraftPick[] = []
 
-  for (let round = 1; round <= ROSTER_SIZE; round++) {
+  for (let round = 1; round <= rules.rosterSize; round++) {
     const turnOrder = round % 2 === 1 ? order : [...order].reverse()
     for (const partyId of turnOrder) {
       const roster = rosters.get(partyId) ?? []
-      const allowed = (hero: DraftHero) => isAllowed(hero.heroClass, partyId, roster, rosters, available)
+      const allowed = (hero: DraftHero) => isAllowed(hero.heroClass, partyId, roster, rosters, available, rules)
       const ranked = (rankings.get(partyId) ?? []).map(id => available.get(id)).find(hero => hero && allowed(hero))
       const choice = ranked ?? byValue.find(hero => available.has(hero.id) && allowed(hero))
       if (!choice) throw new Error(`No valid pick for party ${partyId} in round ${String(round)}`)
@@ -73,22 +85,21 @@ function isAllowed(
   partyId: string,
   roster: readonly HeroClass[],
   rosters: ReadonlyMap<string, readonly HeroClass[]>,
-  available: ReadonlyMap<string, DraftHero>
+  available: ReadonlyMap<string, DraftHero>,
+  rules: DraftRules
 ): boolean {
-  const picksLeftAfter = ROSTER_SIZE - roster.length - 1
-  if (slotsStillNeeded([...roster, heroClass]) > picksLeftAfter) return false
+  const picksLeftAfter = rules.rosterSize - roster.length - 1
+  if (slotsStillNeeded([...roster, heroClass], rules.slots) > picksLeftAfter) return false
 
-  // A party that already has this class may only take another if enough remain for parties lacking it.
-  if (roster.includes(heroClass)) {
-    const othersLacking = [...rosters].filter(([id, other]) => id !== partyId && !other.includes(heroClass)).length
+  // Beyond its own dedicated slots, a party may only take this class if enough remain for others' dedicated slots.
+  const dedicated = dedicatedSlots(heroClass, rules.slots)
+  const owned = roster.filter(owned => owned === heroClass).length
+  if (dedicated > 0 && owned >= dedicated) {
+    const othersNeed = [...rosters]
+      .filter(([id]) => id !== partyId)
+      .reduce((sum, [, other]) => sum + Math.max(0, dedicated - other.filter(c => c === heroClass).length), 0)
     const remaining = [...available.values()].filter(hero => hero.heroClass === heroClass).length
-    if (remaining - 1 < othersLacking) return false
+    if (remaining - 1 < othersNeed) return false
   }
   return true
-}
-
-function countByClass(roster: readonly HeroClass[]): Record<HeroClass, number> {
-  const count = Object.fromEntries(HERO_CLASSES.map(heroClass => [heroClass, 0])) as Record<HeroClass, number>
-  for (const heroClass of roster) count[heroClass]++
-  return count
 }

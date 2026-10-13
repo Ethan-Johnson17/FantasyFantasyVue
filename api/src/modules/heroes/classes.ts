@@ -59,19 +59,3 @@ export const CLASS_TRAITS: Readonly<Record<HeroClass, ClassTraits>> = {
     base: { attack: 10, defense: 11, magic: 9 }
   }
 }
-
-/** Pool heroes per party, by class: about 2.3x what a roster of 10 needs. */
-export const POOL_PER_PARTY: Readonly<Record<HeroClass, number>> = {
-  Mage: 4,
-  Warrior: 6,
-  Ranger: 6,
-  Rogue: 4,
-  Paladin: 3
-}
-
-/** 6 starters (one per class plus FLEX) and 4 on the bench */
-export const ROSTER_SIZE = 10
-/** One required lineup slot per class */
-export const FIXED_SLOTS: readonly HeroClass[] = HERO_CLASSES
-/** Classes allowed in the FLEX slot */
-export const FLEX_CLASSES: readonly HeroClass[] = ['Warrior', 'Ranger', 'Rogue']

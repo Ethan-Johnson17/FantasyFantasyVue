@@ -1,10 +1,12 @@
+import mongoose from 'mongoose'
 import request from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { HeroModel } from '../src/modules/heroes/hero.model.js'
 import { CADENCE_MS, LeagueModel } from '../src/modules/leagues/league.model.js'
-import { PartyModel } from '../src/modules/leagues/party.model.js'
+import { PartyModel, readLineup } from '../src/modules/leagues/party.model.js'
+import { RULESET_V1 } from '../src/modules/scoring/rulesets.js'
 import { WeekResultModel } from '../src/modules/season/weekResult.model.js'
-import { PlayerWeekStatModel } from '../src/modules/stats/stats.models.js'
+import { DefenseWeekStatModel, PlayerWeekStatModel } from '../src/modules/stats/stats.models.js'
 import { buildTestApp, signToken } from './helpers.js'
 import { SEEDED_SEASON, seedStats } from './statsSeed.js'
 
@@ -27,11 +29,13 @@ const outsider = as('auth0|outsider')
 const DAY = CADENCE_MS.daily
 
 interface SideView {
+  partyId: string
   total: number
   heroes: { heroId: string; slot: string; damage: number; resting: boolean; swappedInto: string | null }[]
 }
 
 interface LineupView {
+  slots: { key: string; label: string; classes: string[] }[]
   lineup: Record<string, string> | null
   roster: { id: string; heroClass: string; restingNextWeek: boolean; partyId: string }[]
   nextWeek: number | null
@@ -54,6 +58,23 @@ async function draftedLeague(members = [alice]) {
   await LeagueModel.updateOne({ _id: id }, { $set: { draftAt: new Date(Date.now() - 1000) } })
   await host.get(`/api/leagues/${id}`) // runs the draft
   return id
+}
+
+/** The first slot that accepts a class. */
+function slotFor(view: LineupView, heroClass: string): string {
+  const slot = view.slots.find(s => s.classes.includes(heroClass))
+  if (!slot) throw new Error(`No slot accepts ${heroClass}`)
+  return slot.key
+}
+
+/** Deletes a hero's hidden NFL stats for week 1, so it rests that week. */
+async function removeWeekOneStats(heroId: string) {
+  const hero = (await HeroModel.findById(heroId).select('+source').lean())!
+  if (hero.source.kind === 'player') {
+    await PlayerWeekStatModel.deleteMany({ playerId: hero.source.id, season: SEEDED_SEASON, week: 1 })
+  } else {
+    await DefenseWeekStatModel.deleteMany({ team: hero.source.id, season: SEEDED_SEASON, week: 1 })
+  }
 }
 
 /** Shifts week 1's resolve time so that `weeksDue` game weeks are due now. */
@@ -100,7 +121,7 @@ describe('weekly resolution', () => {
     const [matchup] = res.body.matchups
     for (const side of [matchup.home, matchup.away]) {
       const starters = side.heroes.filter((h: { slot: string }) => h.slot !== 'Bench')
-      expect(starters).toHaveLength(6)
+      expect(starters).toHaveLength(RULESET_V1.lineup.slots.length)
       expect(side.heroes).toHaveLength(10)
     }
     expect(['home', 'away', 'draw']).toContain(matchup.outcome)
@@ -118,18 +139,21 @@ describe('weekly resolution', () => {
     const side = result!.matchups[0]!.home
     const party = parties.find(p => p._id.equals(side.partyId))!
 
-    // Recompute the total from raw stats: every seeded 2020 line is 100 rushing yards (10 points).
+    // Recompute the total from raw stats: every seeded 2020 line is 100 rushing yards (10 points),
+    // and each hero's damage is its points times its class multiplier.
+    const lineup = readLineup(party.lineup)!
     let expected = 0
-    for (const slot of ['Mage', 'Warrior', 'Ranger', 'Rogue', 'Paladin', 'Flex'] as const) {
-      const hero = heroes.find(h => h._id.equals(party.lineup![slot]))!
+    for (const slot of RULESET_V1.lineup.slots) {
+      const hero = heroes.find(h => h._id.toString() === lineup[slot.key])!
       const line = side.heroes.find(h => h.heroId.equals(hero._id))!
-      expect(line.slot).toBe(slot)
+      expect(line.slot).toBe(slot.key)
       if (hero.source.kind === 'player') {
         const stat = await PlayerWeekStatModel.findOne({ playerId: hero.source.id, season: SEEDED_SEASON, week: 1 }).lean()
         expect(stat).not.toBeNull()
         expect(line.points).toBe(10)
       }
-      expected += line.points
+      expect(line.counted).toBeCloseTo(line.points * RULESET_V1.lineup.classMultipliers[hero.heroClass], 2)
+      expected += line.counted
     }
     expect(side.total).toBeCloseTo(expected, 6)
   })
@@ -178,40 +202,47 @@ describe('lineups', () => {
     return (await alice.get(`/api/leagues/${id}/lineup`)).body as LineupView
   }
 
-  it('shows my roster, lineup, and the next week', async () => {
+  it("shows my roster, the league's slots, my lineup, and the next week", async () => {
     const id = await draftedLeague()
     const view = await myLineup(id)
-    expect(view.roster).toHaveLength(10)
-    expect(Object.keys(view.lineup ?? {})).toEqual(['Mage', 'Warrior', 'Ranger', 'Rogue', 'Paladin', 'Flex'])
+    expect(view.roster).toHaveLength(RULESET_V1.lineup.rosterSize)
+    expect(view.slots.map(slot => slot.key)).toEqual(RULESET_V1.lineup.slots.map(slot => slot.key))
+    expect(Object.keys(view.lineup ?? {}).sort()).toEqual(view.slots.map(slot => slot.key).sort())
     expect(view.nextWeek).toBe(1)
   })
 
   it('accepts a valid lineup and rejects invalid ones', async () => {
     const id = await draftedLeague()
-    const { lineup, roster } = await myLineup(id)
-    // Any bench hero can always start in its own class's slot.
-    const benchHero = roster.find(hero => !Object.values(lineup!).includes(hero.id))!
-    const res = await alice.put(`/api/leagues/${id}/lineup`, { ...lineup, [benchHero.heroClass]: benchHero.id })
+    const view = await myLineup(id)
+    const lineup = view.lineup!
+    const [first, second] = view.slots
+    const benchHero = view.roster.find(hero => !Object.values(lineup).includes(hero.id))!
+    const slot = slotFor(view, benchHero.heroClass)
+    const res = await alice.put(`/api/leagues/${id}/lineup`, { ...lineup, [slot]: benchHero.id })
     expect(res.status).toBe(200)
-    expect(res.body.lineup[benchHero.heroClass]).toBe(benchHero.id)
-    const mage = roster.find(hero => hero.heroClass === 'Mage')!
-    expect((await alice.put(`/api/leagues/${id}/lineup`, { ...lineup, Paladin: mage.id })).status).toBe(400)
-    expect((await alice.put(`/api/leagues/${id}/lineup`, { ...lineup, Flex: lineup!.Warrior })).status).toBe(400)
+    expect(res.body.lineup[slot]).toBe(benchHero.id)
 
+    const current = (await myLineup(id)).lineup!
+    // Same hero twice
+    expect((await alice.put(`/api/leagues/${id}/lineup`, { ...current, [second!.key]: current[first!.key] })).status).toBe(400)
+    // Someone else's hero
     const hostRoster = ((await host.get(`/api/leagues/${id}/lineup`)).body as LineupView).roster
-    const foreignWarrior = hostRoster.find(hero => hero.heroClass === 'Warrior')!
-    expect((await alice.put(`/api/leagues/${id}/lineup`, { ...lineup, Warrior: foreignWarrior.id })).status).toBe(400)
-    expect((await outsider.put(`/api/leagues/${id}/lineup`, lineup!)).status).toBe(404)
-    expect((await alice.put(`/api/leagues/${id}/lineup`, { ...lineup, Captain: mage.id })).status).toBe(400)
+    expect((await alice.put(`/api/leagues/${id}/lineup`, { ...current, [first!.key]: hostRoster[0]!.id })).status).toBe(400)
+    // Unknown slot, missing slot, non-member
+    expect((await alice.put(`/api/leagues/${id}/lineup`, { ...current, Captain: benchHero.id })).status).toBe(400)
+    const { [first!.key]: _removed, ...missing } = current
+    expect((await alice.put(`/api/leagues/${id}/lineup`, missing)).status).toBe(400)
+    expect((await outsider.put(`/api/leagues/${id}/lineup`, current)).status).toBe(404)
+    // Class restrictions per slot are covered by the validateLineup unit tests (Classic slots accept any class).
   })
 
   it('locks at resolve time: a change after the deadline only affects later weeks', async () => {
     const id = await draftedLeague()
-    const { lineup, roster } = await myLineup(id)
-    // Swap a bench hero into its own class's slot (always valid).
-    const swap = roster.find(hero => !Object.values(lineup!).includes(hero.id))!
-    const slot = swap.heroClass
-    const replaced = lineup![slot]!
+    const view = await myLineup(id)
+    const lineup = view.lineup!
+    const swap = view.roster.find(hero => !Object.values(lineup).includes(hero.id))!
+    const slot = slotFor(view, swap.heroClass)
+    const replaced = lineup[slot]!
 
     await makeWeeksDue(id, 1)
     // Week 1 is due but nobody has opened the league yet. This change must not count for week 1.
@@ -229,19 +260,20 @@ describe('lineups', () => {
 
   it('marks heroes without stats that week as Resting, and they score 0', async () => {
     const id = await draftedLeague()
-    const { lineup } = await myLineup(id)
-    const mage = await HeroModel.findById(lineup!.Mage).select('+source').lean()
-    await PlayerWeekStatModel.deleteMany({ playerId: mage!.source.id, season: SEEDED_SEASON, week: 1 })
-
     const view = await myLineup(id)
-    expect(view.roster.find(hero => hero.id === lineup!.Mage)?.restingNextWeek).toBe(true)
-    expect(view.roster.filter(hero => hero.restingNextWeek)).toHaveLength(1)
+    const starterId = view.lineup![view.slots[0]!.key]!
+    await removeWeekOneStats(starterId)
+
+    const after = await myLineup(id)
+    expect(after.roster.find(hero => hero.id === starterId)?.restingNextWeek).toBe(true)
+    expect(after.roster.filter(hero => hero.restingNextWeek)).toHaveLength(1)
 
     await makeWeeksDue(id, 1)
     const result = (await alice.get(`/api/leagues/${id}/results/1`)).body
-    const line = [result.matchups[0].home, result.matchups[0].away]
-      .flatMap((side: { heroes: { heroId: string; damage: number; resting: boolean }[] }) => side.heroes)
-      .find(hero => hero.heroId === lineup!.Mage)
+    const line = (result.matchups as { home: SideView; away: SideView | null }[])
+      .flatMap(m => (m.away ? [m.home, m.away] : [m.home]))
+      .flatMap(side => side.heroes)
+      .find(hero => hero.heroId === starterId)
     expect(line).toMatchObject({ damage: 0, resting: true })
   })
 
@@ -254,7 +286,7 @@ describe('lineups', () => {
       party: { name: 'Host Party', color: '#111111' }
     })
     const placeholder = '64b000000000000000000000'
-    const slots = { Mage: placeholder, Warrior: placeholder, Ranger: placeholder, Rogue: placeholder, Paladin: placeholder, Flex: placeholder }
+    const slots = Object.fromEntries(RULESET_V1.lineup.slots.map(slot => [slot.key, placeholder]))
     expect((await host.put(`/api/leagues/${String(created.body.id)}/lineup`, slots)).status).toBe(409)
 
     const id = await draftedLeague()
@@ -266,17 +298,17 @@ describe('lineups', () => {
 
 describe('auto-swap', () => {
   /**
-   * Rests alice's starter in the slot matching a bench hero's class for week 1, so a swap is
-   * always possible: every bench hero's class has its own required slot.
+   * Rests one of alice's starters for week 1 in a slot that a bench hero can fill,
+   * so a swap is always possible.
    */
   async function restCoveredStarter(id: string) {
     const view = (await alice.get(`/api/leagues/${id}/lineup`)).body as LineupView
-    const benchClass = view.roster.find(hero => !Object.values(view.lineup!).includes(hero.id))!.heroClass
-    const starter = view.lineup![benchClass]!
-    const benchOfClass = view.roster.filter(h => h.heroClass === benchClass && !Object.values(view.lineup!).includes(h.id))
-    const starterSource = (await HeroModel.findById(starter).select('+source').lean())!.source.id
-    await PlayerWeekStatModel.deleteMany({ playerId: starterSource, season: SEEDED_SEASON, week: 1 })
-    return { starter, slot: benchClass, benchIds: benchOfClass.map(h => h.id) }
+    const bench = view.roster.filter(hero => !Object.values(view.lineup!).includes(hero.id))
+    const slot = slotFor(view, bench[0]!.heroClass)
+    const starter = view.lineup![slot]!
+    const accepts = view.slots.find(s => s.key === slot)!.classes
+    await removeWeekOneStats(starter)
+    return { starter, slot, benchIds: bench.filter(h => accepts.includes(h.heroClass)).map(h => h.id) }
   }
 
   function aliceSide(result: { matchups: { home: SideView; away: SideView | null }[] }, heroId: string) {
@@ -297,9 +329,16 @@ describe('auto-swap', () => {
     expect(sub.slot).toBe('Bench')
     const subRaw = await WeekResultModel.findOne({ leagueId: id, week: 1 }).lean()
     const stored = subRaw!.matchups.flatMap(m => (m.away ? [m.home, m.away] : [m.home])).flatMap(x => x.heroes).find(h => h.heroId.toString() === sub.heroId)!
-    expect(stored.counted).toBeCloseTo(stored.points / 2, 2)
-    const counted = side.heroes.filter(h => h.slot !== 'Bench' || h.swappedInto).reduce((sum, h) => sum + h.damage, 0)
-    expect(side.total).toBeCloseTo(counted, 0)
+    const subClass = (await HeroModel.findById(sub.heroId).lean())!.heroClass
+    const { classMultipliers, autoSwapMultiplier } = RULESET_V1.lineup
+    expect(stored.counted).toBeCloseTo(stored.points * classMultipliers[subClass] * autoSwapMultiplier, 2)
+    // The total is the sum of the exact counted points (views round each hero, so compare stored values).
+    const storedSide = subRaw!.matchups
+      .flatMap(m => (m.away ? [m.home, m.away] : [m.home]))
+      .find(x => x.partyId.toString() === side.partyId)!
+    const exactCounted = storedSide.heroes.filter(h => h.slot !== 'Bench' || h.swappedInto).reduce((sum, h) => sum + h.counted, 0)
+    expect(storedSide.total).toBeCloseTo(exactCounted, 6)
+    expect(side.total).toBe(storedSide.total)
   })
 
   it('can be turned off per party', async () => {
@@ -322,9 +361,10 @@ describe('hidden-player protection in results', () => {
     const id = await draftedLeague([alice, bob])
     // Give one hero a fractional score so rounding is observable.
     const party = await PartyModel.findOne({ leagueId: id }).lean()
-    const mage = await HeroModel.findById(party!.lineup!.Mage).select('+source').lean()
+    const starters = await HeroModel.find({ _id: mongoose.trusted({ $in: Object.values(readLineup(party!.lineup)!) }) }).select('+source').lean()
+    const target = starters.find(hero => hero.source.kind === 'player')!
     await PlayerWeekStatModel.updateOne(
-      { playerId: mage!.source.id, season: SEEDED_SEASON, week: 1 },
+      { playerId: target.source.id, season: SEEDED_SEASON, week: 1 },
       { $set: { 'stats.rushingYards': 104, 'stats.passingYards': 1 } }
     )
     await makeWeeksDue(id, 1)
@@ -345,7 +385,8 @@ describe('hidden-player protection in results', () => {
       .flatMap(m => (m.away ? [m.home, m.away] : [m.home]))
       .flatMap(side => side.heroes)
     expect(heroes.every(hero => Number.isInteger(hero.damage))).toBe(true)
-    // 104 rushing yards + 1 passing yard = 10.44 exact, shown as 10
-    expect(heroes.find(hero => hero.heroId === party!.lineup!.Mage.toString())?.damage).toBe(10)
+    // 104 rushing yards + 1 passing yard = 10.44 points, times the class multiplier, shown rounded
+    const expectedDamage = Math.round(10.44 * RULESET_V1.lineup.classMultipliers[target.heroClass])
+    expect(heroes.find(hero => hero.heroId === target._id.toString())?.damage).toBe(expectedDamage)
   })
 })

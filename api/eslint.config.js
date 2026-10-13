@@ -13,7 +13,7 @@ export default tseslint.config(
   {
     rules: {
       // Leading underscore marks intentionally unused params (Express needs 4-arg error handlers).
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', ignoreRestSiblings: true }]
     }
   },
   {

@@ -3,14 +3,13 @@ import { BadRequest, Conflict, NotFound } from '../../lib/errors.js'
 import { createRng } from '../../lib/random.js'
 import type { AccountDocument } from '../accounts/account.model.js'
 import { toHeroView, type HeroView } from '../draft/draft.service.js'
-import { FLEX_CLASSES, type HeroClass } from '../heroes/classes.js'
 import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
-import { LINEUP_SLOTS, planAutoSwaps, type Lineup, type LineupSlot } from '../heroes/lineup.js'
+import { planAutoSwaps, validateLineup, type Lineup } from '../heroes/lineup.js'
 import { expectedLevel } from '../heroes/pool.js'
 import { inTransaction, loadLeagueAsMember, loadVisibleLeague } from '../leagues/league.access.js'
 import { CADENCE_MS, LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
-import { PartyModel, type PartyDocument } from '../leagues/party.model.js'
-import { getRuleset, type Ruleset } from '../scoring/rulesets.js'
+import { PartyModel, readLineup, storedLineup, type PartyDocument } from '../leagues/party.model.js'
+import { getRuleset, type Ruleset, type SlotRule } from '../scoring/rulesets.js'
 import { scoreDefense, scoreOffense } from '../scoring/scoring.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models.js'
 import { decideBattle, decideMonsterBattle, monsterDamage, scoreParty, type Outcome } from './battle.js'
@@ -119,46 +118,53 @@ function buildSide(
   points: ReadonlyMap<string, HeroPoints>,
   ruleset: Ruleset
 ) {
-  const stored = party.lineup
-  if (!stored) throw new Error(`Party ${party.id} has no lineup`)
-  const lineup = lineupIds(stored)
-  const slotByHero = new Map<string, LineupSlot>(LINEUP_SLOTS.map(slot => [lineup[slot], slot]))
+  const lineup = readLineup(party.lineup)
+  if (!lineup) throw new Error(`Party ${party.id} has no lineup`)
+  const { slots, classMultipliers, autoSwapMultiplier } = ruleset.lineup
+  const slotByHero = new Map(Object.entries(lineup).map(([slot, heroId]) => [heroId, slot]))
   const roster = heroes.filter(hero => hero.partyId?.equals(party._id))
   const pointsOf = (id: string) => points.get(id) ?? { points: 0, resting: true }
 
   const swaps = party.autoSwap
     ? planAutoSwaps(
         lineup,
-        new Set(LINEUP_SLOTS.map(slot => lineup[slot]).filter(id => pointsOf(id).resting)),
+        slots,
+        new Set(Object.values(lineup).filter(id => pointsOf(id).resting)),
         roster
           .filter(hero => !slotByHero.has(hero.id))
           .map(hero => ({ id: hero.id, heroClass: hero.heroClass, value: expectedLevel(hero), resting: pointsOf(hero.id).resting }))
       )
-    : new Map<LineupSlot, string>()
+    : new Map<string, string>()
   const swappedInto = new Map([...swaps].map(([slot, heroId]) => [heroId, slot]))
-  const multiplier = ruleset.lineup.autoSwapMultiplier
   const round2 = (value: number) => Math.round(value * 100) / 100
 
   const lines = roster.map(hero => {
-    const slot = slotByHero.get(hero.id) ?? ('Bench' as const)
+    const slot = slotByHero.get(hero.id) ?? 'Bench'
     const into = swappedInto.get(hero.id) ?? null
     const earned = pointsOf(hero.id)
-    // Starters count fully, swapped-in bench heroes count at the multiplier, everyone else on the bench counts 0.
-    const counted = slot !== 'Bench' ? earned.points : into ? round2(earned.points * multiplier) : 0
-    return { heroId: hero._id, slot, ...earned, swappedInto: into, counted }
+    const damage = earned.points * classMultipliers[hero.heroClass]
+    // Starters count their class damage, swapped-in bench heroes count it at the swap penalty, the rest count 0.
+    const counted = slot !== 'Bench' ? round2(damage) : into ? round2(damage * autoSwapMultiplier) : 0
+    return { heroId: hero._id, slot, ...earned, swappedInto: into, counted, benchDamage: round2(damage) }
   })
   const score = scoreParty(
     lines.filter(line => line.slot !== 'Bench' || line.swappedInto).map(line => line.counted),
-    lines.filter(line => line.slot === 'Bench' && !line.swappedInto).map(line => line.points)
+    lines.filter(line => line.slot === 'Bench' && !line.swappedInto).map(line => line.benchDamage)
   )
-  return { partyId: party._id, ...score, heroes: lines }
+  return {
+    partyId: party._id,
+    ...score,
+    heroes: lines.map(({ benchDamage: _benchDamage, ...line }) => line)
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Lineups
 
 export interface LineupView {
-  lineup: Record<LineupSlot, string> | null
+  /** The league's starting slots, in display order */
+  slots: SlotRule[]
+  lineup: Lineup | null
   autoSwap: boolean
   roster: (HeroView & { restingNextWeek: boolean })[]
   /** The next game week to resolve, or null if the season is over or hasn't started */
@@ -172,7 +178,8 @@ export async function getLineup(member: AccountDocument, leagueId: string): Prom
   const next = nextWeek(league)
   const resting = next ? await restingHeroes(league, roster, next.week) : new Set<string>()
   return {
-    lineup: party.lineup ? lineupIds(party.lineup) : null,
+    slots: getRuleset(league.rulesetVersion).lineup.slots.map(slot => ({ ...slot, classes: [...slot.classes] })),
+    lineup: readLineup(party.lineup),
     autoSwap: party.autoSwap,
     roster: roster.map(hero => ({ ...toHeroView(hero), restingNextWeek: resting.has(hero.id) })),
     nextWeek: next?.week ?? null,
@@ -185,19 +192,10 @@ export async function setLineup(member: AccountDocument, leagueId: string, lineu
   if (league.status !== 'active') throw new Conflict('Lineups can be set after the draft and until the season ends')
 
   const roster = new Map((await HeroModel.find({ leagueId: league._id, partyId: party._id })).map(hero => [hero.id, hero]))
-  const ids = LINEUP_SLOTS.map(slot => lineup[slot])
-  if (new Set(ids).size !== ids.length) throw new BadRequest('Each hero can only fill one slot')
-  for (const slot of LINEUP_SLOTS) {
-    const hero = roster.get(lineup[slot])
-    if (!hero) throw new BadRequest(`The ${slot} slot must be a hero in your party`)
-    if (!slotAccepts(slot, hero.heroClass)) throw new BadRequest(`A ${hero.heroClass} cannot fill the ${slot} slot`)
-  }
-  await PartyModel.updateOne({ _id: party._id }, { $set: { lineup } })
+  const problem = validateLineup(lineup, getRuleset(league.rulesetVersion).lineup.slots, id => roster.get(id)?.heroClass)
+  if (problem) throw new BadRequest(problem)
+  await PartyModel.updateOne({ _id: party._id }, { $set: { lineup: storedLineup(lineup) } })
   return getLineup(member, leagueId)
-}
-
-function slotAccepts(slot: LineupSlot, heroClass: HeroClass): boolean {
-  return slot === 'Flex' ? FLEX_CLASSES.includes(heroClass) : slot === heroClass
 }
 
 function nextWeek(league: LeagueDocument): { week: number; at: Date } | null {
@@ -213,10 +211,6 @@ async function restingHeroes(league: LeagueDocument, roster: readonly HeroDocume
   const ruleset = getRuleset(league.rulesetVersion)
   const points = await heroPoints(roster, season, week, ruleset)
   return new Set([...points].filter(([, value]) => value.resting).map(([id]) => id))
-}
-
-function lineupIds(lineup: NonNullable<PartyDocument['lineup']>): Record<LineupSlot, string> {
-  return Object.fromEntries(LINEUP_SLOTS.map(slot => [slot, lineup[slot].toString()])) as Record<LineupSlot, string>
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +292,7 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
   if (!result) throw new NotFound('That week has not been played yet')
   const [refs, heroes] = await Promise.all([partyRefs(league), HeroModel.find({ leagueId: league._id }, 'name heroClass')])
   const heroById = new Map(heroes.map(hero => [hero.id, hero]))
+  const multipliers = getRuleset(league.rulesetVersion).lineup.classMultipliers
 
   const side = (stored: (typeof result.matchups)[number]['home']): SideView => ({
     ...(refs.get(stored.partyId.toString()) ?? { partyId: stored.partyId.toString(), name: 'Unknown', color: '#000000' }),
@@ -308,7 +303,11 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
       heroClass: heroById.get(line.heroId.toString())?.heroClass ?? '',
       slot: line.slot,
       // Hidden-player rule: per-hero points are rounded so weekly lines can't be matched to public stats.
-      damage: Math.round(line.slot === 'Bench' && !line.swappedInto ? line.points : line.counted),
+      damage: Math.round(
+        line.slot === 'Bench' && !line.swappedInto
+          ? line.points * multipliers[heroById.get(line.heroId.toString())?.heroClass ?? 'Mage']
+          : line.counted
+      ),
       resting: line.resting,
       swappedInto: line.swappedInto ?? null
     }))
