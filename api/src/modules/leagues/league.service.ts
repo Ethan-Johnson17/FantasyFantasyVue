@@ -2,7 +2,7 @@ import mongoose, { type ClientSession, type Types } from 'mongoose'
 import { isDuplicateKeyError } from '../../db/mongoose.js'
 import { Conflict, NotFound } from '../../lib/errors.js'
 import { AccountModel, type AccountDocument } from '../accounts/account.model.js'
-import { advanceLeague } from '../draft/draft.service.js'
+import { advanceLeague } from '../season/advance.js'
 import { inTransaction, loadLeagueAsHost } from './league.access.js'
 import { LeagueModel, type LeagueDocument, type LeagueStatus } from './league.model.js'
 import type { CreateLeagueInput, PartyInput, UpdateLeagueInput, UpdatePartyInput } from './league.schemas.js'
@@ -68,7 +68,6 @@ export interface MyLeagueView extends LeagueSummaryView {
 // Queries
 
 export async function getLeague(viewer: AccountDocument, leagueId: string): Promise<LeagueDetailView> {
-  await advanceLeague(leagueId)
   const league = await LeagueModel.findById(leagueId)
   if (!league) throw new NotFound()
   const parties = await PartyModel.find({ leagueId: league._id }).sort({ createdAt: 1 })

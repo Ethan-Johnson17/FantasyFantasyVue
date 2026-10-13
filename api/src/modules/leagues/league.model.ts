@@ -27,6 +27,26 @@ const draftPickSchema = new Schema(
   { _id: false }
 )
 
+const scheduledWeekSchema = new Schema(
+  {
+    week: { type: Number, required: true },
+    matchups: {
+      type: [
+        new Schema(
+          {
+            home: { type: Schema.Types.ObjectId, ref: 'Party', required: true },
+            // null: the home party fights the dungeon monster
+            away: { type: Schema.Types.ObjectId, ref: 'Party', default: null }
+          },
+          { _id: false }
+        )
+      ],
+      required: true
+    }
+  },
+  { _id: false }
+)
+
 const leagueSchema = new Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: LEAGUE_NAME_MAX },
@@ -49,7 +69,10 @@ const leagueSchema = new Schema(
     // Set when the draft runs
     draftOrder: { type: [{ type: Schema.Types.ObjectId, ref: 'Party' }], default: undefined },
     draftPicks: { type: [draftPickSchema], default: undefined },
-    weekOneAt: { type: Date }
+    weekOneAt: { type: Date },
+    schedule: { type: [scheduledWeekSchema], default: undefined },
+    // Game weeks resolved so far; also the optimistic-concurrency token for resolving the next one
+    resolvedWeeks: { type: Number, required: true, default: 0 }
   },
   { timestamps: true }
 )

@@ -59,6 +59,19 @@ export const RankingsSchema = z
   })
   .strict()
 
+export const LineupSchema = z
+  .object({
+    Mage: ObjectIdSchema,
+    Warrior: ObjectIdSchema,
+    Ranger: ObjectIdSchema,
+    Rogue: ObjectIdSchema,
+    Paladin: ObjectIdSchema,
+    Flex: ObjectIdSchema
+  })
+  .strict()
+
+export const WeekParamSchema = z.coerce.number().int().min(1).max(14)
+
 export const PageQuerySchema = z.object({ page: z.coerce.number().int().min(1).max(100).default(1) })
 
 export type CreateLeagueInput = z.infer<typeof CreateLeagueSchema>

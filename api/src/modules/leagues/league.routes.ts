@@ -2,16 +2,20 @@ import { Router } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import { currentAccount } from '../../middleware/auth.js'
 import * as draft from '../draft/draft.service.js'
+import { advanceLeague } from '../season/advance.js'
+import * as season from '../season/season.service.js'
 import {
   CreateLeagueSchema,
   JoinLeagueSchema,
+  LineupSchema,
   PageQuerySchema,
   parseId,
   PinSchema,
   RankingsSchema,
   ScheduleDraftSchema,
   UpdateLeagueSchema,
-  UpdatePartySchema
+  UpdatePartySchema,
+  WeekParamSchema
 } from './league.schemas.js'
 import * as leagues from './league.service.js'
 
@@ -31,6 +35,12 @@ const pinLimiter = () =>
 export function leagueRouter() {
   const limitPinAttempts = pinLimiter()
   return Router()
+    // Every /:id route first brings the league up to date (runs a due draft, resolves due weeks).
+    .param('id', (_req, _res, next, id: string) => {
+      advanceLeague(parseId(id)).then(() => {
+        next()
+      }, next)
+    })
     .post('/', async (req, res) => {
       res.status(201).json(await leagues.createLeague(currentAccount(req), CreateLeagueSchema.parse(req.body)))
     })
@@ -81,6 +91,23 @@ export function leagueRouter() {
     .put('/:id/rankings', async (req, res) => {
       const { heroIds } = RankingsSchema.parse(req.body)
       res.json(await draft.setRankings(currentAccount(req), parseId(req.params.id), heroIds))
+    })
+    .get('/:id/lineup', async (req, res) => {
+      res.json(await season.getLineup(currentAccount(req), parseId(req.params.id)))
+    })
+    .put('/:id/lineup', async (req, res) => {
+      const lineup = LineupSchema.parse(req.body)
+      res.json(await season.setLineup(currentAccount(req), parseId(req.params.id), lineup))
+    })
+    .get('/:id/schedule', async (req, res) => {
+      res.json(await season.getSchedule(currentAccount(req), parseId(req.params.id)))
+    })
+    .get('/:id/results/:week', async (req, res) => {
+      const week = WeekParamSchema.parse(req.params.week)
+      res.json(await season.getWeekResult(currentAccount(req), parseId(req.params.id), week))
+    })
+    .get('/:id/standings', async (req, res) => {
+      res.json(await season.getStandings(currentAccount(req), parseId(req.params.id)))
     })
 }
 
