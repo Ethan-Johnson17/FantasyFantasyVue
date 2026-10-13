@@ -40,7 +40,8 @@ export const UpdateLeagueSchema = CreateLeagueSchema.omit({ party: true })
 
 export const JoinLeagueSchema = z.object({ pin: PinSchema, party: PartyInputSchema }).strict()
 
-export const UpdatePartySchema = PartyInputSchema.partial()
+export const UpdatePartySchema = PartyInputSchema.extend({ autoSwap: z.boolean() })
+  .partial()
   .strict()
   .refine(update => Object.keys(update).length > 0, 'provide at least one field to change')
 

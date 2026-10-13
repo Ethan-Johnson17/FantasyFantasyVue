@@ -31,10 +31,16 @@ export interface DefenseRules {
   pointsAllowedTiers: readonly { maxAllowed: number; points: number }[]
 }
 
+export interface LineupRules {
+  /** Share of points a bench hero scores when auto-swapped in for a resting starter */
+  autoSwapMultiplier: number
+}
+
 export interface Ruleset {
   readonly version: number
   readonly offense: Readonly<OffenseRules>
   readonly defense: Readonly<DefenseRules>
+  readonly lineup: Readonly<LineupRules>
 }
 
 export const RULESET_V1: Ruleset = {
@@ -69,6 +75,9 @@ export const RULESET_V1: Ruleset = {
       { maxAllowed: 34, points: -1 },
       { maxAllowed: Infinity, points: -4 }
     ]
+  },
+  lineup: {
+    autoSwapMultiplier: 0.5
   }
 }
 

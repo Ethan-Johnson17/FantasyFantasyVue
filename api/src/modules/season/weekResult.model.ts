@@ -11,8 +11,13 @@ const heroResultSchema = new Schema(
     heroId: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
     // A lineup slot, or "Bench"
     slot: { type: String, required: true, enum: [...LINEUP_SLOTS, 'Bench'] },
+    // Exact points the hero earned that NFL week (before any auto-swap multiplier)
     points: { type: Number, required: true },
-    resting: { type: Boolean, required: true }
+    resting: { type: Boolean, required: true },
+    // Set when this bench hero was auto-swapped into a slot for a resting starter
+    swappedInto: { type: String, enum: [...LINEUP_SLOTS, null], default: null },
+    // Points that counted toward the party: points × multiplier for swapped-in heroes, 0 on the bench
+    counted: { type: Number, required: true }
   },
   { _id: false }
 )

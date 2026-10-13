@@ -8,6 +8,8 @@ const partySchema = new Schema(
     accountId: { type: Schema.Types.ObjectId, ref: 'Account', required: true, immutable: true },
     name: { type: String, required: true, trim: true, maxlength: PARTY_NAME_MAX },
     color: { type: String, required: true, match: /^#[0-9a-f]{6}$/i },
+    // Swap resting starters for bench heroes (at a points penalty) when a week resolves
+    autoSwap: { type: Boolean, required: true, default: true },
     // Starting lineup (hero ids by slot); auto-filled after the draft
     lineup: {
       type: new Schema(

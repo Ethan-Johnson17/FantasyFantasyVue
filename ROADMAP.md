@@ -43,3 +43,9 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
 - Playoff bracket (NFL weeks 15–17)
 - Simulated turn-based combat (seeded RNG) as an alternative to score-based battles
 - Kicker class
+
+## Future ideas
+
+- **Dynasty leagues:** heroes carry over between seasons. This is why hero identities are never revealed.
+- **Daily standings refresh:** a free scheduled trigger (for example GitHub Actions) that advances leagues even when
+  nobody opens them. Leagues already advance on demand, so this only needs adding once the API is hosted.

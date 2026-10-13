@@ -5,7 +5,8 @@ import type { AccountDocument } from '../accounts/account.model.js'
 import { toHeroView, type HeroView } from '../draft/draft.service.js'
 import { FLEX_CLASSES, type HeroClass } from '../heroes/classes.js'
 import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
-import { LINEUP_SLOTS, type Lineup, type LineupSlot } from '../heroes/lineup.js'
+import { LINEUP_SLOTS, planAutoSwaps, type Lineup, type LineupSlot } from '../heroes/lineup.js'
+import { expectedLevel } from '../heroes/pool.js'
 import { inTransaction, loadLeagueAsMember, loadVisibleLeague } from '../leagues/league.access.js'
 import { CADENCE_MS, LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
 import { PartyModel, type PartyDocument } from '../leagues/party.model.js'
@@ -60,8 +61,9 @@ async function resolveWeek(league: LeagueDocument, week: number): Promise<boolea
         .select('+source')
         .session(session)
     ])
-    const points = await heroPoints(heroes, season, week, getRuleset(league.rulesetVersion), session)
-    const sides = new Map(parties.map(party => [party.id, buildSide(party, heroes, points)]))
+    const ruleset = getRuleset(league.rulesetVersion)
+    const points = await heroPoints(heroes, season, week, ruleset, session)
+    const sides = new Map(parties.map(party => [party.id, buildSide(party, heroes, points, ruleset)]))
     const monsterTotal = monsterDamage([...sides.values()].map(side => side.total))
 
     const matchups = scheduled.matchups.map(matchup => {
@@ -111,19 +113,43 @@ async function heroPoints(
   )
 }
 
-function buildSide(party: PartyDocument, heroes: readonly HeroDocument[], points: ReadonlyMap<string, HeroPoints>) {
-  const lineup = party.lineup
-  if (!lineup) throw new Error(`Party ${party.id} has no lineup`)
-  const slotByHero = new Map<string, LineupSlot>(LINEUP_SLOTS.map(slot => [lineup[slot].toString(), slot]))
+function buildSide(
+  party: PartyDocument,
+  heroes: readonly HeroDocument[],
+  points: ReadonlyMap<string, HeroPoints>,
+  ruleset: Ruleset
+) {
+  const stored = party.lineup
+  if (!stored) throw new Error(`Party ${party.id} has no lineup`)
+  const lineup = lineupIds(stored)
+  const slotByHero = new Map<string, LineupSlot>(LINEUP_SLOTS.map(slot => [lineup[slot], slot]))
   const roster = heroes.filter(hero => hero.partyId?.equals(party._id))
-  const lines = roster.map(hero => ({
-    heroId: hero._id,
-    slot: slotByHero.get(hero.id) ?? ('Bench' as const),
-    ...(points.get(hero.id) ?? { points: 0, resting: true })
-  }))
+  const pointsOf = (id: string) => points.get(id) ?? { points: 0, resting: true }
+
+  const swaps = party.autoSwap
+    ? planAutoSwaps(
+        lineup,
+        new Set(LINEUP_SLOTS.map(slot => lineup[slot]).filter(id => pointsOf(id).resting)),
+        roster
+          .filter(hero => !slotByHero.has(hero.id))
+          .map(hero => ({ id: hero.id, heroClass: hero.heroClass, value: expectedLevel(hero), resting: pointsOf(hero.id).resting }))
+      )
+    : new Map<LineupSlot, string>()
+  const swappedInto = new Map([...swaps].map(([slot, heroId]) => [heroId, slot]))
+  const multiplier = ruleset.lineup.autoSwapMultiplier
+  const round2 = (value: number) => Math.round(value * 100) / 100
+
+  const lines = roster.map(hero => {
+    const slot = slotByHero.get(hero.id) ?? ('Bench' as const)
+    const into = swappedInto.get(hero.id) ?? null
+    const earned = pointsOf(hero.id)
+    // Starters count fully, swapped-in bench heroes count at the multiplier, everyone else on the bench counts 0.
+    const counted = slot !== 'Bench' ? earned.points : into ? round2(earned.points * multiplier) : 0
+    return { heroId: hero._id, slot, ...earned, swappedInto: into, counted }
+  })
   const score = scoreParty(
-    lines.filter(line => line.slot !== 'Bench').map(line => line.points),
-    lines.filter(line => line.slot === 'Bench').map(line => line.points)
+    lines.filter(line => line.slot !== 'Bench' || line.swappedInto).map(line => line.counted),
+    lines.filter(line => line.slot === 'Bench' && !line.swappedInto).map(line => line.points)
   )
   return { partyId: party._id, ...score, heroes: lines }
 }
@@ -133,6 +159,7 @@ function buildSide(party: PartyDocument, heroes: readonly HeroDocument[], points
 
 export interface LineupView {
   lineup: Record<LineupSlot, string> | null
+  autoSwap: boolean
   roster: (HeroView & { restingNextWeek: boolean })[]
   /** The next game week to resolve, or null if the season is over or hasn't started */
   nextWeek: number | null
@@ -146,6 +173,7 @@ export async function getLineup(member: AccountDocument, leagueId: string): Prom
   const resting = next ? await restingHeroes(league, roster, next.week) : new Set<string>()
   return {
     lineup: party.lineup ? lineupIds(party.lineup) : null,
+    autoSwap: party.autoSwap,
     roster: roster.map(hero => ({ ...toHeroView(hero), restingNextWeek: resting.has(hero.id) })),
     nextWeek: next?.week ?? null,
     nextWeekAt: next?.at ?? null
@@ -246,7 +274,17 @@ export async function getSchedule(viewer: AccountDocument, leagueId: string): Pr
 
 interface SideView extends PartyRef {
   total: number
-  heroes: { heroId: string; name: string; heroClass: string; slot: string; damage: number; resting: boolean }[]
+  heroes: {
+    heroId: string
+    name: string
+    heroClass: string
+    slot: string
+    /** Rounded points that counted toward the party total */
+    damage: number
+    resting: boolean
+    /** The slot a bench hero was auto-swapped into (scoring at a penalty), if any */
+    swappedInto: string | null
+  }[]
 }
 
 export interface WeekResultView {
@@ -270,8 +308,9 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
       heroClass: heroById.get(line.heroId.toString())?.heroClass ?? '',
       slot: line.slot,
       // Hidden-player rule: per-hero points are rounded so weekly lines can't be matched to public stats.
-      damage: Math.round(line.points),
-      resting: line.resting
+      damage: Math.round(line.slot === 'Bench' && !line.swappedInto ? line.points : line.counted),
+      resting: line.resting,
+      swappedInto: line.swappedInto ?? null
     }))
   })
 
