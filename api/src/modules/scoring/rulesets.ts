@@ -101,15 +101,16 @@ export const RULESET_V1: Ruleset = {
   },
   lineup: {
     rosterSize: 10,
-    slots: [
-      { key: 'Mage', label: 'Mage', classes: ['Mage'] },
-      { key: 'Warrior', label: 'Warrior', classes: ['Warrior'] },
-      { key: 'Ranger', label: 'Ranger', classes: ['Ranger'] },
-      { key: 'Rogue', label: 'Rogue', classes: ['Rogue'] },
-      { key: 'Paladin', label: 'Paladin', classes: ['Paladin'] },
-      { key: 'Flex', label: 'Flex', classes: ['Warrior', 'Ranger', 'Rogue'] }
-    ],
-    classMultipliers: { Mage: 1, Warrior: 1, Ranger: 1, Rogue: 1, Paladin: 1 },
+    // Classic: five open slots, any class (decided 2026-10-13)
+    slots: [1, 2, 3, 4, 5].map(n => ({
+      key: `slot${String(n)}`,
+      label: `Hero ${String(n)}`,
+      classes: ['Mage', 'Warrior', 'Ranger', 'Rogue', 'Paladin'] as const
+    })),
+    // Calibrated on 2012-2025 pools so a hero's Level means similar damage in every class
+    // (Level 6-8 heroes average ~17-18 damage per game in each). Rogues and Paladins stay swingier
+    // week to week by design.
+    classMultipliers: { Mage: 1, Warrior: 1.45, Ranger: 1.4, Rogue: 2.05, Paladin: 2.35 },
     autoSwapMultiplier: 0.5
   },
   pool: {

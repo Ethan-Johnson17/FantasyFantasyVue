@@ -111,8 +111,20 @@ This is more D&D-like but harder to balance and to explain. It's a good fit for 
 
 ## Party and draft
 
-- **Roster of 10** (raised from 8 on 2026-10-13 so auto-swap has more cover): 6 active slots (Mage, Warrior, Ranger,
-  Rogue, Paladin, plus **FLEX** = Warrior, Ranger or Rogue) and 4 on the bench. Lineups lock before each game week resolves.
+- **Roster of 10** (raised from 8 on 2026-10-13 so auto-swap has more cover).
+- **Open lineup** (decided 2026-10-13): **5 starting slots, any class**, and 5 on the bench. Classic is for fantasy
+  fans first, so class choice is strategy, not a football position chart.
+- **Class multipliers** balance the classes: a hero's damage is its points times its class multiplier.
+  **Mage ×1.0, Warrior ×1.45, Ranger ×1.4, Rogue ×2.05, Paladin ×2.35.** These were calibrated on the 2012–2025 pools
+  so that a hero's Level means similar damage in every class (Level 6–8 heroes average about 17–18 damage per game
+  in each). Class identity is deliberate: **Mages are steady, while Rogues and Paladins are boom-or-bust** (about twice
+  the week-to-week swing). Elite Rogues are the strongest heroes, and a Paladin's Level predicts the least.
+- Lineup shape, multipliers and pool sizes are ruleset data, so future modes (e.g. football-position crossovers
+  with multipliers of 1.0) reuse the same engine.
+- **Balance check** (2012–2025 real data, 3 seeds each, 6-party leagues, unmanaged lineups with auto-swap): win rates by
+  draft strategy were best-Level 54.9%, stack Rogues 53.1%, Warriors 50.7%, Rangers 49.5%, Mages 47.1% and
+  Paladins 44.7%. Starting slots split 17–23% per class. No single-class stack dominates, and drafting by Level,
+  the signal the game shows players, is the best approach.
 
 - **Automatic snake draft:** each participant ranks the hero pool ahead of time; at the scheduled draft time the
   server runs the snake order (randomized) and picks the highest-ranked available hero for each turn. Anyone who
@@ -148,8 +160,9 @@ Only players with at least one game in weeks 1–14 of the hidden season are eli
 - **Veterans** (4 or more games in the previous season) are ranked by previous-season points per game under the
   league's ruleset. The best fill the pool.
 - **Mystery recruits** are rookies drafted in the hidden season's NFL draft, taking up to 20% of each class's pool
-  *(default)*, best draft picks first. Their exact Level is hidden; they show a **Level range** by draft round:
-  round 1 → 6–10, round 2 → 4–9, round 3 → 3–8, rounds 4–7 → 1–6 *(default)*.
+  *(default)*, best draft picks first. Their exact Level is hidden; they show a **Level range** by draft round,
+  calibrated on 2012–2025 data (decided 2026-10-13): **round 1 → 1–4, round 2 → 1–2, round 3+ → 1**. First-round
+  rookies played like Level 1–2 veterans on average, with real upside; later rounds played below that.
 - Veterans with fewer than 4 games in the previous season are left out of the MVP pool *(default)*.
 
 **Level (1–10).** Within each class in the pool, veterans are split into deciles by previous-season points per game:
@@ -178,7 +191,7 @@ as the midpoint of its range). A pick is not allowed if it would leave the roste
 if it would take the last hero of a class that another party still needs.
 
 **After the draft** the league becomes `active`. Each party's starting lineup is auto-filled with its highest-Level
-hero per slot. Week 1 resolves one cadence after the draft time.
+heroes (restrictive slots first, when a ruleset has any). Week 1 resolves one cadence after the draft time.
 
 ## Season play (step 4b)
 

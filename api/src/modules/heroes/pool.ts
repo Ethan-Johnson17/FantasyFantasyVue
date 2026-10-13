@@ -35,11 +35,14 @@ export interface PoolEntry {
 /** Up to this share of each class's pool is mystery recruits. */
 export const MYSTERY_SHARE = 0.2
 
+/**
+ * Guidance shown for rookies, calibrated on 2012-2025 data: first-round rookies played like
+ * Level 1-2 veterans on average (with upside), later rounds below Level 1.
+ */
 export function mysteryRange(draftRound: number): LevelRange {
-  if (draftRound <= 1) return { min: 6, max: 10 }
-  if (draftRound === 2) return { min: 4, max: 9 }
-  if (draftRound === 3) return { min: 3, max: 8 }
-  return { min: 1, max: 6 }
+  if (draftRound <= 1) return { min: 1, max: 4 }
+  if (draftRound === 2) return { min: 1, max: 2 }
+  return { min: 1, max: 1 }
 }
 
 /** The value used to compare heroes when no ranking applies: Level, or a mystery range's midpoint. */

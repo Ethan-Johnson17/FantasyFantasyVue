@@ -9,8 +9,21 @@ import { RULESET_V1, type LineupRules } from '../src/modules/scoring/rulesets.js
 
 const POOL = RULESET_V1.pool
 const LINEUP = RULESET_V1.lineup
-const SLOTS = LINEUP.slots
 const ROSTER_SIZE = LINEUP.rosterSize
+
+/** Fixed positions plus FLEX: exercises the position rules that Classic's open slots don't use. */
+const FIXED: Pick<LineupRules, 'rosterSize' | 'slots'> = {
+  rosterSize: 10,
+  slots: [
+    { key: 'Mage', label: 'Mage', classes: ['Mage'] },
+    { key: 'Warrior', label: 'Warrior', classes: ['Warrior'] },
+    { key: 'Ranger', label: 'Ranger', classes: ['Ranger'] },
+    { key: 'Rogue', label: 'Rogue', classes: ['Rogue'] },
+    { key: 'Paladin', label: 'Paladin', classes: ['Paladin'] },
+    { key: 'Flex', label: 'Flex', classes: ['Warrior', 'Ranger', 'Rogue'] }
+  ]
+}
+const SLOTS = FIXED.slots
 
 describe('createRng', () => {
   it('is deterministic per seed and label, and independent across labels', () => {
@@ -93,13 +106,13 @@ describe('selectHeroPool', () => {
 
   it('maps draft rounds to the documented ranges', () => {
     expect([1, 2, 3, 4, 7].map(mysteryRange)).toEqual([
-      { min: 6, max: 10 },
-      { min: 4, max: 9 },
-      { min: 3, max: 8 },
-      { min: 1, max: 6 },
-      { min: 1, max: 6 }
+      { min: 1, max: 4 },
+      { min: 1, max: 2 },
+      { min: 1, max: 1 },
+      { min: 1, max: 1 },
+      { min: 1, max: 1 }
     ])
-    expect(expectedLevel({ level: null, levelRange: { min: 4, max: 9 } })).toBe(6.5)
+    expect(expectedLevel({ level: null, levelRange: { min: 1, max: 4 } })).toBe(2.5)
   })
 })
 
@@ -152,11 +165,11 @@ function draftPool(partyCount: number): DraftHero[] {
   return pool.map((entry, i) => ({ id: `h${String(i)}`, heroClass: entry.heroClass, value: expectedLevel(entry) }))
 }
 
-describe('runSnakeDraft', () => {
+describe('runSnakeDraft (fixed positions)', () => {
   it('snakes the order and gives everyone a full roster', () => {
     const heroes = draftPool(3)
     const parties = ['a', 'b', 'c'].map(id => ({ id, ranking: [] }))
-    const { order, picks } = runSnakeDraft(parties, heroes, createRng('draft'), LINEUP)
+    const { order, picks } = runSnakeDraft(parties, heroes, createRng('draft'), FIXED)
 
     expect(picks).toHaveLength(3 * ROSTER_SIZE)
     expect(picks.slice(0, 6).map(pick => pick.partyId)).toEqual([...order, ...[...order].reverse()])
@@ -171,7 +184,7 @@ describe('runSnakeDraft', () => {
       { id: 'a', ranking: [mages[2]!, paladins[3]!] },
       { id: 'b', ranking: [] }
     ]
-    const { picks } = runSnakeDraft(parties, heroes, createRng('draft'), LINEUP)
+    const { picks } = runSnakeDraft(parties, heroes, createRng('draft'), FIXED)
     const picksOf = (party: string) => picks.filter(pick => pick.partyId === party).map(pick => pick.heroId)
     expect(picksOf('a').slice(0, 2)).toEqual([mages[2], paladins[3]])
   })
@@ -188,7 +201,7 @@ describe('runSnakeDraft', () => {
       ],
       heroes,
       createRng('draft'),
-      LINEUP
+      FIXED
     )
     for (const party of ['a', 'b', 'c']) {
       const count = picks.filter(pick => pick.partyId === party && paladins.includes(pick.heroId)).length
@@ -212,7 +225,7 @@ describe('runSnakeDraft', () => {
         ]
         return { id: `p${String(p)}`, ranking: ranked.map(hero => hero.id) }
       })
-      const { picks } = runSnakeDraft(parties, heroes, rng, LINEUP)
+      const { picks } = runSnakeDraft(parties, heroes, rng, FIXED)
       const heroById = new Map(heroes.map(hero => [hero.id, hero]))
       for (const party of parties) {
         const roster = picks.filter(pick => pick.partyId === party.id).map(pick => heroById.get(pick.heroId)!)
@@ -268,7 +281,8 @@ describe('planAutoSwaps', () => {
 const ALL: readonly HeroClass[] = ['Mage', 'Warrior', 'Ranger', 'Rogue', 'Paladin']
 const ADVENTURER: readonly HeroClass[] = ['Warrior', 'Ranger', 'Rogue']
 const CONFIGS: Record<string, Pick<LineupRules, 'rosterSize' | 'slots'>> = {
-  v1: LINEUP,
+  'Classic (ruleset v1)': LINEUP,
+  'fixed positions with FLEX': FIXED,
   'five open slots': {
     rosterSize: 10,
     slots: Array.from({ length: 5 }, (_, i) => ({ key: `slot${String(i + 1)}`, label: 'Hero', classes: ALL }))
