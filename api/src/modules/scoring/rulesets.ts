@@ -1,5 +1,7 @@
+import type { HeroClass } from '../heroes/classes.js'
+
 /**
- * Scoring rulesets. A league records the version it started with, so tuning a ruleset
+ * Game rulesets: scoring, lineup shape, and pool size. A league records the version it started with, so tuning a ruleset
  * means adding a new version, never editing an existing one.
  * Spec: docs/CLASSIC_SCORING.md
  */
@@ -31,9 +33,29 @@ export interface DefenseRules {
   pointsAllowedTiers: readonly { maxAllowed: number; points: number }[]
 }
 
+export interface SlotRule {
+  /** Stable id used in lineups and results */
+  key: string
+  /** Shown to players */
+  label: string
+  /** Classes that may fill this slot */
+  classes: readonly HeroClass[]
+}
+
 export interface LineupRules {
+  /** Heroes each party drafts */
+  rosterSize: number
+  /** Starting slots; heroes not in a slot are on the bench */
+  slots: readonly SlotRule[]
+  /** Damage multiplier per class, applied to a hero's points */
+  classMultipliers: Readonly<Record<HeroClass, number>>
   /** Share of points a bench hero scores when auto-swapped in for a resting starter */
   autoSwapMultiplier: number
+}
+
+export interface PoolRules {
+  /** Hero pool size per party, by class */
+  perParty: Readonly<Record<HeroClass, number>>
 }
 
 export interface Ruleset {
@@ -41,6 +63,7 @@ export interface Ruleset {
   readonly offense: Readonly<OffenseRules>
   readonly defense: Readonly<DefenseRules>
   readonly lineup: Readonly<LineupRules>
+  readonly pool: Readonly<PoolRules>
 }
 
 export const RULESET_V1: Ruleset = {
@@ -77,7 +100,21 @@ export const RULESET_V1: Ruleset = {
     ]
   },
   lineup: {
+    rosterSize: 10,
+    slots: [
+      { key: 'Mage', label: 'Mage', classes: ['Mage'] },
+      { key: 'Warrior', label: 'Warrior', classes: ['Warrior'] },
+      { key: 'Ranger', label: 'Ranger', classes: ['Ranger'] },
+      { key: 'Rogue', label: 'Rogue', classes: ['Rogue'] },
+      { key: 'Paladin', label: 'Paladin', classes: ['Paladin'] },
+      { key: 'Flex', label: 'Flex', classes: ['Warrior', 'Ranger', 'Rogue'] }
+    ],
+    classMultipliers: { Mage: 1, Warrior: 1, Ranger: 1, Rogue: 1, Paladin: 1 },
     autoSwapMultiplier: 0.5
+  },
+  pool: {
+    // About 2.3x what a roster of 10 needs
+    perParty: { Mage: 4, Warrior: 6, Ranger: 6, Rogue: 4, Paladin: 3 }
   }
 }
 

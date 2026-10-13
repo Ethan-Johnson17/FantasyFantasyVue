@@ -1,4 +1,5 @@
-import { HERO_CLASSES, POOL_PER_PARTY, type HeroClass } from './classes.js'
+import type { PoolRules } from '../scoring/rulesets.js'
+import { HERO_CLASSES, type HeroClass } from './classes.js'
 
 /*
  * Hero pool selection and Levels. Pure: candidates in, pool out.
@@ -48,9 +49,13 @@ export function expectedLevel(entry: { level?: number | null; levelRange?: Level
   return 0
 }
 
-export function selectHeroPool(candidates: readonly PoolCandidate[], partyCount: number): PoolEntry[] {
+export function selectHeroPool(
+  candidates: readonly PoolCandidate[],
+  partyCount: number,
+  rules: PoolRules
+): PoolEntry[] {
   return HERO_CLASSES.flatMap(heroClass => {
-    const need = POOL_PER_PARTY[heroClass] * partyCount
+    const need = rules.perParty[heroClass] * partyCount
     const ofClass = candidates.filter(candidate => candidate.heroClass === heroClass)
 
     const veterans = ofClass

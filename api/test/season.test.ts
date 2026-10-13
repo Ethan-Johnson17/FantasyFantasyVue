@@ -1,8 +1,10 @@
+import mongoose from 'mongoose'
 import request from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { HeroModel } from '../src/modules/heroes/hero.model.js'
 import { CADENCE_MS, LeagueModel } from '../src/modules/leagues/league.model.js'
-import { PartyModel } from '../src/modules/leagues/party.model.js'
+import { PartyModel, readLineup } from '../src/modules/leagues/party.model.js'
+import { RULESET_V1 } from '../src/modules/scoring/rulesets.js'
 import { WeekResultModel } from '../src/modules/season/weekResult.model.js'
 import { PlayerWeekStatModel } from '../src/modules/stats/stats.models.js'
 import { buildTestApp, signToken } from './helpers.js'
@@ -118,18 +120,21 @@ describe('weekly resolution', () => {
     const side = result!.matchups[0]!.home
     const party = parties.find(p => p._id.equals(side.partyId))!
 
-    // Recompute the total from raw stats: every seeded 2020 line is 100 rushing yards (10 points).
+    // Recompute the total from raw stats: every seeded 2020 line is 100 rushing yards (10 points),
+    // and each hero's damage is its points times its class multiplier.
+    const lineup = readLineup(party.lineup)!
     let expected = 0
-    for (const slot of ['Mage', 'Warrior', 'Ranger', 'Rogue', 'Paladin', 'Flex'] as const) {
-      const hero = heroes.find(h => h._id.equals(party.lineup![slot]))!
+    for (const slot of RULESET_V1.lineup.slots) {
+      const hero = heroes.find(h => h._id.toString() === lineup[slot.key])!
       const line = side.heroes.find(h => h.heroId.equals(hero._id))!
-      expect(line.slot).toBe(slot)
+      expect(line.slot).toBe(slot.key)
       if (hero.source.kind === 'player') {
         const stat = await PlayerWeekStatModel.findOne({ playerId: hero.source.id, season: SEEDED_SEASON, week: 1 }).lean()
         expect(stat).not.toBeNull()
         expect(line.points).toBe(10)
       }
-      expected += line.points
+      expect(line.counted).toBeCloseTo(line.points * RULESET_V1.lineup.classMultipliers[hero.heroClass], 2)
+      expected += line.counted
     }
     expect(side.total).toBeCloseTo(expected, 6)
   })
@@ -322,9 +327,10 @@ describe('hidden-player protection in results', () => {
     const id = await draftedLeague([alice, bob])
     // Give one hero a fractional score so rounding is observable.
     const party = await PartyModel.findOne({ leagueId: id }).lean()
-    const mage = await HeroModel.findById(party!.lineup!.Mage).select('+source').lean()
+    const starters = await HeroModel.find({ _id: mongoose.trusted({ $in: Object.values(readLineup(party!.lineup)!) }) }).select('+source').lean()
+    const target = starters.find(hero => hero.source.kind === 'player')!
     await PlayerWeekStatModel.updateOne(
-      { playerId: mage!.source.id, season: SEEDED_SEASON, week: 1 },
+      { playerId: target.source.id, season: SEEDED_SEASON, week: 1 },
       { $set: { 'stats.rushingYards': 104, 'stats.passingYards': 1 } }
     )
     await makeWeeksDue(id, 1)
@@ -345,7 +351,8 @@ describe('hidden-player protection in results', () => {
       .flatMap(m => (m.away ? [m.home, m.away] : [m.home]))
       .flatMap(side => side.heroes)
     expect(heroes.every(hero => Number.isInteger(hero.damage))).toBe(true)
-    // 104 rushing yards + 1 passing yard = 10.44 exact, shown as 10
-    expect(heroes.find(hero => hero.heroId === party!.lineup!.Mage.toString())?.damage).toBe(10)
+    // 104 rushing yards + 1 passing yard = 10.44 points, times the class multiplier, shown rounded
+    const expectedDamage = Math.round(10.44 * RULESET_V1.lineup.classMultipliers[target.heroClass])
+    expect(heroes.find(hero => hero.heroId === target._id.toString())?.damage).toBe(expectedDamage)
   })
 })

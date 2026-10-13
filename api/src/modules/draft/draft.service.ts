@@ -9,7 +9,7 @@ import { autoLineup } from '../heroes/lineup.js'
 import { expectedLevel, selectHeroPool, type LevelRange } from '../heroes/pool.js'
 import { inTransaction, loadLeagueAsHost, loadLeagueAsMember, loadVisibleLeague } from '../leagues/league.access.js'
 import { CADENCE_MS, LeagueModel } from '../leagues/league.model.js'
-import { PartyModel } from '../leagues/party.model.js'
+import { PartyModel, storedLineup } from '../leagues/party.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
 import { roundRobin } from '../season/schedule.js'
 import { loadPoolCandidates, pickSeason } from './candidates.js'
@@ -66,8 +66,9 @@ export async function scheduleDraft(host: AccountDocument, leagueId: string, dra
   // Build the pool outside the transaction (read-heavy), then claim the league and save it atomically.
   const seed = newSeed()
   const season = await pickSeason(createRng(seed, 'season'))
-  const candidates = await loadPoolCandidates(season, getRuleset(league.rulesetVersion))
-  const pool = generateAppearances(selectHeroPool(candidates, league.partyCount), createRng(seed, 'pool'))
+  const ruleset = getRuleset(league.rulesetVersion)
+  const candidates = await loadPoolCandidates(season, ruleset)
+  const pool = generateAppearances(selectHeroPool(candidates, league.partyCount, ruleset.pool), createRng(seed, 'pool'))
 
   await inTransaction(async session => {
     // Matching partyCount guarantees nobody joined or left while the pool was being built.
@@ -106,7 +107,8 @@ export async function runDueDraft(leagueId: string): Promise<void> {
     const { order, picks } = runSnakeDraft(
       parties.map(party => ({ id: party.id, ranking: rankingByParty.get(party.id) ?? [] })),
       heroes.map(hero => ({ id: hero.id, heroClass: hero.heroClass, value: expectedLevel(hero) })),
-      createRng(league.seed, 'draft')
+      createRng(league.seed, 'draft'),
+      getRuleset(league.rulesetVersion).lineup
     )
 
     await HeroModel.bulkWrite(
@@ -122,7 +124,8 @@ export async function runDueDraft(leagueId: string): Promise<void> {
             const hero = heroById.get(pick.heroId)
             return hero ? [{ id: hero.id, heroClass: hero.heroClass, value: expectedLevel(hero) }] : []
           })
-        return { updateOne: { filter: { _id: party._id }, update: { $set: { lineup: autoLineup(roster) } } } }
+        const lineup = storedLineup(autoLineup(roster, getRuleset(league.rulesetVersion).lineup.slots))
+        return { updateOne: { filter: { _id: party._id }, update: { $set: { lineup } } } }
       }),
       { session }
     )

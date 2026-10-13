@@ -1,5 +1,4 @@
 import { model, Schema, type InferSchemaType } from 'mongoose'
-import { LINEUP_SLOTS } from '../heroes/lineup.js'
 
 /*
  * The outcome of one game week. Stores exact points and the lineups used, so results are
@@ -9,13 +8,13 @@ import { LINEUP_SLOTS } from '../heroes/lineup.js'
 const heroResultSchema = new Schema(
   {
     heroId: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
-    // A lineup slot, or "Bench"
-    slot: { type: String, required: true, enum: [...LINEUP_SLOTS, 'Bench'] },
+    // The ruleset slot key the hero started in, or "Bench"
+    slot: { type: String, required: true },
     // Exact points the hero earned that NFL week (before any auto-swap multiplier)
     points: { type: Number, required: true },
     resting: { type: Boolean, required: true },
     // Set when this bench hero was auto-swapped into a slot for a resting starter
-    swappedInto: { type: String, enum: [...LINEUP_SLOTS, null], default: null },
+    swappedInto: { type: String, default: null },
     // Points that counted toward the party: points × multiplier for swapped-in heroes, 0 on the bench
     counted: { type: Number, required: true }
   },

@@ -1,4 +1,5 @@
-import { model, Schema, type HydratedDocument, type InferSchemaType } from 'mongoose'
+import { model, Schema, type HydratedDocument, type InferSchemaType, type Types } from 'mongoose'
+import type { Lineup } from '../heroes/lineup.js'
 
 export const PARTY_NAME_MAX = 30
 
@@ -10,20 +11,18 @@ const partySchema = new Schema(
     color: { type: String, required: true, match: /^#[0-9a-f]{6}$/i },
     // Swap resting starters for bench heroes (at a points penalty) when a week resolves
     autoSwap: { type: Boolean, required: true, default: true },
-    // Starting lineup (hero ids by slot); auto-filled after the draft
+    // Starting lineup: one entry per slot of the league's ruleset; auto-filled after the draft
     lineup: {
-      type: new Schema(
-        {
-          Mage: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
-          Warrior: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
-          Ranger: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
-          Rogue: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
-          Paladin: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
-          Flex: { type: Schema.Types.ObjectId, ref: 'Hero', required: true }
-        },
-        { _id: false }
-      ),
-      required: false
+      type: [
+        new Schema(
+          {
+            slot: { type: String, required: true },
+            heroId: { type: Schema.Types.ObjectId, ref: 'Hero', required: true }
+          },
+          { _id: false }
+        )
+      ],
+      default: undefined
     }
   },
   { timestamps: true }
@@ -38,3 +37,13 @@ export type Party = InferSchemaType<typeof partySchema>
 export type PartyDocument = HydratedDocument<Party>
 
 export const PartyModel = model('Party', partySchema)
+
+/** Stored lineup entries as a slot-to-hero map, or null before the draft. */
+export function readLineup(stored: readonly { slot: string; heroId: Types.ObjectId }[] | null | undefined): Lineup | null {
+  if (!stored?.length) return null
+  return Object.fromEntries(stored.map(entry => [entry.slot, entry.heroId.toString()]))
+}
+
+export function storedLineup(lineup: Lineup): { slot: string; heroId: string }[] {
+  return Object.entries(lineup).map(([slot, heroId]) => ({ slot, heroId }))
+}
