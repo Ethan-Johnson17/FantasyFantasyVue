@@ -71,7 +71,7 @@ describe('scheduling the draft', () => {
     expect(res.body.draftAt).toBeTruthy()
 
     const heroes = (await alice.get(`/api/leagues/${league.id}/heroes`)).body as HeroView[]
-    expect(heroes).toHaveLength(18 * 2)
+    expect(heroes).toHaveLength(23 * 2)
 
     // Membership is locked
     const late = await bob.post('/api/leagues/join', { pin: league.pin, party: { name: 'Late', color: '#333333' } })
@@ -108,8 +108,8 @@ describe('scheduling the draft', () => {
     for (const excluded of Object.values(EXCLUDED_IDS)) expect(sources).not.toContain(excluded)
 
     const mages = heroes.filter(hero => hero.heroClass === 'Mage')
-    expect(mages).toHaveLength(6)
-    // 20% of 6 rounds down to 1 mystery recruit: the earliest draft pick
+    expect(mages).toHaveLength(8)
+    // 20% of 8 rounds down to 1 mystery recruit: the earliest draft pick
     const recruits = mages.filter(hero => hero.level === null)
     expect(recruits.map(hero => hero.source.id)).toEqual(['QB-rookie-0'])
     expect(recruits[0]?.levelRange).toEqual({ min: 6, max: 10 })
@@ -119,7 +119,7 @@ describe('scheduling the draft', () => {
         .filter(hero => hero.level !== null)
         .map(hero => hero.source.id)
         .sort()
-    ).toEqual(['QB-0', 'QB-1', 'QB-2', 'QB-3', 'QB-4'])
+    ).toEqual(['QB-0', 'QB-1', 'QB-2', 'QB-3', 'QB-4', 'QB-5', 'QB-6'])
     expect(mages.find(hero => hero.source.id === 'QB-0')?.level).toBe(10)
   })
 
@@ -143,7 +143,7 @@ describe('scheduling the draft', () => {
     const res = await host.post(`/api/leagues/${league.id}/draft`, { draftAt: later })
     expect(res.status).toBe(200)
     expect(new Date(res.body.draftAt as string).toISOString()).toBe(later)
-    expect(await HeroModel.countDocuments({ leagueId: league.id })).toBe(36) // pool not rebuilt
+    expect(await HeroModel.countDocuments({ leagueId: league.id })).toBe(46) // pool not rebuilt
 
     await makeDraftDue(league.id)
     expect((await host.post(`/api/leagues/${league.id}/draft`, { draftAt: inMinutes(60) })).status).toBe(409)

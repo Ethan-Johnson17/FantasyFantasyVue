@@ -111,8 +111,8 @@ This is more D&D-like but harder to balance and to explain. It's a good fit for 
 
 ## Party and draft
 
-- **Roster of 8:** 6 active slots (Mage, Warrior, Ranger, Rogue, Paladin, plus **FLEX** = Warrior, Ranger or Rogue)
-  and 2 on the bench. Lineups lock before each game week resolves.
+- **Roster of 10** (raised from 8 on 2026-10-13 so auto-swap has more cover): 6 active slots (Mage, Warrior, Ranger,
+  Rogue, Paladin, plus **FLEX** = Warrior, Ranger or Rogue) and 4 on the bench. Lineups lock before each game week resolves.
 
 - **Automatic snake draft:** each participant ranks the hero pool ahead of time; at the scheduled draft time the
   server runs the snake order (randomized) and picks the highest-ranked available hero for each turn. Anyone who
@@ -139,10 +139,10 @@ Decided 2026-10-12. Items marked *(default)* were filled in during implementatio
 parties. The host can reschedule until the draft runs.
 
 **Hidden season.** When the draft is scheduled, the server picks a random season from 2012–2025, out of those whose
-stats (and the previous season's) are imported. It is never sent to clients until the reveal.
+stats (and the previous season's) are imported. It is never sent to clients.
 
-**Hero pool** (about 2× demand). Each party drafts 8 heroes, so the pool per party is
-3 Mages (QB), 5 Warriors (RB), 5 Rangers (WR), 3 Rogues (TE) and 2 Paladins (DEF), 18 in all *(default)*.
+**Hero pool** (about 2.3× demand). Each party drafts 10 heroes, so the pool per party is
+4 Mages (QB), 6 Warriors (RB), 6 Rangers (WR), 4 Rogues (TE) and 3 Paladins (DEF), 23 in all *(default)*.
 Only players with at least one game in weeks 1–14 of the hidden season are eligible.
 
 - **Veterans** (4 or more games in the previous season) are ranked by previous-season points per game under the

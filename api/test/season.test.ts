@@ -101,7 +101,7 @@ describe('weekly resolution', () => {
     for (const side of [matchup.home, matchup.away]) {
       const starters = side.heroes.filter((h: { slot: string }) => h.slot !== 'Bench')
       expect(starters).toHaveLength(6)
-      expect(side.heroes).toHaveLength(8)
+      expect(side.heroes).toHaveLength(10)
     }
     expect(['home', 'away', 'draw']).toContain(matchup.outcome)
     expect(await WeekResultModel.countDocuments({ leagueId: id })).toBe(1)
@@ -181,7 +181,7 @@ describe('lineups', () => {
   it('shows my roster, lineup, and the next week', async () => {
     const id = await draftedLeague()
     const view = await myLineup(id)
-    expect(view.roster).toHaveLength(8)
+    expect(view.roster).toHaveLength(10)
     expect(Object.keys(view.lineup ?? {})).toEqual(['Mage', 'Warrior', 'Ranger', 'Rogue', 'Paladin', 'Flex'])
     expect(view.nextWeek).toBe(1)
   })
