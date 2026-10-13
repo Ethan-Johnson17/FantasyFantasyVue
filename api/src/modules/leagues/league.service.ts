@@ -51,16 +51,18 @@ export interface LeagueSummaryView {
   isHost: boolean
   /** Only shown to members, and for public leagues. */
   pin?: string
+  /** When the automatic draft runs (set once scheduled) */
+  draftAt: Date | null
+  /** When game week 1 resolves (set once the draft has run) */
+  weekOneAt: Date | null
+  /** Game weeks played so far */
+  resolvedWeeks: number
   createdAt: Date
 }
 
 export interface LeagueDetailView extends LeagueSummaryView {
   rulesetVersion: number
   parties: PartyView[]
-  /** When the automatic draft runs (set once scheduled) */
-  draftAt: Date | null
-  /** When game week 1 resolves (set once the draft has run) */
-  weekOneAt: Date | null
 }
 
 export interface MyLeagueView extends LeagueSummaryView {
@@ -81,8 +83,6 @@ export async function getLeague(viewer: AccountDocument, leagueId: string): Prom
   return {
     ...toSummary(league, viewer, profiles, isMember),
     rulesetVersion: league.rulesetVersion,
-    draftAt: league.draftAt ?? null,
-    weekOneAt: league.weekOneAt ?? null,
     parties: parties.map(party => ({
       id: party.id,
       name: party.name,
@@ -315,6 +315,9 @@ function toSummary(
     host: profileOf(profiles, league.hostId),
     isHost: league.hostId.equals(viewer._id),
     ...(showPin ? { pin: league.pin } : {}),
+    draftAt: league.draftAt ?? null,
+    weekOneAt: league.weekOneAt ?? null,
+    resolvedWeeks: league.resolvedWeeks,
     createdAt: league.createdAt
   }
 }
