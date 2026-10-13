@@ -56,17 +56,17 @@ describe('selectHeroPool', () => {
     for (const heroClass of HERO_CLASSES) {
       expect(pool.filter(entry => entry.heroClass === heroClass)).toHaveLength(POOL_PER_PARTY[heroClass] * 4)
     }
-    expect(pool).toHaveLength(18 * 4)
+    expect(pool).toHaveLength(23 * 4)
   })
 
   it('takes the best veterans, and up to 20% mystery recruits by draft order', () => {
     const warriors = selectHeroPool(candidates(), 2).filter(entry => entry.heroClass === 'Warrior')
-    // 10 Warriors: 2 recruits (20%), 8 veterans
+    // 12 Warriors: 2 recruits (20%, rounded down), 10 veterans
     const recruits = warriors.filter(entry => entry.level === null)
     expect(recruits.map(entry => entry.sourceId)).toEqual(['Warrior-rookie-0', 'Warrior-rookie-1'])
     expect(recruits.map(entry => entry.levelRange)).toEqual([mysteryRange(1), mysteryRange(2)])
     const veterans = warriors.filter(entry => entry.level !== null)
-    expect(veterans.map(entry => entry.sourceId)).toEqual(Array.from({ length: 8 }, (_, i) => `Warrior-vet-0${String(i)}`))
+    expect(veterans.map(entry => entry.sourceId)).toEqual(Array.from({ length: 10 }, (_, i) => `Warrior-vet-0${String(i)}`))
   })
 
   it('assigns Level deciles among the class veterans, best first', () => {
@@ -78,9 +78,9 @@ describe('selectHeroPool', () => {
   })
 
   it('fills with extra recruits when veterans run short, and fails clearly when both do', () => {
-    // 4 veterans per class; 2 parties need 6 Rogues, so 2 recruits fill the gap (cap alone would allow 1).
-    const rogues = selectHeroPool(candidates(4), 2).filter(entry => entry.heroClass === 'Rogue')
-    expect(rogues).toHaveLength(6)
+    // 6 veterans per class; 2 parties need 8 Rogues, so 2 recruits fill the gap (the 20% cap alone would allow 1).
+    const rogues = selectHeroPool(candidates(6), 2).filter(entry => entry.heroClass === 'Rogue')
+    expect(rogues).toHaveLength(8)
     expect(rogues.filter(entry => entry.level === null)).toHaveLength(2)
     expect(() => selectHeroPool(candidates(1), 6)).toThrow(/Not enough Mage candidates/)
   })
