@@ -10,6 +10,36 @@ export interface LineupHero {
   value: number
 }
 
+export interface SwapCandidate extends LineupHero {
+  resting: boolean
+}
+
+/**
+ * Auto-swap plan for one week: for each starting slot whose hero is resting, the highest-Level
+ * bench hero who isn't resting and fits the slot. Required slots are filled before FLEX, and each
+ * bench hero swaps in at most once. Chooses by Level, never by that week's actual points.
+ */
+export function planAutoSwaps(
+  lineup: Lineup,
+  restingStarters: ReadonlySet<string>,
+  bench: readonly SwapCandidate[]
+): Map<LineupSlot, string> {
+  const available = bench
+    .filter(hero => !hero.resting)
+    .sort((a, b) => b.value - a.value || a.id.localeCompare(b.id))
+  const used = new Set<string>()
+  const swaps = new Map<LineupSlot, string>()
+  for (const slot of LINEUP_SLOTS) {
+    if (!restingStarters.has(lineup[slot])) continue
+    const eligible: readonly HeroClass[] = slot === 'Flex' ? FLEX_CLASSES : [slot]
+    const sub = available.find(hero => !used.has(hero.id) && eligible.includes(hero.heroClass))
+    if (!sub) continue
+    used.add(sub.id)
+    swaps.set(slot, sub.id)
+  }
+  return swaps
+}
+
 /** Best hero per required slot by Level, then the best remaining FLEX-eligible hero. */
 export function autoLineup(heroes: readonly LineupHero[]): Lineup {
   const best = [...heroes].sort((a, b) => b.value - a.value || a.id.localeCompare(b.id))

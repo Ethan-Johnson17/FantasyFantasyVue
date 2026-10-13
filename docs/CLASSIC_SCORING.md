@@ -99,7 +99,8 @@ This is more D&D-like but harder to balance and to explain. It's a good fit for 
   populates the full player on hero documents, and that must stop.
 - **Bye weeks and inactives:** a hero with no stats row that week is shown as **"Resting"** before lock,
   just as real fantasy apps show byes and inactive players. Resting heroes score 0.
-- **Reveal:** once the league ends, show which NFL player was behind each hero as a payoff moment.
+- **No reveal, ever:** a hero's real player or team and the hidden season stay hidden, even after the league ends.
+  This keeps dynasty-style leagues possible, where heroes carry over between seasons (decided 2026-10-13).
 
 ## Step 6: League calendar
 
@@ -192,6 +193,10 @@ Decided 2026-10-13. Items marked *(default)* were filled in during implementatio
 - **Lineup lock:** the lineup in place when a week resolves is used. Any lineup change first resolves every week already
   due, so a late change only affects later weeks. Each week's result stores the lineup that was used.
 - **Resting:** a hero whose player or team has no stats that NFL week is shown as **Resting** for the upcoming week and scores 0.
+- **Auto-swap** (decided 2026-10-13; on by default, each party can turn it off): when a starter is Resting at resolve
+  time, the highest-Level bench hero who isn't resting and is eligible for that slot takes the slot and scores
+  **50% of its points**. Required slots are filled before FLEX, and each bench hero can swap in once. Auto-swap
+  chooses by Level, not by that week's actual points, so it never uses information a manager wouldn't have.
 - **What users see:** party totals are exact. Each hero's damage is shown **rounded to the nearest whole number**,
   because exact per-hero weekly points could be matched against public stats to identify the hidden player.
   Scoring itself always uses exact values.

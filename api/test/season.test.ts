@@ -15,7 +15,8 @@ function as(sub: string) {
   return {
     get: (url: string) => withAuth(request(app).get(url)),
     post: (url: string, body: object = {}) => withAuth(request(app).post(url).send(body)),
-    put: (url: string, body: object) => withAuth(request(app).put(url).send(body))
+    put: (url: string, body: object) => withAuth(request(app).put(url).send(body)),
+    patch: (url: string, body: object) => withAuth(request(app).patch(url).send(body))
   }
 }
 
@@ -24,6 +25,11 @@ const alice = as('auth0|alice')
 const bob = as('auth0|bob')
 const outsider = as('auth0|outsider')
 const DAY = CADENCE_MS.daily
+
+interface SideView {
+  total: number
+  heroes: { heroId: string; slot: string; damage: number; resting: boolean; swappedInto: string | null }[]
+}
 
 interface LineupView {
   lineup: Record<string, string> | null
@@ -255,6 +261,59 @@ describe('lineups', () => {
     const { lineup } = await myLineup(id)
     await makeWeeksDue(id, 30)
     expect((await alice.put(`/api/leagues/${id}/lineup`, lineup!)).status).toBe(409)
+  })
+})
+
+describe('auto-swap', () => {
+  /**
+   * Rests alice's starter in the slot matching a bench hero's class for week 1, so a swap is
+   * always possible: every bench hero's class has its own required slot.
+   */
+  async function restCoveredStarter(id: string) {
+    const view = (await alice.get(`/api/leagues/${id}/lineup`)).body as LineupView
+    const benchClass = view.roster.find(hero => !Object.values(view.lineup!).includes(hero.id))!.heroClass
+    const starter = view.lineup![benchClass]!
+    const benchOfClass = view.roster.filter(h => h.heroClass === benchClass && !Object.values(view.lineup!).includes(h.id))
+    const starterSource = (await HeroModel.findById(starter).select('+source').lean())!.source.id
+    await PlayerWeekStatModel.deleteMany({ playerId: starterSource, season: SEEDED_SEASON, week: 1 })
+    return { starter, slot: benchClass, benchIds: benchOfClass.map(h => h.id) }
+  }
+
+  function aliceSide(result: { matchups: { home: SideView; away: SideView | null }[] }, heroId: string) {
+    return result.matchups.flatMap(m => (m.away ? [m.home, m.away] : [m.home])).find(side => side.heroes.some(h => h.heroId === heroId))!
+  }
+
+  it('is on by default and swaps a resting starter for a bench hero at 50% points', async () => {
+    const id = await draftedLeague()
+    expect(((await alice.get(`/api/leagues/${id}/lineup`)).body as LineupView & { autoSwap: boolean }).autoSwap).toBe(true)
+    const { starter, slot, benchIds } = await restCoveredStarter(id)
+
+    await makeWeeksDue(id, 1)
+    const side = aliceSide((await alice.get(`/api/leagues/${id}/results/1`)).body, starter)
+    expect(side.heroes.find(h => h.heroId === starter)).toMatchObject({ slot, resting: true, damage: 0 })
+    // Seeded players score 10 a week; Paladins score from their defense line. Either way the sub counts half.
+    const sub = side.heroes.find(h => h.swappedInto === slot)!
+    expect(benchIds).toContain(sub.heroId)
+    expect(sub.slot).toBe('Bench')
+    const subRaw = await WeekResultModel.findOne({ leagueId: id, week: 1 }).lean()
+    const stored = subRaw!.matchups.flatMap(m => (m.away ? [m.home, m.away] : [m.home])).flatMap(x => x.heroes).find(h => h.heroId.toString() === sub.heroId)!
+    expect(stored.counted).toBeCloseTo(stored.points / 2, 2)
+    const counted = side.heroes.filter(h => h.slot !== 'Bench' || h.swappedInto).reduce((sum, h) => sum + h.damage, 0)
+    expect(side.total).toBeCloseTo(counted, 0)
+  })
+
+  it('can be turned off per party', async () => {
+    const id = await draftedLeague()
+    const mine = ((await alice.get(`/api/leagues/${id}`)).body.parties as { id: string; isMine: boolean }[]).find(p => p.isMine)!
+    expect((await alice.patch(`/api/parties/${mine.id}`, { autoSwap: 'yes' })).status).toBe(400)
+    const res = await alice.patch(`/api/parties/${mine.id}`, { autoSwap: false })
+    expect(res.status).toBe(200)
+    expect(res.body.autoSwap).toBe(false)
+
+    const { starter } = await restCoveredStarter(id)
+    await makeWeeksDue(id, 1)
+    const side = aliceSide((await alice.get(`/api/leagues/${id}/results/1`)).body, starter)
+    expect(side.heroes.every(h => h.swappedInto === null)).toBe(true)
   })
 })
 

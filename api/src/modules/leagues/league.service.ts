@@ -34,6 +34,8 @@ export interface PartyView {
   color: string
   owner: ProfileView
   isMine: boolean
+  /** Only included for the viewer's own party */
+  autoSwap?: boolean
 }
 
 export interface LeagueSummaryView {
@@ -239,7 +241,8 @@ export async function updateParty(owner: AccountDocument, partyId: string, input
     name: party.name,
     color: party.color,
     owner: profileOf(await loadProfiles([owner._id]), owner._id),
-    isMine: true
+    isMine: true,
+    autoSwap: party.autoSwap
   }
 }
 

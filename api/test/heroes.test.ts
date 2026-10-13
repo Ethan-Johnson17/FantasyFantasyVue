@@ -3,7 +3,7 @@ import { createRng, newSeed } from '../src/lib/random.js'
 import { runSnakeDraft, slotsStillNeeded, type DraftHero } from '../src/modules/draft/snakeDraft.js'
 import { CLASS_TRAITS, HERO_CLASSES, POOL_PER_PARTY, ROSTER_SIZE, type HeroClass } from '../src/modules/heroes/classes.js'
 import { generateAppearances } from '../src/modules/heroes/generator.js'
-import { autoLineup } from '../src/modules/heroes/lineup.js'
+import { autoLineup, planAutoSwaps } from '../src/modules/heroes/lineup.js'
 import { expectedLevel, mysteryRange, selectHeroPool, type PoolCandidate } from '../src/modules/heroes/pool.js'
 
 describe('createRng', () => {
@@ -229,5 +229,30 @@ describe('autoLineup', () => {
       { id: 'r2', heroClass: 'Ranger' as const, value: 2 }
     ]
     expect(autoLineup(roster)).toEqual({ Mage: 'm2', Warrior: 'w2', Ranger: 'r1', Rogue: 't1', Paladin: 'p1', Flex: 'w1' })
+  })
+})
+
+describe('planAutoSwaps', () => {
+  const lineup = { Mage: 'm1', Warrior: 'w1', Ranger: 'r1', Rogue: 't1', Paladin: 'p1', Flex: 'w2' }
+  const bench = (id: string, heroClass: HeroClass, value: number, resting = false) => ({ id, heroClass, value, resting })
+
+  it('swaps a resting starter for the best fitting bench hero by Level', () => {
+    const swaps = planAutoSwaps(lineup, new Set(['m1']), [bench('m2', 'Mage', 3), bench('m3', 'Mage', 7), bench('w3', 'Warrior', 9)])
+    expect([...swaps]).toEqual([['Mage', 'm3']])
+  })
+
+  it('fills FLEX from any FLEX-eligible class, and fills required slots first', () => {
+    // Only one bench Warrior: the Warrior slot gets it, FLEX takes the Ranger.
+    const swaps = planAutoSwaps(lineup, new Set(['w1', 'w2']), [bench('w3', 'Warrior', 9), bench('r2', 'Ranger', 2)])
+    expect([...swaps]).toEqual([
+      ['Warrior', 'w3'],
+      ['Flex', 'r2']
+    ])
+  })
+
+  it('never swaps in resting or ineligible bench heroes, or the same hero twice', () => {
+    expect(planAutoSwaps(lineup, new Set(['m1']), [bench('m2', 'Mage', 9, true)]).size).toBe(0)
+    expect(planAutoSwaps(lineup, new Set(['p1']), [bench('w3', 'Warrior', 9)]).size).toBe(0)
+    expect(planAutoSwaps(lineup, new Set(['r1', 'w2']), [bench('r2', 'Ranger', 5)]).size).toBe(1)
   })
 })
