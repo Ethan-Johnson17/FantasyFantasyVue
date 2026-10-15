@@ -34,7 +34,7 @@ function signIn() {
         <path d="M32 20l3.4 7 7.6.9-5.6 5.2 1.5 7.6L32 37l-6.9 3.7 1.5-7.6-5.6-5.2 7.6-.9z" />
       </svg>
       <h1>FantasyFantasy</h1>
-      <p class="muted pitch">Draft a party of heroes. Each one is secretly powered by a real football player.</p>
+      <p class="muted pitch">Draft a party of heroes and battle your friends each week.</p>
     </div>
 
     <div class="actions">

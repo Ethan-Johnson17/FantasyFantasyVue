@@ -5,7 +5,7 @@
 
 export const EMBLEMS = [
   { key: 'crown', name: 'Crown', path: 'M3 18h18l-1.5-10-4.5 4-3-7-3 7-4.5-4z M3 21h18' },
-  { key: 'swords', name: 'Swords', path: 'M5 3l14 14 M19 3L5 17 M3 19l3-3 M21 19l-3-3 M5 3H3v2 M19 3h2v2' },
+  { key: 'swords', name: 'Swords', path: 'M20.5 3.5L8 17L7 16Z M5.6 14.6L9.4 18.4 M7.5 16.5L5 19 M5.2 19.6a0.8 0.8 0 1 0-1.6 0a0.8 0.8 0 1 0 1.6 0 M3.5 3.5L16 17L17 16Z M18.4 14.6L14.6 18.4 M16.5 16.5L19 19 M20.4 19.6a0.8 0.8 0 1 0-1.6 0a0.8 0.8 0 1 0 1.6 0' },
   { key: 'tower', name: 'Tower', path: 'M6 21V9h12v12 M5 9V4h2.5v2h2V4h5v2h2V4H19v5 M10 21v-4a2 2 0 0 1 4 0v4' },
   {
     key: 'moon',

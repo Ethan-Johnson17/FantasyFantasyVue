@@ -43,6 +43,7 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
 - Playoff bracket (NFL weeks 15–17)
 - Simulated turn-based combat (seeded RNG) as an alternative to score-based battles
 - Kicker class
+- "How it works" page explaining Levels, classes, and that hero strength follows a real season (main screens stay pure fantasy, with no mention of real players or the NFL)
 - Mascot crest emblems (dragon, wolf, owl, etc.) as a second emblem set, alongside the 8 heraldic ones
 
 ## Future ideas

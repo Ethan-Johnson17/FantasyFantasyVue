@@ -101,8 +101,6 @@ function signOut() {
       </ul>
     </template>
 
-    <p class="note muted hint">Each hero is secretly powered by a real NFL player. You'll never learn who, so draft by Level and class.</p>
-
     <div class="actions">
       <RouterLink to="/leagues/new" class="btn btn-primary">Host a league</RouterLink>
       <RouterLink to="/join" class="btn btn-secondary">Join with PIN</RouterLink>
@@ -216,11 +214,6 @@ function signOut() {
 }
 .empty {
   margin: 8px 0 0;
-}
-.hint {
-  margin-top: 14px;
-  border-color: var(--line-strong);
-  font-size: 14px;
 }
 .actions {
   margin-top: auto;
