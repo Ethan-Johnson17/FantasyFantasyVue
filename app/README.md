@@ -24,8 +24,13 @@ In **Applications → your SPA application → Settings**, make sure these inclu
 | Allowed Web Origins | `http://localhost:8080` |
 
 `VITE_AUTH0_AUDIENCE` must be the same API identifier the API validates (`AUTH0_AUDIENCE` in `api/.env`).
-Optional but recommended: turn on **Refresh Token Rotation** for the application, so sessions don't depend on
-third-party cookies.
+
+Also required:
+
+- **Application Type:** Single Page Application (Authorization Code and Refresh Token grants enabled).
+- **Refresh Token Rotation: on.** The app keeps tokens in local storage so sessions survive reloads (browsers block
+  the third-party cookies Auth0's silent sign-in needs); rotation makes each refresh token single-use.
+- **API access:** under Applications → APIs → your API, authorize this application for user access.
 
 ## Scripts
 

@@ -5,6 +5,7 @@ import { ApiError } from '../api/client'
 import { useApi } from '../api/inject'
 import type { MyLeague } from '../api/types'
 import CrestShield from '../components/CrestShield.vue'
+import NamePrompt from '../components/NamePrompt.vue'
 import { useSessionStore } from '../stores/session'
 import { nextBattleAt, SEASON_WEEKS, timeUntil } from '../time'
 
@@ -64,6 +65,8 @@ function signOut() {
         <button type="button" class="sign-out" @click="signOut">Sign out</button>
       </div>
     </header>
+
+    <NamePrompt v-if="session.needsName()" />
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <p v-else-if="!leagues" class="muted" aria-busy="true">Loading your leagues…</p>
