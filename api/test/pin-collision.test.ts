@@ -17,7 +17,7 @@ describe('league PIN collisions', () => {
       request(app)
         .post('/api/leagues')
         .set('Authorization', await signToken('auth0|host'))
-        .send({ name: 'L', visibility: 'private', cadence: 'weekly', maxParties: 4, party: { name: 'P', color: '#000000' } })
+        .send({ name: 'L', visibility: 'private', cadence: 'weekly', maxParties: 4, party: { name: 'P', crest: { emblem: 'crown', banner: 'crimson' } } })
 
     expect((await create()).body.pin).toBe('AAAAAA')
     const second = await create()

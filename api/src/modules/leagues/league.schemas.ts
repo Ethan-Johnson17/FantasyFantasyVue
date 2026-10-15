@@ -7,13 +7,14 @@ import {
   MAX_PARTIES,
   MIN_PARTIES
 } from './league.model.js'
+import { CREST_BANNERS, CREST_EMBLEMS } from './crests.js'
 import { PARTY_NAME_MAX } from './party.model.js'
 import { PIN_PATTERN } from './pin.js'
 
 export const PartyInputSchema = z
   .object({
     name: z.string().trim().min(1).max(PARTY_NAME_MAX),
-    color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'must be a hex color like #1a2b3c')
+    crest: z.object({ emblem: z.enum(CREST_EMBLEMS), banner: z.enum(CREST_BANNERS) }).strict()
   })
   .strict()
 

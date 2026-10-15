@@ -8,6 +8,7 @@ import { planAutoSwaps, validateLineup, type Lineup } from '../heroes/lineup.js'
 import { expectedLevel } from '../heroes/pool.js'
 import { inTransaction, loadLeagueAsMember, loadVisibleLeague } from '../leagues/league.access.js'
 import { CADENCE_MS, LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
+import { DEFAULT_CREST, type Crest } from '../leagues/crests.js'
 import { PartyModel, readLineup, storedLineup, type PartyDocument } from '../leagues/party.model.js'
 import { getRuleset, type Ruleset, type SlotRule } from '../scoring/rulesets.js'
 import { scoreDefense, scoreOffense } from '../scoring/scoring.js'
@@ -219,7 +220,7 @@ async function restingHeroes(league: LeagueDocument, roster: readonly HeroDocume
 interface PartyRef {
   partyId: string
   name: string
-  color: string
+  crest: Crest
 }
 
 export interface ScheduleWeekView {
@@ -238,7 +239,7 @@ export async function getSchedule(viewer: AccountDocument, leagueId: string): Pr
   if (!league.schedule) return []
   const [refs, results] = await Promise.all([partyRefs(league), WeekResultModel.find({ leagueId: league._id })])
   const resultByWeek = new Map(results.map(result => [result.week, result]))
-  const ref = (id: { toString(): string }) => refs.get(id.toString()) ?? { partyId: id.toString(), name: 'Unknown', color: '#000000' }
+  const ref = (id: { toString(): string }) => refs.get(id.toString()) ?? { partyId: id.toString(), name: 'Unknown', crest: DEFAULT_CREST }
 
   return league.schedule.map(scheduled => {
     const result = resultByWeek.get(scheduled.week)
@@ -295,7 +296,7 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
   const multipliers = getRuleset(league.rulesetVersion).lineup.classMultipliers
 
   const side = (stored: (typeof result.matchups)[number]['home']): SideView => ({
-    ...(refs.get(stored.partyId.toString()) ?? { partyId: stored.partyId.toString(), name: 'Unknown', color: '#000000' }),
+    ...(refs.get(stored.partyId.toString()) ?? { partyId: stored.partyId.toString(), name: 'Unknown', crest: DEFAULT_CREST }),
     total: stored.total,
     heroes: stored.heroes.map(line => ({
       heroId: line.heroId.toString(),
@@ -362,6 +363,11 @@ export async function getStandings(viewer: AccountDocument, leagueId: string): P
 }
 
 async function partyRefs(league: LeagueDocument): Promise<Map<string, PartyRef>> {
-  const parties = await PartyModel.find({ leagueId: league._id }, 'name color')
-  return new Map(parties.map(party => [party.id, { partyId: party.id, name: party.name, color: party.color }]))
+  const parties = await PartyModel.find({ leagueId: league._id }, 'name crest')
+  return new Map(
+    parties.map(party => [
+      party.id,
+      { partyId: party.id, name: party.name, crest: { emblem: party.crest.emblem, banner: party.crest.banner } }
+    ])
+  )
 }

@@ -6,6 +6,7 @@ import { advanceLeague } from '../season/advance.js'
 import { inTransaction, loadLeagueAsHost } from './league.access.js'
 import { LeagueModel, type LeagueDocument, type LeagueStatus } from './league.model.js'
 import type { CreateLeagueInput, PartyInput, UpdateLeagueInput, UpdatePartyInput } from './league.schemas.js'
+import { DEFAULT_CREST, type Crest } from './crests.js'
 import { PartyModel, type PartyDocument } from './party.model.js'
 import { generatePin } from './pin.js'
 
@@ -31,7 +32,7 @@ export interface ProfileView {
 export interface PartyView {
   id: string
   name: string
-  color: string
+  crest: Crest
   owner: ProfileView
   isMine: boolean
   /** Only included for the viewer's own party */
@@ -63,7 +64,7 @@ export interface LeagueDetailView extends LeagueSummaryView {
 }
 
 export interface MyLeagueView extends LeagueSummaryView {
-  myParty: { id: string; name: string; color: string }
+  myParty: { id: string; name: string; crest: Crest }
 }
 
 // ---------------------------------------------------------------------------
@@ -85,7 +86,7 @@ export async function getLeague(viewer: AccountDocument, leagueId: string): Prom
     parties: parties.map(party => ({
       id: party.id,
       name: party.name,
-      color: party.color,
+      crest: crestOf(party),
       owner: profileOf(profiles, party.accountId),
       isMine: party.accountId.equals(viewer._id)
     }))
@@ -106,7 +107,7 @@ export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueVi
     return [
       {
         ...toSummary(league, viewer, profiles, true),
-        myParty: { id: party.id, name: party.name, color: party.color }
+        myParty: { id: party.id, name: party.name, crest: crestOf(party) }
       }
     ]
   })
@@ -239,7 +240,7 @@ export async function updateParty(owner: AccountDocument, partyId: string, input
   return {
     id: party.id,
     name: party.name,
-    color: party.color,
+    crest: crestOf(party),
     owner: profileOf(await loadProfiles([owner._id]), owner._id),
     isMine: true,
     autoSwap: party.autoSwap
@@ -316,4 +317,9 @@ function toSummary(
     ...(showPin ? { pin: league.pin } : {}),
     createdAt: league.createdAt
   }
+}
+
+function crestOf(party: PartyDocument): Crest {
+  const crest = party.crest as Partial<Crest> | null | undefined
+  return crest?.emblem && crest.banner ? { emblem: crest.emblem, banner: crest.banner } : DEFAULT_CREST
 }

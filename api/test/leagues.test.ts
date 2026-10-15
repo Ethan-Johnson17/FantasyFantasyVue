@@ -23,7 +23,8 @@ const alice = as('auth0|alice')
 const bob = as('auth0|bob')
 const outsider = as('auth0|outsider')
 
-const party = (name: string, color = '#aa3355') => ({ name, color })
+const crest = (emblem = 'crown', banner = 'crimson') => ({ emblem, banner })
+const party = (name: string, partyCrest: object = crest()) => ({ name, crest: partyCrest })
 
 async function createLeague(overrides: object = {}) {
   const res = await host.post('/api/leagues', {
@@ -45,7 +46,7 @@ describe('creating a league', () => {
       visibility: 'private',
       cadence: 'daily',
       maxParties: 6,
-      party: party('Dragon Slayers', '#112233')
+      party: party('Dragon Slayers', crest('tower', 'sapphire'))
     })
     expect(res.status).toBe(201)
     expect(res.body).toMatchObject({
@@ -60,8 +61,9 @@ describe('creating a league', () => {
       host: { displayName: 'Adventurer' }
     })
     expect(res.body.pin).toMatch(/^[2-9A-HJKMNP-Z]{6}$/)
+    expect(res.body.parties[0].crest).toEqual({ emblem: 'tower', banner: 'sapphire' })
     expect(res.body.parties).toEqual([
-      expect.objectContaining({ name: 'Dragon Slayers', color: '#112233', isMine: true })
+      expect.objectContaining({ name: 'Dragon Slayers', crest: { emblem: 'tower', banner: 'sapphire' }, isMine: true })
     ])
   })
 
@@ -69,7 +71,9 @@ describe('creating a league', () => {
     ['too few parties', { maxParties: 1 }],
     ['too many parties', { maxParties: 7 }],
     ['an unknown cadence', { cadence: 'hourly' }],
-    ['a bad party color', { party: party('X', 'red') }],
+    ['an unknown crest emblem', { party: party('X', crest('unicorn')) }],
+    ['an unknown banner color', { party: party('X', crest('crown', '#ff0000')) }],
+    ['a missing crest', { party: { name: 'X' } }],
     ['a blank name', { name: '  ' }],
     ['a client-chosen host', { hostId: '64b000000000000000000000' }],
     ['a client-chosen PIN', { pin: 'AAAAAA' }],
@@ -288,13 +292,14 @@ describe('leaving a league', () => {
 })
 
 describe('editing a party', () => {
-  it('lets the owner rename and recolor it', async () => {
+  it('lets the owner rename it and change its crest', async () => {
     const league = await createLeague()
     const joined = await alice.post('/api/leagues/join', { pin: league.pin, party: party('Elf Squad') })
     const mine = (joined.body.parties as { id: string; isMine: boolean }[]).find(p => p.isMine)
-    const res = await alice.patch(`/api/parties/${String(mine?.id)}`, { name: 'Elf Legion', color: '#00ff00' })
+    const res = await alice.patch(`/api/parties/${String(mine?.id)}`, { name: 'Elf Legion', crest: crest('moon', 'emerald') })
     expect(res.status).toBe(200)
-    expect(res.body).toMatchObject({ name: 'Elf Legion', color: '#00ff00', isMine: true })
+    expect(res.body).toMatchObject({ name: 'Elf Legion', crest: { emblem: 'moon', banner: 'emerald' }, isMine: true })
+    expect((await alice.patch(`/api/parties/${String(mine?.id)}`, { crest: crest('moon', 'neon') })).status).toBe(400)
   })
 
   it("hides other users' parties and rejects taken names", async () => {

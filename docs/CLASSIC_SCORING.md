@@ -135,7 +135,8 @@ This is more D&D-like but harder to balance and to explain. It's a good fit for 
 Decided 2026-10-12:
 
 - **Party per league:** hosting or joining a league creates the user's party for that league
-  (name + color). One party per user per league; parties don't exist outside leagues.
+  (name + **crest**: one of 8 emblems on one of 6 banner colors, decided 2026-10-14). One party per user per league;
+  parties don't exist outside leagues.
 - **Size:** the host picks a maximum of 2–6 parties.
 - **Visibility:** private leagues are joined by PIN only. Public leagues also appear in a search list.
 - **Starting:** no ready flags. Once 2 or more parties have joined, the host schedules the draft, and members rank heroes before it runs.
