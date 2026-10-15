@@ -3,6 +3,7 @@ import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { createLogger } from '../src/lib/logger.js'
 import { errorHandler } from '../src/middleware/errors.js'
+import { maskPins } from '../src/app.js'
 import { buildTestApp } from './helpers.js'
 
 describe('app infrastructure', () => {
@@ -66,5 +67,13 @@ describe('errorHandler', () => {
       .post('/')
       .send({ big: 'x'.repeat(2048) })
     expect(res.status).toBe(413)
+  })
+})
+
+describe('maskPins', () => {
+  it('hides league PINs in logged URLs', () => {
+    expect(maskPins('/api/leagues/pin/K7QX4M')).toBe('/api/leagues/pin/[redacted]')
+    expect(maskPins('/api/leagues/pin/K7QX4M?x=1')).toBe('/api/leagues/pin/[redacted]?x=1')
+    expect(maskPins('/api/leagues/mine')).toBe('/api/leagues/mine')
   })
 })

@@ -1,0 +1,33 @@
+/* Arcane Tome design tokens (see the redesign canvas). The app is dark by design. */
+:root {
+  color-scheme: dark;
+
+  --ink: #14121a;
+  --surface: #1f1b27;
+  --surface-raised: #221d2b;
+  --surface-sunken: #1a1721;
+  --line: #3a3245;
+  --line-strong: #5a4c38;
+
+  --text: #f3ebdd;
+  --text-muted: #b8ae9f;
+  --gold: #e3b964;
+  --gold-bright: #f3d592;
+  --on-gold: #14121a;
+  --danger: #f08c6c;
+
+  --class-mage: #8fb8ff;
+  --class-warrior: #f08c6c;
+  --class-ranger: #8fd18a;
+  --class-rogue: #c9a0f5;
+  --class-paladin: #f2d06b;
+
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-body: 'Alegreya Sans', 'Segoe UI', sans-serif;
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --space-page: 20px;
+  --tap: 44px;
+}

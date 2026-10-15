@@ -24,7 +24,16 @@ export function createApp({ env, logger, authenticate }: AppDependencies) {
   // Needed behind a hosting proxy so rate limiting sees real client IPs instead of the proxy's.
   app.set('trust proxy', env.TRUST_PROXY_HOPS)
 
-  app.use(pinoHttp({ logger }))
+  app.use(
+    pinoHttp({
+      logger,
+      // Keep request logs short, and mask league PINs: they are access codes for private leagues.
+      serializers: {
+        req: (req: { method?: string; url?: string }) => ({ method: req.method, url: maskPins(req.url ?? '') }),
+        res: (res: { statusCode?: number }) => ({ statusCode: res.statusCode })
+      }
+    })
+  )
   app.use(helmet())
   // Auth uses bearer tokens, not cookies, so credentialed CORS is unnecessary.
   app.use(cors({ origin: env.CORS_ORIGINS }))
@@ -43,4 +52,8 @@ export function createApp({ env, logger, authenticate }: AppDependencies) {
   app.use(notFound)
   app.use(errorHandler(logger))
   return app
+}
+
+export function maskPins(url: string): string {
+  return url.replace(/\/pin\/[^/?#]+/gi, '/pin/[redacted]')
 }

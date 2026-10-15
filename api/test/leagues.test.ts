@@ -62,6 +62,7 @@ describe('creating a league', () => {
     })
     expect(res.body.pin).toMatch(/^[2-9A-HJKMNP-Z]{6}$/)
     expect(res.body.parties[0].crest).toEqual({ emblem: 'tower', banner: 'sapphire' })
+    expect(res.body).toMatchObject({ draftAt: null, weekOneAt: null, resolvedWeeks: 0 })
     expect(res.body.parties).toEqual([
       expect.objectContaining({ name: 'Dragon Slayers', crest: { emblem: 'tower', banner: 'sapphire' }, isMine: true })
     ])
@@ -211,7 +212,13 @@ describe('viewing leagues', () => {
 
     const res = await alice.get('/api/leagues/mine')
     expect(res.body).toHaveLength(1)
-    expect(res.body[0]).toMatchObject({ name: 'Hosted by host', isHost: false, myParty: { name: 'Elf Squad' } })
+    expect(res.body[0]).toMatchObject({
+      name: 'Hosted by host',
+      isHost: false,
+      myParty: { name: 'Elf Squad' },
+      draftAt: null,
+      resolvedWeeks: 0
+    })
   })
 })
 
