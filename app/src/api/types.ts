@@ -46,10 +46,12 @@ export interface LeagueSummary {
 export interface LeagueDetail extends LeagueSummary {
   rulesetVersion: number
   parties: Party[]
+  draft: DraftResult | null
 }
 
 export interface MyLeague extends LeagueSummary {
   myParty: { id: string; name: string; crest: Crest }
+  standing: { rank: number; wins: number; losses: number; draws: number } | null
 }
 
 export interface PartyInput {
@@ -63,4 +65,93 @@ export interface CreateLeagueInput {
   cadence: Cadence
   maxParties: number
   party: PartyInput
+}
+
+export type HeroClass = 'Mage' | 'Warrior' | 'Ranger' | 'Rogue' | 'Paladin'
+
+export interface Hero {
+  id: string
+  name: string
+  heroClass: HeroClass
+  race: string
+  gender: string
+  weapon: string
+  skill: string
+  attack: number
+  defense: number
+  magic: number
+  /** Null for mystery recruits */
+  level: number | null
+  levelRange: { min: number; max: number } | null
+  partyId: string | null
+}
+
+export interface DraftResult {
+  order: string[]
+  picks: { round: number; overall: number; partyId: string; heroId: string }[]
+}
+
+export interface SlotRule {
+  key: string
+  label: string
+  classes: HeroClass[]
+}
+
+export interface Lineup {
+  slots: SlotRule[]
+  lineup: Record<string, string> | null
+  autoSwap: boolean
+  roster: (Hero & { restingNextWeek: boolean })[]
+  nextWeek: number | null
+  nextWeekAt: string | null
+}
+
+export interface PartyRef {
+  partyId: string
+  name: string
+  crest: Crest
+}
+
+export type Outcome = 'home' | 'away' | 'draw'
+
+export interface ScheduleWeek {
+  week: number
+  resolvesAt: string | null
+  matchups: {
+    home: PartyRef
+    away: PartyRef | null
+    result: { homeTotal: number; awayTotal: number; outcome: Outcome; monster: string | null } | null
+  }[]
+}
+
+export interface ResultHero {
+  heroId: string
+  name: string
+  heroClass: HeroClass
+  slot: string
+  damage: number
+  resting: boolean
+  swappedInto: string | null
+}
+
+export interface ResultSide extends PartyRef {
+  total: number
+  heroes: ResultHero[]
+}
+
+export interface WeekResult {
+  week: number
+  matchups: { home: ResultSide; away: ResultSide | null; monster: { name: string; total: number } | null; outcome: Outcome }[]
+}
+
+export interface Standing extends PartyRef {
+  wins: number
+  losses: number
+  draws: number
+  totalDamage: number
+}
+
+export interface HeroDetail {
+  hero: Hero
+  history: { week: number; slot: string; damage: number; resting: boolean; swappedInto: string | null }[]
 }

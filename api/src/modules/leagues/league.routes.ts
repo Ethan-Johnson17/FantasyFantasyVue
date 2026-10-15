@@ -85,6 +85,10 @@ export function leagueRouter() {
     .get('/:id/heroes', async (req, res) => {
       res.json(await draft.listHeroes(currentAccount(req), parseId(req.params.id)))
     })
+    .get('/:id/heroes/:heroId', async (req, res) => {
+      const leagueId = parseId(req.params.id)
+      res.json(await season.getHeroDetail(currentAccount(req), leagueId, parseId(req.params.heroId)))
+    })
     .get('/:id/rankings', async (req, res) => {
       res.json(await draft.getRankings(currentAccount(req), parseId(req.params.id)))
     })

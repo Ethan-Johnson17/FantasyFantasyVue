@@ -390,3 +390,51 @@ describe('hidden-player protection in results', () => {
     expect(heroes.find(hero => hero.heroId === target._id.toString())?.damage).toBe(expectedDamage)
   })
 })
+
+describe('league views after the draft', () => {
+  it('include the draft order and every pick', async () => {
+    const id = await draftedLeague([alice, bob])
+    const league = (await alice.get(`/api/leagues/${id}`)).body
+    expect(league.draft.order).toHaveLength(3)
+    expect(league.draft.picks).toHaveLength(RULESET_V1.lineup.rosterSize * 3)
+    expect(league.draft.picks[0]).toMatchObject({ round: 1, overall: 1, partyId: league.draft.order[0] })
+    expect(JSON.stringify(league.draft)).not.toMatch(/source|season|seed/)
+  })
+
+  it("show my party's record and rank on My leagues once games are played", async () => {
+    const id = await draftedLeague()
+    const before = (await alice.get('/api/leagues/mine')).body.find((l: { id: string }) => l.id === id)
+    expect(before.standing).toBeNull()
+
+    await makeWeeksDue(id, 3)
+    type Standing = { rank: number; wins: number; losses: number; draws: number }
+    const after = ((await alice.get('/api/leagues/mine')).body as { id: string; standing: Standing }[]).find(l => l.id === id)!
+    expect(after.standing.wins + after.standing.losses + after.standing.draws).toBe(3)
+    expect([1, 2]).toContain(after.standing.rank)
+  })
+})
+
+describe('GET /api/leagues/:id/heroes/:heroId', () => {
+  it("returns the hero and its rounded week-by-week damage", async () => {
+    const id = await draftedLeague()
+    const { lineup } = (await alice.get(`/api/leagues/${id}/lineup`)).body as LineupView
+    const heroId = Object.values(lineup!)[0]!
+    await makeWeeksDue(id, 3)
+
+    const res = await alice.get(`/api/leagues/${id}/heroes/${heroId}`)
+    expect(res.status).toBe(200)
+    expect(res.body.hero.id).toBe(heroId)
+    expect(res.body.history.map((h: { week: number }) => h.week)).toEqual([1, 2, 3])
+    for (const week of res.body.history as { damage: number }[]) expect(Number.isInteger(week.damage)).toBe(true)
+    expect(res.text).not.toMatch(/"source"|"season"|Real |QB-\d/)
+  })
+
+  it('hides heroes from outsiders of private leagues and from other leagues', async () => {
+    const id = await draftedLeague()
+    const other = await draftedLeague([bob])
+    const { lineup } = (await alice.get(`/api/leagues/${id}/lineup`)).body as LineupView
+    const heroId = Object.values(lineup!)[0]!
+    expect((await outsider.get(`/api/leagues/${id}/heroes/${heroId}`)).status).toBe(404)
+    expect((await bob.get(`/api/leagues/${other}/heroes/${heroId}`)).status).toBe(404)
+  })
+})

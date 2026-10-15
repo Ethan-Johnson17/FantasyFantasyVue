@@ -3,6 +3,7 @@ import { isDuplicateKeyError } from '../../db/mongoose.js'
 import { Conflict, NotFound } from '../../lib/errors.js'
 import { AccountModel, type AccountDocument } from '../accounts/account.model.js'
 import { advanceLeague } from '../season/advance.js'
+import { computeStandings } from '../season/season.service.js'
 import { inTransaction, loadLeagueAsHost } from './league.access.js'
 import { LeagueModel, type LeagueDocument, type LeagueStatus } from './league.model.js'
 import type { CreateLeagueInput, PartyInput, UpdateLeagueInput, UpdatePartyInput } from './league.schemas.js'
@@ -60,13 +61,23 @@ export interface LeagueSummaryView {
   createdAt: Date
 }
 
+export interface DraftView {
+  /** Party ids in first-round pick order */
+  order: string[]
+  picks: { round: number; overall: number; partyId: string; heroId: string }[]
+}
+
 export interface LeagueDetailView extends LeagueSummaryView {
   rulesetVersion: number
   parties: PartyView[]
+  /** Set once the draft has run */
+  draft: DraftView | null
 }
 
 export interface MyLeagueView extends LeagueSummaryView {
   myParty: { id: string; name: string; crest: Crest }
+  /** My party's place once games have been played */
+  standing: { rank: number; wins: number; losses: number; draws: number } | null
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +94,7 @@ export async function getLeague(viewer: AccountDocument, leagueId: string): Prom
   return {
     ...toSummary(league, viewer, profiles, isMember),
     rulesetVersion: league.rulesetVersion,
+    draft: draftOf(league),
     parties: parties.map(party => ({
       id: party.id,
       name: party.name,
@@ -101,16 +113,18 @@ export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueVi
     updatedAt: -1
   })
   const profiles = await loadProfiles(leagues.map(league => league.hostId))
-  return leagues.flatMap(league => {
-    const party = partyByLeague.get(league.id)
-    if (!party) return []
-    return [
-      {
+  const views = await Promise.all(
+    leagues.map(async league => {
+      const party = partyByLeague.get(league.id)
+      if (!party) return null
+      return {
         ...toSummary(league, viewer, profiles, true),
-        myParty: { id: party.id, name: party.name, crest: crestOf(party) }
+        myParty: { id: party.id, name: party.name, crest: crestOf(party) },
+        standing: league.resolvedWeeks > 0 ? await standingOf(league, party.id) : null
       }
-    ]
-  })
+    })
+  )
+  return views.filter((view): view is MyLeagueView => view !== null)
 }
 
 /** Public leagues that still have room. */
@@ -325,4 +339,24 @@ function toSummary(
 function crestOf(party: PartyDocument): Crest {
   const crest = party.crest as Partial<Crest> | null | undefined
   return crest?.emblem && crest.banner ? { emblem: crest.emblem, banner: crest.banner } : DEFAULT_CREST
+}
+
+function draftOf(league: LeagueDocument): DraftView | null {
+  if (!league.draftOrder?.length || !league.draftPicks?.length) return null
+  return {
+    order: league.draftOrder.map(String),
+    picks: league.draftPicks.map(pick => ({
+      round: pick.round,
+      overall: pick.overall,
+      partyId: pick.partyId.toString(),
+      heroId: pick.heroId.toString()
+    }))
+  }
+}
+
+async function standingOf(league: LeagueDocument, partyId: string): Promise<MyLeagueView['standing']> {
+  const standings = await computeStandings(league)
+  const index = standings.findIndex(row => row.partyId === partyId)
+  const row = standings[index]
+  return row ? { rank: index + 1, wins: row.wins, losses: row.losses, draws: row.draws } : null
 }
