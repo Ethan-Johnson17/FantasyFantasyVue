@@ -22,6 +22,11 @@
   --class-rogue: #c9a0f5;
   --class-paladin: #f2d06b;
 
+  /* Hero traits: kept apart from the class hues */
+  --trait-steadfast: #9fd3c7;
+  --trait-wild: #f0a0c0;
+  --trait-mighty: var(--gold-bright);
+
   --font-display: 'Cormorant Garamond', Georgia, serif;
   --font-body: 'Alegreya Sans', 'Segoe UI', sans-serif;
 

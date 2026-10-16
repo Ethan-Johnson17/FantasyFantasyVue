@@ -6,7 +6,7 @@ import { HERO_CLASSES } from '../heroes/classes.js'
 import { generateAppearances } from '../heroes/generator.js'
 import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
 import { autoLineup } from '../heroes/lineup.js'
-import { expectedLevel, selectHeroPool, type LevelRange } from '../heroes/pool.js'
+import { expectedLevel, selectHeroPool, type HeroTrait, type LevelRange } from '../heroes/pool.js'
 import { inTransaction, loadLeagueAsHost, loadLeagueAsMember, loadVisibleLeague } from '../leagues/league.access.js'
 import { CADENCE_MS, LeagueModel } from '../leagues/league.model.js'
 import { PartyModel, storedLineup } from '../leagues/party.model.js'
@@ -41,6 +41,7 @@ export interface HeroView {
   level: number | null
   /** Shown for mystery recruits */
   levelRange: LevelRange | null
+  traits: HeroTrait[]
   /** The party that drafted the hero, if any */
   partyId: string | null
 }
@@ -194,6 +195,7 @@ export function toHeroView(hero: HeroDocument): HeroView {
     magic: hero.magic,
     level: hero.level ?? null,
     levelRange: hero.levelRange ? { min: hero.levelRange.min, max: hero.levelRange.max } : null,
+    traits: [...hero.traits],
     partyId: hero.partyId?.toString() ?? null
   }
 }

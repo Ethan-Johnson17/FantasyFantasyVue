@@ -33,6 +33,17 @@ const partySchema = new Schema(
         )
       ],
       default: undefined
+    },
+    // The weekly Champion. Counts only in the named week; no Champion that week otherwise.
+    champion: {
+      type: new Schema(
+        {
+          heroId: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
+          week: { type: Number, required: true }
+        },
+        { _id: false }
+      ),
+      default: null
     }
   },
   { timestamps: true }

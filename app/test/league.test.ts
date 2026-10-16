@@ -36,6 +36,7 @@ const hero = (id: string, overrides: Partial<Hero> = {}): Hero => ({
   magic: 12,
   level: 5,
   levelRange: null,
+  traits: [],
   partyId: null,
   ...overrides
 })
@@ -131,6 +132,8 @@ describe('Party tab', () => {
       { ...hero('h2', { heroClass: 'Rogue' }), restingNextWeek: false },
       { ...hero('h3', { heroClass: 'Paladin', level: 7 }), restingNextWeek: false }
     ],
+    champion: null,
+    strategy: { championMultiplier: 1.25, mightyChampionMultiplier: 1.5, orderAndChaosBonus: 0.05, bulwarkFloor: 15 },
     nextWeek: 3,
     nextWeekAt: new Date(Date.now() + 3_600_000).toISOString()
   })
@@ -159,6 +162,55 @@ describe('Party tab', () => {
     await flushPromises()
     expect(api.updateParty).toHaveBeenCalledWith('p1', { autoSwap: false })
   })
+
+  it('names a Champion with the crown, and taps again to withdraw', async () => {
+    const api = fakeApi({
+      getLineup: vi.fn().mockResolvedValue(lineupData()),
+      setChampion: vi.fn().mockImplementation((_id: string, heroId: string | null) => Promise.resolve({ ...lineupData(), champion: heroId }))
+    })
+    const { wrapper } = await mountLeague(PartyView, api, detail({ status: 'active', parties: [party('p1', true)] }))
+    expect(wrapper.find('.champion-card').text()).toContain('No Champion yet')
+    expect(wrapper.find('.champion-card').text()).toContain('1.25×')
+
+    await wrapper.find('button[aria-label="Name Hero h2 Champion"]').trigger('click')
+    await flushPromises()
+    expect(api.setChampion).toHaveBeenCalledWith('l1', 'h2')
+    expect(wrapper.find('.champion-card').text()).toContain('Hero h2 leads your party')
+    expect(wrapper.find('button[aria-label="Withdraw Hero h2 as Champion"]').attributes('aria-pressed')).toBe('true')
+
+    await wrapper.find('button[aria-label="Withdraw Hero h2 as Champion"]').trigger('click')
+    await flushPromises()
+    expect(api.setChampion).toHaveBeenLastCalledWith('l1', null)
+    expect(wrapper.text()).toContain('Champion withdrawn.')
+  })
+
+  it("can't name a Champion while lineup changes are unsaved", async () => {
+    const api = fakeApi({ getLineup: vi.fn().mockResolvedValue(lineupData()) })
+    const { wrapper } = await mountLeague(PartyView, api, detail({ status: 'active', parties: [party('p1', true)] }))
+    await wrapper.find('.starters .hero-row').trigger('click')
+    await wrapper.find('.bench-hero').trigger('click')
+    expect(wrapper.find('button[aria-label="Name Hero h2 Champion"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('previews synergies from the lineup on screen, leaving out resting heroes', async () => {
+    const data = lineupData()
+    data.roster = [
+      { ...hero('h1', { traits: ['steadfast'] }), restingNextWeek: true },
+      { ...hero('h2', { heroClass: 'Rogue', traits: ['wild'] }), restingNextWeek: false },
+      { ...hero('h3', { heroClass: 'Paladin', level: 7, traits: ['steadfast'] }), restingNextWeek: false }
+    ]
+    const api = fakeApi({ getLineup: vi.fn().mockResolvedValue(data) })
+    const { wrapper } = await mountLeague(PartyView, api, detail({ status: 'active', parties: [party('p1', true)] }))
+    const orderAndChaos = () => wrapper.findAll('.synergy').find(row => row.text().includes('Order & Chaos'))!
+    // The Steadfast starter is resting, so they won't fight.
+    expect(orderAndChaos().classes()).not.toContain('active')
+    expect(orderAndChaos().text()).toContain('+5%')
+
+    await wrapper.find('.starters .hero-row').trigger('click')
+    await wrapper.find('.bench-hero').trigger('click')
+    expect(orderAndChaos().classes()).toContain('active')
+    expect(wrapper.text()).toContain('Steadfast')
+  })
 })
 
 describe('Battle result', () => {
@@ -167,12 +219,14 @@ describe('Battle result', () => {
       week: 3,
       matchups: [
         {
-          home: { partyId: 'b', name: 'Ember Wolves', crest, total: 98, heroes: [{ heroId: 'x', name: 'Wolf', heroClass: 'Warrior', slot: 'slot1', damage: 98, resting: false, swappedInto: null }] },
+          home: { partyId: 'b', name: 'Ember Wolves', crest, total: 98, champion: null, synergies: [], heroes: [{ heroId: 'x', name: 'Wolf', heroClass: 'Warrior', slot: 'slot1', damage: 98, resting: false, swappedInto: null }] },
           away: {
             partyId: 'a',
             name: 'Dragon Slayers',
             crest,
             total: 112,
+            champion: 'h1',
+            synergies: ['mightyChampion'],
             heroes: [
               { heroId: 'h1', name: 'Kael', heroClass: 'Rogue', slot: 'slot1', damage: 103, resting: false, swappedInto: null },
               { heroId: 'h2', name: 'Lyra', heroClass: 'Ranger', slot: 'slot2', damage: 0, resting: true, swappedInto: null },
@@ -190,6 +244,31 @@ describe('Battle result', () => {
     expect(wrapper.find('.verdict').text()).toBe('VICTORY')
     expect(wrapper.find('.scores').text()).toMatch(/Dragon Slayers\s*112.*Ember Wolves\s*98/s)
     expect(wrapper.text()).toContain('Lyra was resting this week, so Freya stepped in from the bench at half damage.')
+    expect(wrapper.find('.champion-tag').exists()).toBe(true)
+    expect(wrapper.findAll('.fighter')[0]!.text()).toContain('♛ Kael')
+    expect(wrapper.find('.synergies').text()).toContain('Mighty Champion')
+  })
+
+  it('explains a missing or resting Champion', async () => {
+    const side = (champion: string | null) => ({
+      partyId: 'a',
+      name: 'Dragon Slayers',
+      crest,
+      total: 50,
+      champion,
+      synergies: [],
+      heroes: [{ heroId: 'h2', name: 'Lyra', heroClass: 'Ranger' as const, slot: 'slot1', damage: 0, resting: true, swappedInto: null }]
+    })
+    const result = (champion: string | null): WeekResult => ({
+      week: 2,
+      matchups: [{ home: side(champion), away: null, monster: { name: 'Grimjaw', total: 60 }, outcome: 'away' }]
+    })
+    const league = detail({ status: 'active', parties: [party('a', true)] })
+
+    const none = await mountLeague(BattleResultView, fakeApi({ getWeekResult: vi.fn().mockResolvedValue(result(null)) }), league, '/battles/2')
+    expect(none.wrapper.text()).toContain('No Champion was named for this battle.')
+    const resting = await mountLeague(BattleResultView, fakeApi({ getWeekResult: vi.fn().mockResolvedValue(result('h2')) }), league, '/battles/2')
+    expect(resting.wrapper.text()).toContain('Lyra was named Champion but was resting, so the bonus was lost.')
   })
 })
 
@@ -245,7 +324,7 @@ describe('Hero detail', () => {
   it('averages only the weeks the hero actually fought', async () => {
     const api = fakeApi({
       getHero: vi.fn().mockResolvedValue({
-        hero: hero('h1', { heroClass: 'Rogue', skill: 'Sneak', partyId: 'a' }),
+        hero: hero('h1', { heroClass: 'Rogue', skill: 'Sneak', partyId: 'a', traits: ['wild', 'mighty'] }),
         history: [
           { week: 1, slot: 'slot1', damage: 14, resting: false, swappedInto: null },
           { week: 2, slot: 'slot1', damage: 0, resting: true, swappedInto: null },
@@ -256,7 +335,10 @@ describe('Hero detail', () => {
     const { wrapper } = await mountLeague(HeroDetailView, api, detail({ status: 'active', parties: [party('a', true)] }), '/heroes/h1')
     expect(api.getHero).toHaveBeenCalledWith('l1', 'h1')
     expect(wrapper.text()).toContain('Average 23')
-    expect(wrapper.text()).toContain('Swingy')
+    expect(wrapper.findAll('.chip').map(chip => chip.text())).toEqual(['Level 5', 'Rogue', 'Wild', 'Mighty', 'Party a'])
+    expect(wrapper.find('.traits').text()).toContain('Swings between quiet battles and huge ones.')
+    // The hero's own Wild trait replaces the class's usual temperament text.
+    expect(wrapper.text()).not.toContain('Rogues strike from the shadows')
     expect(wrapper.find('[role="img"]').attributes('aria-label')).toContain('week 2, resting')
   })
 })

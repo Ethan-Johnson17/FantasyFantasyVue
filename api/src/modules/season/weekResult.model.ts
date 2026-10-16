@@ -1,4 +1,5 @@
 import { model, Schema, type InferSchemaType } from 'mongoose'
+import { SYNERGIES } from './strategy.js'
 
 /*
  * The outcome of one game week. Stores exact points and the lineups used, so results are
@@ -15,7 +16,8 @@ const heroResultSchema = new Schema(
     resting: { type: Boolean, required: true },
     // Set when this bench hero was auto-swapped into a slot for a resting starter
     swappedInto: { type: String, default: null },
-    // Points that counted toward the party: points × multiplier for swapped-in heroes, 0 on the bench
+    // Damage that counted toward the party: class damage (× swap penalty for swapped-in heroes,
+    // × Champion multiplier for the Champion), 0 on the bench
     counted: { type: Number, required: true }
   },
   { _id: false }
@@ -27,6 +29,10 @@ const sideSchema = new Schema(
     total: { type: Number, required: true },
     top: { type: Number, required: true },
     bench: { type: Number, required: true },
+    // The Champion named for this week, if any (it may have been resting)
+    champion: { type: Schema.Types.ObjectId, ref: 'Hero', default: null },
+    // Synergies that took effect; total already includes them
+    synergies: { type: [{ type: String, enum: SYNERGIES }], default: [] },
     heroes: { type: [heroResultSchema], required: true }
   },
   { _id: false }

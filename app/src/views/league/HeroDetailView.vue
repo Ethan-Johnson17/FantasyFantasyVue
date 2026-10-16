@@ -5,7 +5,7 @@ import { useApi } from '../../api/inject'
 import type { HeroDetail } from '../../api/types'
 import ClassIcon from '../../components/ClassIcon.vue'
 import FormError from '../../components/FormError.vue'
-import { CLASS_COLOR, CLASS_TEMPERAMENT, isMystery, levelText } from '../../heroes'
+import { CLASS_COLOR, CLASS_TEMPERAMENT, isMystery, levelText, TRAITS } from '../../heroes'
 import { useLeague } from '../../league'
 import { SEASON_WEEKS } from '../../time'
 
@@ -60,16 +60,25 @@ const chartLabel = computed(() =>
       <div class="chips">
         <span class="chip level">{{ isMystery(hero) ? `Mystery ${levelText(hero)}` : levelText(hero).replace('Lv', 'Level') }}</span>
         <span class="chip" :style="{ color: CLASS_COLOR[hero.heroClass], borderColor: CLASS_COLOR[hero.heroClass] }">
-          {{ CLASS_TEMPERAMENT[hero.heroClass].label }}
+          {{ hero.heroClass }}
         </span>
+        <span v-for="trait in hero.traits" :key="trait" class="chip" :class="`trait-${trait}`">{{ TRAITS[trait].label }}</span>
         <span class="chip">{{ owner ? owner.name : 'Undrafted' }}</span>
       </div>
     </section>
 
     <section class="card skill">
       <h2 class="skill-name">{{ hero.skill }}</h2>
-      <p class="muted">{{ CLASS_TEMPERAMENT[hero.heroClass].description }}</p>
+      <!-- A hero's own Steadfast or Wild trait outranks the class's usual temperament. -->
+      <p v-if="!hero.traits.includes('steadfast') && !hero.traits.includes('wild')" class="muted">{{ CLASS_TEMPERAMENT[hero.heroClass].description }}</p>
       <p v-if="isMystery(hero)" class="muted">A mystery recruit: their true strength shows once the battles begin.</p>
+    </section>
+
+    <section v-if="hero.traits.length" class="card traits">
+      <h2 class="skill-name">Traits</h2>
+      <p v-for="trait in hero.traits" :key="trait">
+        <strong :class="`trait-${trait}`">{{ TRAITS[trait].label }}</strong> <span class="muted">{{ TRAITS[trait].description }}</span>
+      </p>
     </section>
 
     <section class="history">
@@ -132,6 +141,28 @@ const chartLabel = computed(() =>
   background: var(--gold);
   color: var(--on-gold);
   font-weight: 700;
+}
+.traits {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.traits p {
+  margin: 0;
+  line-height: 1.45;
+}
+.trait-steadfast {
+  color: var(--trait-steadfast);
+  border-color: var(--trait-steadfast);
+}
+.trait-wild {
+  color: var(--trait-wild);
+  border-color: var(--trait-wild);
+}
+.trait-mighty {
+  color: var(--trait-mighty);
+  border-color: var(--trait-mighty);
 }
 .skill {
   display: flex;

@@ -1,5 +1,6 @@
 import { model, Schema, type HydratedDocument, type InferSchemaType } from 'mongoose'
 import { HERO_CLASSES } from './classes.js'
+import { HERO_TRAITS } from './pool.js'
 
 const heroSchema = new Schema(
   {
@@ -21,6 +22,8 @@ const heroSchema = new Schema(
       type: new Schema({ min: { type: Number, required: true }, max: { type: Number, required: true } }, { _id: false }),
       default: null
     },
+    // Derived from the previous season; empty for mystery recruits
+    traits: { type: [{ type: String, enum: HERO_TRAITS }], default: [] },
     // Hidden-player rule: the real NFL player or team behind the hero. Never selected by default.
     source: {
       type: new Schema(

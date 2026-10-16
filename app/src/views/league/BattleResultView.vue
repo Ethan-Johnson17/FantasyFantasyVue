@@ -5,6 +5,7 @@ import { useApi } from '../../api/inject'
 import type { ResultSide, WeekResult } from '../../api/types'
 import CrestShield from '../../components/CrestShield.vue'
 import FormError from '../../components/FormError.vue'
+import { synergyInfo } from '../../heroes'
 import { useLeague } from '../../league'
 
 const api = useApi()
@@ -56,6 +57,13 @@ function swapNotes(side: ResultSide): string[] {
     })
 }
 
+/** Explains a Champion who didn't fight; a Champion who fought is marked with a crown. */
+function championNote(side: ResultSide): string {
+  if (!side.champion) return isMe(side) ? 'No Champion was named for this battle.' : ''
+  const hero = side.heroes.find(entry => entry.heroId === side.champion)
+  return hero?.resting ? `${hero.name} was named Champion but was resting, so the bonus was lost.` : ''
+}
+
 const others = computed(() => (result.value?.matchups ?? []).filter(m => m.home.partyId !== featured.value?.us.partyId && m.away?.partyId !== featured.value?.us.partyId))
 </script>
 
@@ -90,6 +98,12 @@ const others = computed(() => (result.value?.matchups ?? []).filter(m => m.home.
       </div>
     </section>
 
+    <ul v-if="featured.us.synergies.length" class="synergies" aria-label="Synergies">
+      <li v-for="synergy in featured.us.synergies" :key="synergy" class="synergy" :title="synergyInfo(synergy).description">
+        {{ synergyInfo(synergy).label }}
+      </li>
+    </ul>
+
     <div class="row-heading">
       <h2 class="section-title">{{ isMe(featured.us) ? 'Your party' : featured.us.name }}</h2>
       <span class="muted small">Damage, rounded per hero</span>
@@ -97,13 +111,15 @@ const others = computed(() => (result.value?.matchups ?? []).filter(m => m.home.
     <ul class="fighters">
       <li v-for="(hero, index) in fighters(featured.us)" :key="hero.heroId" class="fighter" :class="{ swapped: hero.swappedInto }">
         <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.heroId}`" class="fighter-name">
-          {{ hero.name }}<span v-if="hero.swappedInto" class="swap-tag"> ↺ swapped in</span>
+          <span v-if="hero.heroId === featured.us.champion" class="champion-tag" aria-label="Champion">♛ </span>{{ hero.name
+          }}<span v-if="hero.swappedInto" class="swap-tag"> ↺ swapped in</span>
         </RouterLink>
         <span class="muted small">{{ hero.heroClass }}{{ hero.swappedInto ? ' · from the bench' : '' }}</span>
         <span class="damage" :class="{ top: index === 0 }">{{ hero.damage }}</span>
       </li>
     </ul>
     <p v-for="text in swapNotes(featured.us)" :key="text" class="note swap-note">{{ text }}</p>
+    <p v-if="championNote(featured.us)" class="note swap-note">{{ championNote(featured.us) }}</p>
 
     <template v-if="featured.them">
       <h2 class="section-title opponent-title">{{ featured.them.name }}</h2>
@@ -236,6 +252,25 @@ const others = computed(() => (result.value?.matchups ?? []).filter(m => m.home.
   font-weight: 700;
   color: var(--text);
   text-decoration: none;
+}
+.champion-tag {
+  color: var(--gold);
+}
+.synergies {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.synergy {
+  padding: 2px 10px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  color: var(--gold);
+  font-size: 14px;
 }
 .swap-tag {
   font-weight: 400;

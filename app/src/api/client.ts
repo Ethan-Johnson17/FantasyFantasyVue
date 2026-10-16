@@ -48,6 +48,7 @@ export interface ApiClient {
   setRankings(leagueId: string, heroIds: string[]): Promise<{ heroIds: string[] }>
   getLineup(leagueId: string): Promise<Lineup>
   setLineup(leagueId: string, lineup: Record<string, string>): Promise<Lineup>
+  setChampion(leagueId: string, heroId: string | null): Promise<Lineup>
   getSchedule(leagueId: string): Promise<ScheduleWeek[]>
   getWeekResult(leagueId: string, week: number): Promise<WeekResult>
   getStandings(leagueId: string): Promise<Standing[]>
@@ -90,6 +91,7 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     setRankings: (id, heroIds) => request('PUT', `/api/leagues/${segment(id)}/rankings`, { heroIds }),
     getLineup: id => request('GET', `/api/leagues/${segment(id)}/lineup`),
     setLineup: (id, lineup) => request('PUT', `/api/leagues/${segment(id)}/lineup`, lineup),
+    setChampion: (id, heroId) => request('PUT', `/api/leagues/${segment(id)}/champion`, { heroId }),
     getSchedule: id => request('GET', `/api/leagues/${segment(id)}/schedule`),
     getWeekResult: (id, week) => request('GET', `/api/leagues/${segment(id)}/results/${String(week)}`),
     getStandings: id => request('GET', `/api/leagues/${segment(id)}/standings`)
