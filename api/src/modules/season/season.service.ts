@@ -65,7 +65,7 @@ async function resolveWeek(league: LeagueDocument, week: number): Promise<boolea
     ])
     const ruleset = getRuleset(league.rulesetVersion)
     const points = await heroPoints(heroes, season, week, ruleset, session)
-    const sides = new Map(parties.map(party => [party.id, buildSide(party, heroes, points, ruleset, week)]))
+    const sides = new Map(parties.map(party => [party.id, buildSide(party, heroes, points, ruleset)]))
     const monsterTotal = monsterDamage([...sides.values()].map(side => side.total))
 
     const matchups = scheduled.matchups.map(matchup => {
@@ -115,17 +115,11 @@ async function heroPoints(
   )
 }
 
-/** The hero a party named Champion for this week, or null. */
-function championFor(party: PartyDocument, week: number): string | null {
-  return party.champion?.week === week ? party.champion.heroId.toString() : null
-}
-
 function buildSide(
   party: PartyDocument,
   heroes: readonly HeroDocument[],
   points: ReadonlyMap<string, HeroPoints>,
-  ruleset: Ruleset,
-  week: number
+  ruleset: Ruleset
 ) {
   const lineup = readLineup(party.lineup)
   if (!lineup) throw new Error(`Party ${party.id} has no lineup`)
@@ -146,7 +140,7 @@ function buildSide(
     : new Map<string, string>()
   const swappedInto = new Map([...swaps].map(([slot, heroId]) => [heroId, slot]))
   const round2 = (value: number) => Math.round(value * 100) / 100
-  const champion = championFor(party, week)
+  const champion = party.champion?.toString() ?? null
 
   const lines = roster.map(hero => {
     const slot = slotByHero.get(hero.id) ?? 'Bench'
@@ -193,7 +187,7 @@ export interface LineupView {
   slots: SlotRule[]
   lineup: Lineup | null
   autoSwap: boolean
-  /** The Champion named for the next battle, or null */
+  /** The party's Champion (kept from week to week), or null */
   champion: string | null
   /** The league's Champion and synergy values, for explaining them */
   strategy: StrategyRules
@@ -213,7 +207,7 @@ export async function getLineup(member: AccountDocument, leagueId: string): Prom
     slots: ruleset.lineup.slots.map(slot => ({ ...slot, classes: [...slot.classes] })),
     lineup: readLineup(party.lineup),
     autoSwap: party.autoSwap,
-    champion: next ? championFor(party, next.week) : null,
+    champion: party.champion?.toString() ?? null,
     strategy: { ...ruleset.strategy },
     roster: roster.map(hero => ({ ...toHeroView(hero), restingNextWeek: resting.has(hero.id) })),
     nextWeek: next?.week ?? null,
@@ -229,7 +223,7 @@ export async function setLineup(member: AccountDocument, leagueId: string, lineu
   const problem = validateLineup(lineup, getRuleset(league.rulesetVersion).lineup.slots, id => roster.get(id)?.heroClass)
   if (problem) throw new BadRequest(problem)
   // Benching the Champion withdraws them: a Champion must start.
-  const championBenched = party.champion && !Object.values(lineup).includes(party.champion.heroId.toString())
+  const championBenched = party.champion && !Object.values(lineup).includes(party.champion.toString())
   await PartyModel.updateOne(
     { _id: party._id },
     { $set: { lineup: storedLineup(lineup), ...(championBenched ? { champion: null } : {}) } }
@@ -237,17 +231,16 @@ export async function setLineup(member: AccountDocument, leagueId: string, lineu
   return getLineup(member, leagueId)
 }
 
-/** Names (or, with null, withdraws) the Champion for the next battle. The Champion must be a starter. */
+/** Names (or, with null, withdraws) the Champion from the next battle on. The Champion must be a starter. */
 export async function setChampion(member: AccountDocument, leagueId: string, heroId: string | null): Promise<LineupView> {
   const { league, party } = await loadLeagueAsMember(member, leagueId)
-  const next = nextWeek(league)
-  if (!next) throw new Conflict('A Champion can be named after the draft and until the season ends')
+  if (!nextWeek(league)) throw new Conflict('A Champion can be named after the draft and until the season ends')
   if (heroId !== null && !Object.values(readLineup(party.lineup) ?? {}).includes(heroId)) {
     throw new BadRequest('Your Champion must be in your starting lineup')
   }
   await PartyModel.updateOne(
     { _id: party._id },
-    { $set: { champion: heroId === null ? null : { heroId, week: next.week } } }
+    { $set: { champion: heroId } }
   )
   return getLineup(member, leagueId)
 }
