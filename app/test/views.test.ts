@@ -7,6 +7,7 @@ import type { Crest } from '../src/crests'
 import HostLeagueView from '../src/views/HostLeagueView.vue'
 import JoinLeagueView from '../src/views/JoinLeagueView.vue'
 import LeaguesView from '../src/views/LeaguesView.vue'
+import { DEFAULT_DISPLAY_NAME, useSessionStore } from '../src/stores/session'
 import { detail, fakeApi, mountView, myLeague, summary } from './helpers'
 
 vi.mock('@auth0/auth0-vue', () => ({ useAuth0: () => ({ logout: vi.fn(), user: ref(null) }) }))
@@ -123,6 +124,20 @@ describe('LeaguesView', () => {
     expect(cards[2]!.text()).toContain('3 of 6 parties')
     expect(cards[2]!.text()).toContain('K7QX4M')
     expect(cards[2]!.findAll('.slot.filled')).toHaveLength(3)
+  })
+
+  it('asks players without a real name to choose one, then hides the prompt', async () => {
+    const api = fakeApi({ updateAccount: vi.fn().mockResolvedValue({ id: 'a1', displayName: 'Alaric' }) })
+    const { wrapper } = await mountView(LeaguesView, api)
+    const session = useSessionStore()
+    session.account = { id: 'a1', displayName: DEFAULT_DISPLAY_NAME }
+    await flushPromises()
+
+    await wrapper.find('#display-name').setValue('  Alaric ')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(api.updateAccount).toHaveBeenCalledWith({ displayName: 'Alaric' })
+    expect(wrapper.find('#display-name').exists()).toBe(false)
   })
 
   it('welcomes players with no leagues yet', async () => {

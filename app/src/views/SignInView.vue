@@ -1,12 +1,26 @@
 <script setup lang="ts">
 import { useAuth0 } from '@auth0/auth0-vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
-const { loginWithRedirect } = useAuth0()
+const { loginWithRedirect, error } = useAuth0()
 const route = useRoute()
 
+/** Errors Auth0 sends back to the app (e.g. a misconfigured application) instead of silently dropping them. */
+const signInError = computed(() => {
+  const value: unknown = error.value
+  if (!value) return ''
+  const message = value instanceof Error ? value.message : String(value)
+  return message || 'Sign-in did not complete.'
+})
+
+/** Only same-site paths: "/join" yes, "//evil.example" or "https://…" no. */
+function safeNext(value: unknown): string {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : '/leagues'
+}
+
 function signIn() {
-  const next = typeof route.query.next === 'string' && route.query.next.startsWith('/') ? route.query.next : '/leagues'
+  const next = safeNext(route.query.next)
   void loginWithRedirect({ appState: { target: next } })
 }
 </script>
@@ -20,10 +34,11 @@ function signIn() {
         <path d="M32 20l3.4 7 7.6.9-5.6 5.2 1.5 7.6L32 37l-6.9 3.7 1.5-7.6-5.6-5.2 7.6-.9z" />
       </svg>
       <h1>FantasyFantasy</h1>
-      <p class="muted pitch">Draft a party of heroes. Each one is secretly powered by a real football player.</p>
+      <p class="muted pitch">Draft a party of heroes and battle your friends each week.</p>
     </div>
 
     <div class="actions">
+      <p v-if="signInError" class="error" role="alert">Sign-in didn't complete: {{ signInError }}</p>
       <button type="button" class="btn btn-primary" @click="signIn">Sign in or create an account</button>
       <p class="muted fine-print">Free to play. No wagering, ever.</p>
     </div>

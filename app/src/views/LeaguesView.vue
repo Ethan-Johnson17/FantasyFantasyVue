@@ -5,6 +5,7 @@ import { ApiError } from '../api/client'
 import { useApi } from '../api/inject'
 import type { MyLeague } from '../api/types'
 import CrestShield from '../components/CrestShield.vue'
+import NamePrompt from '../components/NamePrompt.vue'
 import { useSessionStore } from '../stores/session'
 import { nextBattleAt, SEASON_WEEKS, timeUntil } from '../time'
 
@@ -65,6 +66,8 @@ function signOut() {
       </div>
     </header>
 
+    <NamePrompt v-if="session.needsName()" />
+
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <p v-else-if="!leagues" class="muted" aria-busy="true">Loading your leagues…</p>
 
@@ -100,8 +103,6 @@ function signOut() {
         </li>
       </ul>
     </template>
-
-    <p class="note muted hint">Each hero is secretly powered by a real NFL player. You'll never learn who, so draft by Level and class.</p>
 
     <div class="actions">
       <RouterLink to="/leagues/new" class="btn btn-primary">Host a league</RouterLink>
@@ -216,11 +217,6 @@ function signOut() {
 }
 .empty {
   margin: 8px 0 0;
-}
-.hint {
-  margin-top: 14px;
-  border-color: var(--line-strong);
-  font-size: 14px;
 }
 .actions {
   margin-top: auto;

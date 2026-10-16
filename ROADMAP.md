@@ -43,6 +43,7 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
 - Playoff bracket (NFL weeks 15–17)
 - Simulated turn-based combat (seeded RNG) as an alternative to score-based battles
 - Kicker class
+- "How it works" page explaining Levels, classes, and that hero strength follows a real season (main screens stay pure fantasy, with no mention of real players or the NFL)
 - Mascot crest emblems (dragon, wolf, owl, etc.) as a second emblem set, alongside the 8 heraldic ones
 
 ## Future ideas
@@ -50,3 +51,14 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
 - **Dynasty leagues:** heroes carry over between seasons. This is why hero identities are never revealed.
 - **Daily standings refresh:** a free scheduled trigger (for example GitHub Actions) that advances leagues even when
   nobody opens them. Leagues already advance on demand, so this only needs adding once the API is hosted.
+
+## Before public launch
+
+- **Google sign-in keys:** Auth0's Google connection uses shared development keys. Register the app's own Google
+  OAuth client (free) and set it on the connection.
+- **Production URLs:** add the hosted web address (and later the mobile app URLs) to the Auth0 application's
+  callback, logout and web-origin lists, and to the API's `CORS_ORIGINS`.
+- **Production database:** a separate Atlas project and free cluster, so development data never mixes with real
+  players' data.
+- **App stores (when shipping mobile):** Apple Developer Program ($99/year) and Google Play ($25 one-time).
+

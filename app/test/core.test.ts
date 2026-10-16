@@ -9,7 +9,7 @@ import { loadConfig } from '../src/config'
 import { BANNERS, crestName, EMBLEMS } from '../src/crests'
 import { normalizePin } from '../src/pin'
 import { authGuard } from '../src/router'
-import { DEFAULT_DISPLAY_NAME, useSessionStore } from '../src/stores/session'
+import { DEFAULT_DISPLAY_NAME, suggestedDisplayName, useSessionStore } from '../src/stores/session'
 import { nextBattleAt, timeUntil } from '../src/time'
 import { fakeApi } from './helpers'
 
@@ -124,6 +124,19 @@ describe('authGuard', () => {
   })
 })
 
+describe('suggestedDisplayName', () => {
+  it('uses a real first or full name from the identity provider', () => {
+    expect(suggestedDisplayName({ given_name: 'Ethan', name: 'Ethan Johnson' })).toBe('Ethan')
+    expect(suggestedDisplayName({ name: 'Ethan Johnson' })).toBe('Ethan Johnson')
+  })
+
+  it('never suggests an email address, which other players would see', () => {
+    expect(suggestedDisplayName({ name: 'someone@example.com' })).toBeUndefined()
+    expect(suggestedDisplayName({ given_name: ' ', name: 'someone@example.com' })).toBeUndefined()
+    expect(suggestedDisplayName(undefined)).toBeUndefined()
+  })
+})
+
 describe('session store', () => {
   it('replaces the placeholder name with the identity provider name on first sign-in', async () => {
     setActivePinia(createPinia())
@@ -131,7 +144,7 @@ describe('session store', () => {
       getAccount: vi.fn().mockResolvedValue({ id: 'a1', displayName: DEFAULT_DISPLAY_NAME }),
       updateAccount: vi.fn().mockResolvedValue({ id: 'a1', displayName: 'Ethan' })
     })
-    const account = await useSessionStore().load(api, '  Ethan ')
+    const account = await useSessionStore().load(api, suggestedDisplayName({ given_name: '  Ethan ' }))
     expect(api.updateAccount).toHaveBeenCalledWith({ displayName: 'Ethan' })
     expect(account.displayName).toBe('Ethan')
   })
