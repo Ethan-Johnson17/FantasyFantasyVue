@@ -64,6 +64,10 @@ export const RankingsSchema = z
 /** Hero id by slot key. Which keys are required depends on the league's ruleset (checked in the service). */
 export const LineupSchema = z.record(z.string().regex(/^[A-Za-z0-9]{1,20}$/, 'must be a slot key'), ObjectIdSchema)
 
+export const ClaimSchema = z
+  .object({ heroId: ObjectIdSchema.transform(id => id.toLowerCase()), dropHeroId: ObjectIdSchema.transform(id => id.toLowerCase()) })
+  .strict()
+
 export const ChampionSchema = z.object({ heroId: ObjectIdSchema.transform(id => id.toLowerCase()).nullable() }).strict()
 
 export const WeekParamSchema = z.coerce.number().int().min(1).max(14)

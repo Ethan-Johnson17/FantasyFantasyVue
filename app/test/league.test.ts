@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Component } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import type { ApiClient } from '../src/api/client'
+import { ApiError, type ApiClient } from '../src/api/client'
 import { apiKey } from '../src/api/inject'
 import type { Hero, LeagueDetail, Lineup, Party, WeekResult } from '../src/api/types'
 import { provideLeagueForTest } from '../src/league'
@@ -290,6 +290,91 @@ describe('Heroes tab', () => {
     await flushPromises()
     expect(api.setRankings).toHaveBeenCalledWith('l1', ['h1', 'h3'])
     expect(wrapper.text()).toContain('Ranking saved.')
+  })
+})
+
+describe('Free agency', () => {
+  const myLineup = (): Lineup => ({
+    slots: [{ key: 'slot1', label: 'Hero 1', classes: ['Mage', 'Warrior', 'Ranger', 'Rogue', 'Paladin'] }],
+    lineup: { slot1: 'h1' },
+    autoSwap: true,
+    champion: 'h1',
+    strategy: { championMultiplier: 1.25, mightyChampionMultiplier: 1.5, orderAndChaosBonus: 0.05, bulwarkFloor: 15 },
+    roster: [
+      { ...hero('h1', { partyId: 'p1' }), restingNextWeek: false },
+      { ...hero('h2', { partyId: 'p1', heroClass: 'Rogue' }), restingNextWeek: false }
+    ],
+    nextWeek: 2,
+    nextWeekAt: new Date(Date.now() + 3_600_000).toISOString()
+  })
+  const pool = () => [hero('h1', { partyId: 'p1' }), hero('h2', { partyId: 'p1' }), hero('f1', { traits: ['wild'] })]
+  const league = () => detail({ status: 'active', parties: [party('p1', true)] })
+
+  it('claims a free agent by choosing a hero to drop', async () => {
+    const api = fakeApi({
+      listHeroes: vi.fn().mockResolvedValueOnce(pool()).mockResolvedValue([hero('h1', { partyId: 'p1' }), hero('h2'), hero('f1', { partyId: 'p1' })]),
+      getLineup: vi.fn().mockResolvedValue(myLineup()),
+      claimHero: vi.fn().mockResolvedValue(myLineup()),
+      listMoves: vi.fn().mockResolvedValue([])
+    })
+    const { wrapper } = await mountLeague(HeroesView, api, league())
+    expect(wrapper.text()).toContain('Free agents')
+    expect(wrapper.findAll('button').filter(b => b.text() === 'Claim')).toHaveLength(1)
+
+    await wrapper.find('button[aria-label="Claim Hero f1"]').trigger('click')
+    await flushPromises()
+    const panel = wrapper.find('[role="dialog"]')
+    expect(panel.text()).toContain('Claim Hero f1')
+    // The Champion and starters are labeled, and nothing is dropped until a hero is chosen.
+    expect(panel.text()).toContain('starting · ♛ Champion')
+    const confirm = () => wrapper.findAll('[role="dialog"] button').find(b => b.text().startsWith('Drop') || b.text() === 'Choose a hero')!
+    expect(confirm().attributes('disabled')).toBeDefined()
+
+    await panel.find('input[value="h2"]').setValue(true)
+    expect(confirm().text()).toBe('Drop Hero h2')
+    await confirm().trigger('click')
+    await flushPromises()
+    expect(api.claimHero).toHaveBeenCalledWith('l1', 'f1', 'h2')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Hero f1 joined your party.')
+    expect(api.listHeroes).toHaveBeenCalledTimes(2)
+  })
+
+  it('explains a lost race and refreshes the pool', async () => {
+    const api = fakeApi({
+      listHeroes: vi.fn().mockResolvedValue(pool()),
+      getLineup: vi.fn().mockResolvedValue(myLineup()),
+      claimHero: vi.fn().mockRejectedValue(new ApiError(409, 'That hero is no longer a free agent')),
+      listMoves: vi.fn().mockResolvedValue([])
+    })
+    const { wrapper } = await mountLeague(HeroesView, api, league())
+    await wrapper.find('button[aria-label="Claim Hero f1"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[role="dialog"] input[value="h2"]').setValue(true)
+    await wrapper.findAll('[role="dialog"] button').find(b => b.text() === 'Drop Hero h2')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="dialog"]').text()).toContain('That hero is no longer a free agent')
+    expect(api.listHeroes).toHaveBeenCalledTimes(2)
+  })
+
+  it('lists recent moves, and hides Claim from non-members', async () => {
+    const api = fakeApi({
+      listHeroes: vi.fn().mockResolvedValue(pool()),
+      listMoves: vi.fn().mockResolvedValue([
+        {
+          kind: 'claim',
+          party: { partyId: 'p2', name: 'Ember Wolves' },
+          added: { heroId: 'x', name: 'Freya', heroClass: 'Warrior' },
+          dropped: { heroId: 'y', name: 'Lyra', heroClass: 'Ranger' },
+          effectiveWeek: 3,
+          at: new Date().toISOString()
+        }
+      ])
+    })
+    const { wrapper } = await mountLeague(HeroesView, api, detail({ status: 'active', parties: [party('p2')] }))
+    expect(wrapper.find('.moves').text()).toContain('Ember Wolves claimed Freya, dropped Lyra')
+    expect(wrapper.find('.moves').text()).toContain('from battle 3')
+    expect(wrapper.find('button[aria-label="Claim Hero f1"]').exists()).toBe(false)
   })
 })
 
