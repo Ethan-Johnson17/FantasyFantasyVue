@@ -3,6 +3,7 @@ import { BadRequest, Conflict, NotFound } from '../../lib/errors.js'
 import { createRng } from '../../lib/random.js'
 import type { AccountDocument } from '../accounts/account.model.js'
 import { toHeroView, type HeroView } from '../draft/draft.service.js'
+import type { HeroClass } from '../heroes/classes.js'
 import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
 import { planAutoSwaps, validateLineup, type Lineup } from '../heroes/lineup.js'
 import { expectedLevel } from '../heroes/pool.js'
@@ -303,12 +304,7 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
       name: heroById.get(line.heroId.toString())?.name ?? 'Unknown hero',
       heroClass: heroById.get(line.heroId.toString())?.heroClass ?? '',
       slot: line.slot,
-      // Hidden-player rule: per-hero points are rounded so weekly lines can't be matched to public stats.
-      damage: Math.round(
-        line.slot === 'Bench' && !line.swappedInto
-          ? line.points * multipliers[heroById.get(line.heroId.toString())?.heroClass ?? 'Mage']
-          : line.counted
-      ),
+      damage: displayedDamage(line, heroById.get(line.heroId.toString())?.heroClass ?? 'Mage', multipliers),
       resting: line.resting,
       swappedInto: line.swappedInto ?? null
     }))
@@ -334,7 +330,11 @@ export interface StandingView extends PartyRef {
 
 /** Ranked by win points (win 1, draw ½), then total damage. */
 export async function getStandings(viewer: AccountDocument, leagueId: string): Promise<StandingView[]> {
-  const league = await loadVisibleLeague(viewer, leagueId)
+  return computeStandings(await loadVisibleLeague(viewer, leagueId))
+}
+
+/** Standings for a league the caller has already been authorized to see. */
+export async function computeStandings(league: LeagueDocument): Promise<StandingView[]> {
   const [refs, results] = await Promise.all([partyRefs(league), WeekResultModel.find({ leagueId: league._id })])
   const table = new Map([...refs.values()].map(ref => [ref.partyId, { ...ref, wins: 0, losses: 0, draws: 0, damage: 0 }]))
 
@@ -360,6 +360,47 @@ export async function getStandings(viewer: AccountDocument, leagueId: string): P
   return [...table.values()]
     .sort((a, b) => winPoints(b) - winPoints(a) || b.damage - a.damage)
     .map(({ damage, ...row }) => ({ ...row, totalDamage: damage / 100 }))
+}
+
+type StoredHeroLine = { slot: string; points: number; counted: number; swappedInto?: string | null }
+
+/**
+ * The damage players see for one hero-week. Hidden-player rule: rounded to a whole number so weekly
+ * lines can't be matched to public stats. Bench heroes show what they would have dealt.
+ */
+function displayedDamage(line: StoredHeroLine, heroClass: HeroClass, multipliers: Readonly<Record<HeroClass, number>>): number {
+  return Math.round(line.slot === 'Bench' && !line.swappedInto ? line.points * multipliers[heroClass] : line.counted)
+}
+
+export interface HeroDetailView {
+  hero: HeroView
+  history: { week: number; slot: string; damage: number; resting: boolean; swappedInto: string | null }[]
+}
+
+/** A hero and its week-by-week damage (rounded), for members or anyone in a public league. */
+export async function getHeroDetail(viewer: AccountDocument, leagueId: string, heroId: string): Promise<HeroDetailView> {
+  const league = await loadVisibleLeague(viewer, leagueId)
+  const hero = await HeroModel.findOne({ _id: heroId, leagueId: league._id })
+  if (!hero) throw new NotFound()
+  const multipliers = getRuleset(league.rulesetVersion).lineup.classMultipliers
+  const results = await WeekResultModel.find({ leagueId: league._id }).sort({ week: 1 })
+  const history = results.flatMap(result => {
+    const line = result.matchups
+      .flatMap(matchup => (matchup.away ? [matchup.home, matchup.away] : [matchup.home]))
+      .flatMap(side => side.heroes)
+      .find(entry => entry.heroId.equals(hero._id))
+    if (!line) return []
+    return [
+      {
+        week: result.week,
+        slot: line.slot,
+        damage: displayedDamage(line, hero.heroClass, multipliers),
+        resting: line.resting,
+        swappedInto: line.swappedInto ?? null
+      }
+    ]
+  })
+  return { hero: toHeroView(hero), history }
 }
 
 async function partyRefs(league: LeagueDocument): Promise<Map<string, PartyRef>> {

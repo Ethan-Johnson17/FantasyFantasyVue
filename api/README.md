@@ -23,6 +23,7 @@ cp .env.example .env   # then fill in values; .env is gitignored
 | `npm run lint` | ESLint with strict type-aware rules |
 | `npm run typecheck` | TypeScript check |
 | `npm run build` / `npm start` | Compile to `dist/` and run it |
+| `npm run dev:league -- --pin K7QX4M --add-bots 3` | **Development only:** add bot parties, `--run-draft` to make a scheduled draft due, `--weeks-due 3` to fast-forward weeks |
 | `npm run import:stats -- --seasons 2011-2025` | Import nflverse weekly stats into MongoDB (idempotent; safe to re-run) |
 
 ## Endpoints

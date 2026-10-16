@@ -16,6 +16,20 @@ export function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
     createLeague: vi.fn(),
     previewLeague: vi.fn(),
     joinLeague: vi.fn(),
+    scheduleDraft: vi.fn(),
+    cancelLeague: vi.fn(),
+    leaveLeague: vi.fn(),
+    removeParty: vi.fn(),
+    updateParty: vi.fn(),
+    listHeroes: vi.fn().mockResolvedValue([]),
+    getHero: vi.fn(),
+    getRankings: vi.fn().mockResolvedValue({ heroIds: [] }),
+    setRankings: vi.fn(),
+    getLineup: vi.fn(),
+    setLineup: vi.fn(),
+    getSchedule: vi.fn().mockResolvedValue([]),
+    getWeekResult: vi.fn(),
+    getStandings: vi.fn().mockResolvedValue([]),
     ...overrides
   }
 }
@@ -58,6 +72,7 @@ export const summary = (overrides: Partial<LeagueSummary> = {}): LeagueSummary =
 export const myLeague = (overrides: Partial<MyLeague> = {}): MyLeague => ({
   ...summary(),
   myParty: { id: 'p1', name: 'Dragon Slayers', crest: { emblem: 'crown', banner: 'crimson' } },
+  standing: null,
   ...overrides
 })
 
@@ -65,5 +80,6 @@ export const detail = (overrides: Partial<LeagueDetail> = {}): LeagueDetail => (
   ...summary(),
   rulesetVersion: 1,
   parties: [],
+  draft: null,
   ...overrides
 })

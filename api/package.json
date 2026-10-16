@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "import:stats": "tsx --env-file=.env src/scripts/import-stats.ts"
+    "import:stats": "tsx --env-file=.env src/scripts/import-stats.ts",
+    "dev:league": "tsx --env-file=.env src/scripts/dev-league.ts"
   },
   "dependencies": {
     "cors": "2.8.6",

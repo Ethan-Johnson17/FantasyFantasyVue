@@ -8,7 +8,20 @@ export const routes: RouteRecordRaw[] = [
   { path: '/leagues', name: 'leagues', component: () => import('./views/LeaguesView.vue'), meta: { auth: true } },
   { path: '/leagues/new', name: 'host', component: () => import('./views/HostLeagueView.vue'), meta: { auth: true } },
   { path: '/join', name: 'join', component: () => import('./views/JoinLeagueView.vue'), meta: { auth: true } },
-  { path: '/leagues/:id', name: 'league', component: () => import('./views/LeagueView.vue'), meta: { auth: true } },
+  {
+    path: '/leagues/:id',
+    component: () => import('./views/league/LeagueLayout.vue'),
+    meta: { auth: true },
+    children: [
+      { path: '', name: 'league', component: () => import('./views/league/LeagueHomeView.vue') },
+      { path: 'party', name: 'party', component: () => import('./views/league/PartyView.vue') },
+      { path: 'battles', name: 'battles', component: () => import('./views/league/BattlesView.vue') },
+      { path: 'battles/:week', name: 'battle', component: () => import('./views/league/BattleResultView.vue') },
+      { path: 'heroes', name: 'heroes', component: () => import('./views/league/HeroesView.vue') },
+      { path: 'heroes/:heroId', name: 'hero', component: () => import('./views/league/HeroDetailView.vue') },
+      { path: 'draft', name: 'draft', component: () => import('./views/league/DraftRecapView.vue') }
+    ]
+  },
   { path: '/:pathMatch(.*)*', redirect: '/leagues' }
 ]
 
