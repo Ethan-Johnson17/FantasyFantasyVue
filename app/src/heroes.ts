@@ -1,4 +1,4 @@
-import type { Hero, HeroClass } from './api/types'
+import type { Hero, HeroClass, HeroTrait, StrategyRules, Synergy } from './api/types'
 
 export const HERO_CLASSES: HeroClass[] = ['Mage', 'Warrior', 'Ranger', 'Rogue', 'Paladin']
 
@@ -48,4 +48,51 @@ export const isMystery = (hero: Pick<Hero, 'level'>) => hero.level === null
 export function levelValue(hero: Pick<Hero, 'level' | 'levelRange'>): number {
   if (hero.level !== null) return hero.level
   return hero.levelRange ? (hero.levelRange.min + hero.levelRange.max) / 2 : 0
+}
+
+/** Hero traits, in display order. */
+export const TRAITS: Record<HeroTrait, { label: string; description: string }> = {
+  steadfast: { label: 'Steadfast', description: 'Fights at a steady pace from one battle to the next.' },
+  wild: { label: 'Wild', description: 'Swings between quiet battles and huge ones.' },
+  mighty: { label: 'Mighty', description: 'Capable of devastating single battles.' }
+}
+
+const times = (value: number) => `${String(value)}×`
+const percent = (value: number) => `${String(Math.round(value * 100))}%`
+
+/** Synergy names and what they do. Descriptions use the league's values when known. */
+export function synergyInfo(synergy: Synergy, rules?: StrategyRules): { label: string; description: string } {
+  switch (synergy) {
+    case 'orderAndChaos':
+      return {
+        label: 'Order & Chaos',
+        description: `A Steadfast and a Wild hero fight side by side: ${rules ? `+${percent(rules.orderAndChaosBonus)}` : 'bonus'} party damage.`
+      }
+    case 'mightyChampion':
+      return {
+        label: 'Mighty Champion',
+        description: `A Mighty Champion deals ${rules ? times(rules.mightyChampionMultiplier) : 'extra'} damage${rules ? ` instead of ${times(rules.championMultiplier)}` : ''}.`
+      }
+    case 'bulwark':
+      return {
+        label: 'Bulwark',
+        description: `A Wild Champion guarded by a Steadfast ally deals at least ${rules ? String(rules.bulwarkFloor) : 'a minimum of'} damage.`
+      }
+  }
+}
+
+export const SYNERGY_ORDER: Synergy[] = ['orderAndChaos', 'mightyChampion', 'bulwark']
+
+/**
+ * Synergies a lineup would trigger, from who is set to fight. Mirrors the server's rules
+ * (api/src/modules/season/strategy.ts); the server decides the real result.
+ */
+export function activeSynergies(fighters: readonly Pick<Hero, 'id' | 'traits'>[], championId: string | null): Synergy[] {
+  const has = (trait: HeroTrait, except?: string) => fighters.some(hero => hero.id !== except && hero.traits.includes(trait))
+  const champion = fighters.find(hero => hero.id === championId)
+  const active: Synergy[] = []
+  if (has('steadfast') && has('wild')) active.push('orderAndChaos')
+  if (champion?.traits.includes('mighty')) active.push('mightyChampion')
+  if (champion?.traits.includes('wild') && has('steadfast', champion.id)) active.push('bulwark')
+  return active
 }

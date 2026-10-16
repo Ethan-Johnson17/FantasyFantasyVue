@@ -11,12 +11,13 @@ import { inTransaction, loadLeagueAsMember, loadVisibleLeague } from '../leagues
 import { CADENCE_MS, LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
 import { DEFAULT_CREST, type Crest } from '../leagues/crests.js'
 import { PartyModel, readLineup, storedLineup, type PartyDocument } from '../leagues/party.model.js'
-import { getRuleset, type Ruleset, type SlotRule } from '../scoring/rulesets.js'
+import { getRuleset, type Ruleset, type SlotRule, type StrategyRules } from '../scoring/rulesets.js'
 import { scoreDefense, scoreOffense } from '../scoring/scoring.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models.js'
 import { decideBattle, decideMonsterBattle, monsterDamage, scoreParty, type Outcome } from './battle.js'
 import { monsterName } from './monsters.js'
 import { SEASON_WEEKS } from './schedule.js'
+import { applyStrategy, type Synergy } from './strategy.js'
 import { WeekResultModel } from './weekResult.model.js'
 
 /*
@@ -64,7 +65,7 @@ async function resolveWeek(league: LeagueDocument, week: number): Promise<boolea
     ])
     const ruleset = getRuleset(league.rulesetVersion)
     const points = await heroPoints(heroes, season, week, ruleset, session)
-    const sides = new Map(parties.map(party => [party.id, buildSide(party, heroes, points, ruleset)]))
+    const sides = new Map(parties.map(party => [party.id, buildSide(party, heroes, points, ruleset, week)]))
     const monsterTotal = monsterDamage([...sides.values()].map(side => side.total))
 
     const matchups = scheduled.matchups.map(matchup => {
@@ -114,11 +115,17 @@ async function heroPoints(
   )
 }
 
+/** The hero a party named Champion for this week, or null. */
+function championFor(party: PartyDocument, week: number): string | null {
+  return party.champion?.week === week ? party.champion.heroId.toString() : null
+}
+
 function buildSide(
   party: PartyDocument,
   heroes: readonly HeroDocument[],
   points: ReadonlyMap<string, HeroPoints>,
-  ruleset: Ruleset
+  ruleset: Ruleset,
+  week: number
 ) {
   const lineup = readLineup(party.lineup)
   if (!lineup) throw new Error(`Party ${party.id} has no lineup`)
@@ -139,6 +146,7 @@ function buildSide(
     : new Map<string, string>()
   const swappedInto = new Map([...swaps].map(([slot, heroId]) => [heroId, slot]))
   const round2 = (value: number) => Math.round(value * 100) / 100
+  const champion = championFor(party, week)
 
   const lines = roster.map(hero => {
     const slot = slotByHero.get(hero.id) ?? 'Bench'
@@ -147,16 +155,33 @@ function buildSide(
     const damage = earned.points * classMultipliers[hero.heroClass]
     // Starters count their class damage, swapped-in bench heroes count it at the swap penalty, the rest count 0.
     const counted = slot !== 'Bench' ? round2(damage) : into ? round2(damage * autoSwapMultiplier) : 0
-    return { heroId: hero._id, slot, ...earned, swappedInto: into, counted, benchDamage: round2(damage) }
+    const fights = (slot !== 'Bench' && !earned.resting) || into !== null
+    return { hero, line: { heroId: hero._id, slot, ...earned, swappedInto: into, counted }, fights, benchDamage: round2(damage) }
   })
+  // Only a starter who actually fights can be the Champion; a hero swapped in for them is not.
+  const fighting = lines.filter(entry => entry.fights)
+  const outcome = applyStrategy(
+    fighting.map(({ hero, line }) => ({
+      heroId: hero.id,
+      traits: hero.traits,
+      damage: line.counted,
+      isChampion: hero.id === champion && line.slot !== 'Bench'
+    })),
+    ruleset.strategy
+  )
+  for (const { hero, line } of fighting) line.counted = outcome.damage.get(hero.id) ?? line.counted
+
   const score = scoreParty(
-    lines.filter(line => line.slot !== 'Bench' || line.swappedInto).map(line => line.counted),
-    lines.filter(line => line.slot === 'Bench' && !line.swappedInto).map(line => line.benchDamage)
+    fighting.map(({ line }) => line.counted),
+    lines.filter(entry => entry.line.slot === 'Bench' && !entry.line.swappedInto).map(entry => entry.benchDamage)
   )
   return {
     partyId: party._id,
     ...score,
-    heroes: lines.map(({ benchDamage: _benchDamage, ...line }) => line)
+    total: outcome.total,
+    champion: champion ? new mongoose.Types.ObjectId(champion) : null,
+    synergies: outcome.synergies,
+    heroes: lines.map(entry => entry.line)
   }
 }
 
@@ -168,6 +193,10 @@ export interface LineupView {
   slots: SlotRule[]
   lineup: Lineup | null
   autoSwap: boolean
+  /** The Champion named for the next battle, or null */
+  champion: string | null
+  /** The league's Champion and synergy values, for explaining them */
+  strategy: StrategyRules
   roster: (HeroView & { restingNextWeek: boolean })[]
   /** The next game week to resolve, or null if the season is over or hasn't started */
   nextWeek: number | null
@@ -179,10 +208,13 @@ export async function getLineup(member: AccountDocument, leagueId: string): Prom
   const roster = await HeroModel.find({ leagueId: league._id, partyId: party._id }).select('+source')
   const next = nextWeek(league)
   const resting = next ? await restingHeroes(league, roster, next.week) : new Set<string>()
+  const ruleset = getRuleset(league.rulesetVersion)
   return {
-    slots: getRuleset(league.rulesetVersion).lineup.slots.map(slot => ({ ...slot, classes: [...slot.classes] })),
+    slots: ruleset.lineup.slots.map(slot => ({ ...slot, classes: [...slot.classes] })),
     lineup: readLineup(party.lineup),
     autoSwap: party.autoSwap,
+    champion: next ? championFor(party, next.week) : null,
+    strategy: { ...ruleset.strategy },
     roster: roster.map(hero => ({ ...toHeroView(hero), restingNextWeek: resting.has(hero.id) })),
     nextWeek: next?.week ?? null,
     nextWeekAt: next?.at ?? null
@@ -196,7 +228,27 @@ export async function setLineup(member: AccountDocument, leagueId: string, lineu
   const roster = new Map((await HeroModel.find({ leagueId: league._id, partyId: party._id })).map(hero => [hero.id, hero]))
   const problem = validateLineup(lineup, getRuleset(league.rulesetVersion).lineup.slots, id => roster.get(id)?.heroClass)
   if (problem) throw new BadRequest(problem)
-  await PartyModel.updateOne({ _id: party._id }, { $set: { lineup: storedLineup(lineup) } })
+  // Benching the Champion withdraws them: a Champion must start.
+  const championBenched = party.champion && !Object.values(lineup).includes(party.champion.heroId.toString())
+  await PartyModel.updateOne(
+    { _id: party._id },
+    { $set: { lineup: storedLineup(lineup), ...(championBenched ? { champion: null } : {}) } }
+  )
+  return getLineup(member, leagueId)
+}
+
+/** Names (or, with null, withdraws) the Champion for the next battle. The Champion must be a starter. */
+export async function setChampion(member: AccountDocument, leagueId: string, heroId: string | null): Promise<LineupView> {
+  const { league, party } = await loadLeagueAsMember(member, leagueId)
+  const next = nextWeek(league)
+  if (!next) throw new Conflict('A Champion can be named after the draft and until the season ends')
+  if (heroId !== null && !Object.values(readLineup(party.lineup) ?? {}).includes(heroId)) {
+    throw new BadRequest('Your Champion must be in your starting lineup')
+  }
+  await PartyModel.updateOne(
+    { _id: party._id },
+    { $set: { champion: heroId === null ? null : { heroId, week: next.week } } }
+  )
   return getLineup(member, leagueId)
 }
 
@@ -270,6 +322,9 @@ export async function getSchedule(viewer: AccountDocument, leagueId: string): Pr
 
 interface SideView extends PartyRef {
   total: number
+  /** The Champion named that week, if any */
+  champion: string | null
+  synergies: Synergy[]
   heroes: {
     heroId: string
     name: string
@@ -299,6 +354,8 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
   const side = (stored: (typeof result.matchups)[number]['home']): SideView => ({
     ...(refs.get(stored.partyId.toString()) ?? { partyId: stored.partyId.toString(), name: 'Unknown', crest: DEFAULT_CREST }),
     total: stored.total,
+    champion: stored.champion?.toString() ?? null,
+    synergies: [...stored.synergies],
     heroes: stored.heroes.map(line => ({
       heroId: line.heroId.toString(),
       name: heroById.get(line.heroId.toString())?.name ?? 'Unknown hero',

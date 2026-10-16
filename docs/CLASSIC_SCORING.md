@@ -217,6 +217,70 @@ Decided 2026-10-13. Items marked *(default)* were filled in during implementatio
 - **Standings:** a win is worth 1 and a draw ½ *(default)*. Ties in the standings go to the higher total damage. After
   week 14 the league is `complete`.
 
+## Strategy layer (decided 2026-10-15)
+
+Two Level 10 heroes used to be interchangeable, so there was no reason to rank heroes before the draft. Data from
+the 2012–2025 pools showed real differences inside the same Level (the weakest quarter of Level 9–10 heroes averaged
+9.3 damage a week, the strongest 21.0). Two traits carry over from one season to the next (weekly swing, r = 0.38;
+best-week ceiling, r = 0.42); games played (0.13) and late-season momentum (0.04) do not, so they aren't used.
+
+### Traits
+
+Computed when the hero pool is built, from the hero's previous-season weekly points, against the other veterans of
+the same class in the pool:
+
+- **Steadfast:** the steadiest third (lowest week-to-week swing relative to their average).
+- **Wild:** the swingiest third. A hero is never both Steadfast and Wild.
+- **Mighty:** the top third by best single week (ceiling). It can be combined with either.
+
+Mystery recruits have no traits (no previous season). Traits come from coarse thirds, so they don't identify anyone.
+
+### Weekly Champion
+
+Each week a party may name one **starter** as its Champion, who deals extra damage. The choice applies to the next
+week only and is cleared once that week resolves; **with no Champion named, there is no Champion that week**. A
+Champion who is resting or benched at resolve time gets no bonus (an auto-swapped hero doesn't inherit it).
+
+### Trait synergies
+
+- **Order & Chaos:** at least one Steadfast and one Wild hero dealing damage for the party gives a bonus to the party total.
+- **Mighty Champion:** a Mighty Champion gets a larger multiplier than a normal Champion.
+- **Bulwark:** a Wild Champion fighting alongside at least one Steadfast hero can't deal less than a floor amount.
+
+Synergies stack, and the party total already includes them.
+
+### Strategy balance (ruleset v1)
+
+| Value | v1 |
+| --- | --- |
+| Champion multiplier | 1.25× |
+| Mighty Champion multiplier | 1.5× |
+| Order & Chaos bonus | +5% to the party total |
+| Bulwark floor | 15 damage |
+
+Tuned by simulating six-party leagues over every season 2012–2025 (20 seeds each, about 3,900 battles per plan), with
+each party following one plan through the real draft, lineup, and auto-swap code. Win rates:
+
+| Plan | No strategy layer | v1 values |
+| --- | --- | --- |
+| Rank by Level only, name the best starter Champion | 48% | 47% |
+| Rank by Level only, never name a Champion | 48% | 38% |
+| Draft and start for Order & Chaos | 49% | 51% |
+| Draft for Mighty, name a Mighty Champion | 52% | 52% |
+| Draft for Wild + Steadfast, name a Wild Champion (Bulwark) | 50% | 54% |
+| Value all three traits | 53% | 57% |
+
+Even with every bonus off, trait-aware drafting does a little better: the traits themselves carry real information.
+The bonuses widen that so ranking heroes before the draft pays off, without any plan running away. Forgetting to name
+a Champion costs about 10 points of win rate, a deliberate reason to check in each week. A 1.5× Champion was tested
+and rejected: plans came out about the same, but forgetting would cost about 12 points.
+
+### Free agency and trades (later PRs)
+
+- **Free agency:** heroes left undrafted are free agents. During the season a party may claim one by dropping one;
+  first come, first served. Changes never affect a week already due (due weeks resolve first).
+- **Trades:** two parties agree and the trade happens immediately. No trades after week 10.
+
 ## Attribution
 
 nflverse data is CC-BY-4.0. The app needs a visible credit, e.g., "Stats data provided by nflverse" on the About page.

@@ -68,6 +68,8 @@ export interface CreateLeagueInput {
 }
 
 export type HeroClass = 'Mage' | 'Warrior' | 'Ranger' | 'Rogue' | 'Paladin'
+export type HeroTrait = 'steadfast' | 'wild' | 'mighty'
+export type Synergy = 'orderAndChaos' | 'mightyChampion' | 'bulwark'
 
 export interface Hero {
   id: string
@@ -83,6 +85,7 @@ export interface Hero {
   /** Null for mystery recruits */
   level: number | null
   levelRange: { min: number; max: number } | null
+  traits: HeroTrait[]
   partyId: string | null
 }
 
@@ -101,9 +104,19 @@ export interface Lineup {
   slots: SlotRule[]
   lineup: Record<string, string> | null
   autoSwap: boolean
+  /** The Champion named for the next battle */
+  champion: string | null
+  strategy: StrategyRules
   roster: (Hero & { restingNextWeek: boolean })[]
   nextWeek: number | null
   nextWeekAt: string | null
+}
+
+export interface StrategyRules {
+  championMultiplier: number
+  mightyChampionMultiplier: number
+  orderAndChaosBonus: number
+  bulwarkFloor: number
 }
 
 export interface PartyRef {
@@ -136,6 +149,9 @@ export interface ResultHero {
 
 export interface ResultSide extends PartyRef {
   total: number
+  /** The Champion named that week, if any */
+  champion: string | null
+  synergies: Synergy[]
   heroes: ResultHero[]
 }
 

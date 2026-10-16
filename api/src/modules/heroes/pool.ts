@@ -15,7 +15,14 @@ export interface PoolCandidate {
   ppg: number | null
   /** NFL draft slot; required for mystery recruits */
   draft?: { round: number; pick: number }
+  /** Previous-season swing relative to average (veterans) */
+  volatility?: number
+  /** Previous-season best single week (veterans) */
+  ceiling?: number
 }
+
+export const HERO_TRAITS = ['steadfast', 'wild', 'mighty'] as const
+export type HeroTrait = (typeof HERO_TRAITS)[number]
 
 export interface LevelRange {
   min: number
@@ -30,6 +37,7 @@ export interface PoolEntry {
   level: number | null
   /** Shown instead of a level for mystery recruits */
   levelRange: LevelRange | null
+  traits: HeroTrait[]
 }
 
 /** Up to this share of each class's pool is mystery recruits. */
@@ -80,6 +88,7 @@ export function selectHeroPool(
     }
 
     const n = takenVeterans.length
+    const traits = assignTraits(takenVeterans)
     return [
       ...takenVeterans.map((candidate, index) => ({
         sourceKind: candidate.sourceKind,
@@ -87,15 +96,40 @@ export function selectHeroPool(
         heroClass,
         // Deciles: the top 10% of the class's veterans are Level 10.
         level: 10 - Math.floor((index * 10) / n),
-        levelRange: null
+        levelRange: null,
+        traits: traits.get(candidate.sourceId) ?? []
       })),
       ...takenRecruits.map(candidate => ({
         sourceKind: candidate.sourceKind,
         sourceId: candidate.sourceId,
         heroClass,
         level: null,
-        levelRange: mysteryRange(candidate.draft.round)
+        levelRange: mysteryRange(candidate.draft.round),
+        traits: [] as HeroTrait[]
       }))
     ]
   })
+}
+
+/**
+ * Traits by thirds within one class's veterans: the steadiest third are Steadfast, the swingiest
+ * third Wild, and the top third by best single week Mighty. Ties break by id, so results are stable.
+ */
+export function assignTraits(veterans: readonly PoolCandidate[]): Map<string, HeroTrait[]> {
+  const result = new Map<string, HeroTrait[]>(veterans.map(candidate => [candidate.sourceId, []]))
+  const third = Math.floor(veterans.length / 3)
+  if (third === 0) return result
+  const add = (id: string, trait: HeroTrait) => result.get(id)?.push(trait)
+  const byId = (a: PoolCandidate, b: PoolCandidate) => a.sourceId.localeCompare(b.sourceId)
+
+  const bySwing = [...veterans].sort((a, b) => (a.volatility ?? 0) - (b.volatility ?? 0) || byId(a, b))
+  for (const candidate of bySwing.slice(0, third)) add(candidate.sourceId, 'steadfast')
+  for (const candidate of bySwing.slice(-third)) add(candidate.sourceId, 'wild')
+
+  const byCeiling = [...veterans].sort((a, b) => (b.ceiling ?? 0) - (a.ceiling ?? 0) || byId(a, b))
+  for (const candidate of byCeiling.slice(0, third)) add(candidate.sourceId, 'mighty')
+
+  // Keep a stable order: temperament first, then might.
+  for (const [id, list] of result) result.set(id, HERO_TRAITS.filter(trait => list.includes(trait)))
+  return result
 }

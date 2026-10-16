@@ -57,6 +57,9 @@ async function draftedLeague(members = [alice]) {
   await host.post(`/api/leagues/${id}/draft`, { draftAt: new Date(Date.now() + 3_600_000).toISOString() })
   await LeagueModel.updateOne({ _id: id }, { $set: { draftAt: new Date(Date.now() - 1000) } })
   await host.get(`/api/leagues/${id}`) // runs the draft
+  // The seeded stats are identical every week, so traits would fall to id order. Start without
+  // traits so base scoring is exact; strategy tests set traits explicitly.
+  await HeroModel.updateMany({ leagueId: id }, { $set: { traits: [] } })
   return id
 }
 
@@ -353,6 +356,139 @@ describe('auto-swap', () => {
     await makeWeeksDue(id, 1)
     const side = aliceSide((await alice.get(`/api/leagues/${id}/results/1`)).body, starter)
     expect(side.heroes.every(h => h.swappedInto === null)).toBe(true)
+  })
+})
+
+describe('weekly Champion and synergies', () => {
+  const { classMultipliers, autoSwapMultiplier } = RULESET_V1.lineup
+  const { championMultiplier, mightyChampionMultiplier, orderAndChaosBonus, bulwarkFloor } = RULESET_V1.strategy
+
+  async function myLineup(id: string) {
+    return (await alice.get(`/api/leagues/${id}/lineup`)).body as LineupView & { champion: string | null }
+  }
+
+  /** Alice's stored side for a week, found by her party id. */
+  async function storedSide(id: string, week: number, partyId: string) {
+    const result = await WeekResultModel.findOne({ leagueId: id, week }).lean()
+    return result!.matchups.flatMap(m => (m.away ? [m.home, m.away] : [m.home])).find(side => side.partyId.toString() === partyId)!
+  }
+
+  /** A hero's base damage that week: points times its class multiplier. */
+  async function baseDamage(heroId: string, line: { points: number }) {
+    const hero = (await HeroModel.findById(heroId).lean())!
+    return line.points * classMultipliers[hero.heroClass]
+  }
+
+  it('names a starter for the next battle only, then lapses', async () => {
+    const id = await draftedLeague()
+    const view = await myLineup(id)
+    const partyId = view.roster[0]!.partyId
+    const starter = view.lineup![view.slots[0]!.key]!
+    const benched = view.roster.find(hero => !Object.values(view.lineup!).includes(hero.id))!
+
+    expect(view.champion).toBeNull()
+    expect((view as unknown as { strategy: unknown }).strategy).toEqual(RULESET_V1.strategy)
+    expect((await alice.put(`/api/leagues/${id}/champion`, { heroId: benched.id })).status).toBe(400)
+    expect((await alice.put(`/api/leagues/${id}/champion`, { heroId: 'nope' })).status).toBe(400)
+    expect((await alice.put(`/api/leagues/${id}/champion`, {})).status).toBe(400)
+    expect((await outsider.put(`/api/leagues/${id}/champion`, { heroId: starter })).status).toBe(404)
+    const named = await alice.put(`/api/leagues/${id}/champion`, { heroId: starter.toUpperCase() })
+    expect(named.status).toBe(200)
+    expect(named.body.champion).toBe(starter)
+
+    await makeWeeksDue(id, 2)
+    await alice.get(`/api/leagues/${id}`)
+    const week1 = await storedSide(id, 1, partyId)
+    expect(week1.champion?.toString()).toBe(starter)
+    const line1 = week1.heroes.find(h => h.heroId.toString() === starter)!
+    expect(line1.counted).toBeCloseTo((await baseDamage(starter, line1)) * championMultiplier, 2)
+
+    // Not renamed for week 2, so no Champion that week.
+    const week2 = await storedSide(id, 2, partyId)
+    expect(week2.champion).toBeNull()
+    const line2 = week2.heroes.find(h => h.heroId.toString() === starter)!
+    expect(line2.counted).toBeCloseTo(await baseDamage(starter, line2), 2)
+    expect((await myLineup(id)).champion).toBeNull()
+  })
+
+  it('can be withdrawn, and benching the Champion withdraws them', async () => {
+    const id = await draftedLeague()
+    const view = await myLineup(id)
+    const slot = view.slots[0]!.key
+    const starter = view.lineup![slot]!
+    const benched = view.roster.find(hero => !Object.values(view.lineup!).includes(hero.id))!
+
+    await alice.put(`/api/leagues/${id}/champion`, { heroId: starter })
+    expect((await alice.put(`/api/leagues/${id}/champion`, { heroId: null })).body.champion).toBeNull()
+
+    await alice.put(`/api/leagues/${id}/champion`, { heroId: starter })
+    expect((await alice.put(`/api/leagues/${id}/lineup`, { ...view.lineup, [slot]: benched.id })).status).toBe(200)
+    expect((await myLineup(id)).champion).toBeNull()
+  })
+
+  it('gives a resting Champion nothing, and never boosts the hero swapped in for them', async () => {
+    const id = await draftedLeague()
+    const view = await myLineup(id)
+    const partyId = view.roster[0]!.partyId
+    const slot = view.slots[0]!.key
+    const starter = view.lineup![slot]!
+    await alice.put(`/api/leagues/${id}/champion`, { heroId: starter })
+    await removeWeekOneStats(starter)
+
+    await makeWeeksDue(id, 1)
+    await alice.get(`/api/leagues/${id}`)
+    const side = await storedSide(id, 1, partyId)
+    expect(side.heroes.find(h => h.heroId.toString() === starter)).toMatchObject({ resting: true, counted: 0 })
+    const sub = side.heroes.find(h => h.swappedInto === slot)!
+    expect(sub.counted).toBeCloseTo((await baseDamage(sub.heroId.toString(), sub)) * autoSwapMultiplier, 2)
+  })
+
+  it('applies trait synergies and shows them with the Champion in results', async () => {
+    const id = await draftedLeague()
+    const view = await myLineup(id)
+    const partyId = view.roster[0]!.partyId
+    const steady = view.lineup![view.slots[0]!.key]!
+    const champion = view.lineup![view.slots[1]!.key]!
+    await HeroModel.updateOne({ _id: steady }, { $set: { traits: ['steadfast'] } })
+    await HeroModel.updateOne({ _id: champion }, { $set: { traits: ['wild', 'mighty'] } })
+    await alice.put(`/api/leagues/${id}/champion`, { heroId: champion })
+
+    await makeWeeksDue(id, 1)
+    await alice.get(`/api/leagues/${id}`)
+    const side = await storedSide(id, 1, partyId)
+    expect(new Set(side.synergies)).toEqual(new Set(['orderAndChaos', 'mightyChampion', 'bulwark']))
+    const line = side.heroes.find(h => h.heroId.toString() === champion)!
+    expect(line.counted).toBeCloseTo(Math.max((await baseDamage(champion, line)) * mightyChampionMultiplier, bulwarkFloor), 2)
+    const fought = side.heroes.filter(h => h.slot !== 'Bench' || h.swappedInto).reduce((sum, h) => sum + h.counted, 0)
+    expect(side.total).toBeCloseTo(fought * (1 + orderAndChaosBonus), 2)
+
+    const result = (await alice.get(`/api/leagues/${id}/results/1`)).body as {
+      matchups: { home: SideView & { champion: string | null; synergies: string[] }; away: (SideView & { champion: string | null; synergies: string[] }) | null }[]
+    }
+    const mine = result.matchups.flatMap(m => (m.away ? [m.home, m.away] : [m.home])).find(s => s.partyId === partyId)!
+    expect(mine.champion).toBe(champion)
+    expect(new Set(mine.synergies)).toEqual(new Set(side.synergies))
+    expect(mine.total).toBe(side.total)
+
+    const heroes = (await alice.get(`/api/leagues/${id}/heroes`)).body as { id: string; traits: string[] }[]
+    expect(heroes.find(h => h.id === champion)?.traits).toEqual(['wild', 'mighty'])
+  })
+
+  it('can only be named while the season is running', async () => {
+    const created = await host.post('/api/leagues', {
+      name: 'Not drafted',
+      visibility: 'private',
+      cadence: 'daily',
+      maxParties: 4,
+      party: { name: 'Host Party', crest: { emblem: 'crown', banner: 'crimson' } }
+    })
+    const placeholder = '64b000000000000000000000'
+    expect((await host.put(`/api/leagues/${String(created.body.id)}/champion`, { heroId: placeholder })).status).toBe(409)
+
+    const id = await draftedLeague()
+    const starter = Object.values((await myLineup(id)).lineup!)[0]!
+    await makeWeeksDue(id, 30)
+    expect((await alice.put(`/api/leagues/${id}/champion`, { heroId: starter })).status).toBe(409)
   })
 })
 

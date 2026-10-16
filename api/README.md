@@ -49,7 +49,8 @@ Everything under `/api` requires an Auth0 access token (`Authorization: Bearer .
 | `GET /api/leagues/:id/heroes` | members; anyone if public | The league's hero pool (never the real players) |
 | `GET` / `PUT /api/leagues/:id/rankings` | members, before the draft | Read or replace my party's hero ranking |
 
-| `GET` / `PUT /api/leagues/:id/lineup` | members | My roster, lineup, and who is resting next week; set the lineup while the season runs |
+| `GET` / `PUT /api/leagues/:id/lineup` | members | My roster, lineup, Champion, and who is resting next week; set the lineup while the season runs |
+| `PUT /api/leagues/:id/champion` | members | Name a starter as Champion for the next battle (`{ heroId }`, or `null` to withdraw) |
 | `GET /api/leagues/:id/schedule` | members; anyone if public | 14 weeks of matchups, resolve times, and results so far |
 | `GET /api/leagues/:id/results/:week` | members; anyone if public | A resolved week (per-hero damage rounded) |
 | `GET /api/leagues/:id/standings` | members; anyone if public | Wins, losses, draws, total damage |

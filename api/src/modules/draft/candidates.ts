@@ -51,12 +51,11 @@ export async function loadPoolCandidates(season: number, ruleset: Ruleset): Prom
     PlayerWeekStatModel.find({ season: season - 1, seasonType: 'REG', playerId: trusted({ $in: ids }) }, 'playerId stats').lean(),
     NflPlayerModel.find({ _id: trusted({ $in: ids }) }, 'draft').lean()
   ])
-  const lastSeason = new Map<string, { games: number; points: number }>()
+  const lastSeason = new Map<string, number[]>()
   for (const line of lastSeasonLines) {
-    const total = lastSeason.get(line.playerId) ?? { games: 0, points: 0 }
-    total.games++
-    total.points += scoreOffense(line.stats, ruleset)
-    lastSeason.set(line.playerId, total)
+    const weeks = lastSeason.get(line.playerId) ?? []
+    weeks.push(scoreOffense(line.stats, ruleset))
+    lastSeason.set(line.playerId, weeks)
   }
   const draftById = new Map(players.map(player => [player._id, player.draft]))
 
@@ -65,8 +64,8 @@ export async function loadPoolCandidates(season: number, ruleset: Ruleset): Prom
     if (!position) return []
     const heroClass = CLASS_BY_POSITION[position]
     const previous = lastSeason.get(id)
-    if (previous && previous.games >= MIN_PREVIOUS_GAMES) {
-      return [{ sourceKind: 'player', sourceId: id, heroClass, ppg: previous.points / previous.games }]
+    if (previous && previous.length >= MIN_PREVIOUS_GAMES) {
+      return [{ sourceKind: 'player', sourceId: id, heroClass, ...weeklyProfile(previous) }]
     }
     const draft = draftById.get(id)
     if (draft?.season === season) {
@@ -76,19 +75,27 @@ export async function loadPoolCandidates(season: number, ruleset: Ruleset): Prom
   })
 
   const defenseLines = await DefenseWeekStatModel.find({ season: season - 1, seasonType: 'REG' }, 'team stats').lean()
-  const defenseTotals = new Map<string, { games: number; points: number }>()
+  const defenseWeeks = new Map<string, number[]>()
   for (const line of defenseLines) {
-    const total = defenseTotals.get(line.team) ?? { games: 0, points: 0 }
-    total.games++
-    total.points += scoreDefense(line.stats, ruleset)
-    defenseTotals.set(line.team, total)
+    const weeks = defenseWeeks.get(line.team) ?? []
+    weeks.push(scoreDefense(line.stats, ruleset))
+    defenseWeeks.set(line.team, weeks)
   }
-  const defenses = [...defenseTotals].map(([team, total]): PoolCandidate => ({
+  const defenses = [...defenseWeeks].map(([team, weeks]): PoolCandidate => ({
     sourceKind: 'defense',
     sourceId: team,
     heroClass: 'Paladin',
-    ppg: total.points / total.games
+    ...weeklyProfile(weeks)
   }))
 
   return [...offense, ...defenses]
+}
+
+/** Points per game plus the two signals behind traits: week-to-week swing and best single week. */
+export function weeklyProfile(weeks: readonly number[]): { ppg: number; volatility: number; ceiling: number } {
+  const ppg = weeks.reduce((sum, value) => sum + value, 0) / weeks.length
+  const spread = Math.sqrt(weeks.reduce((sum, value) => sum + (value - ppg) ** 2, 0) / weeks.length)
+  // Swing relative to the hero's own average, so high scorers aren't automatically "wild".
+  const volatility = spread / Math.max(1, Math.abs(ppg))
+  return { ppg, volatility, ceiling: Math.max(...weeks) }
 }

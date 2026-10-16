@@ -4,7 +4,8 @@ import { useApi } from '../../api/inject'
 import type { Hero, HeroClass } from '../../api/types'
 import ClassIcon from '../../components/ClassIcon.vue'
 import FormError from '../../components/FormError.vue'
-import { CLASS_COLOR, CLASS_TEMPERAMENT, HERO_CLASSES, isMystery, levelText, levelValue } from '../../heroes'
+import TraitChips from '../../components/TraitChips.vue'
+import { CLASS_COLOR, HERO_CLASSES, isMystery, levelText, levelValue } from '../../heroes'
 import { useLeague } from '../../league'
 import { timeUntil } from '../../time'
 
@@ -116,6 +117,10 @@ async function save() {
     <!-- Before the draft: rank the pool -->
     <template v-if="drafting">
       <p class="note">On your turn, the draft takes your highest-ranked hero still available. If none are left, it picks the best Level for you.</p>
+      <p class="muted small traits-help">
+        Look past Level: a Steadfast and a Wild hero fighting together deal bonus damage, Mighty heroes make the
+        strongest Champions, and a Wild Champion guarded by a Steadfast ally never has a truly bad battle.
+      </p>
 
       <h2 class="section-title">Your ranking</h2>
       <p v-if="ranked.length === 0" class="muted small">Nothing ranked{{ filter === 'All' ? ' yet' : ` in ${filter}` }}. Add heroes from the pool below.</p>
@@ -125,8 +130,9 @@ async function save() {
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
             <span class="small" :style="{ color: CLASS_COLOR[hero.heroClass] }">
-              {{ hero.race }} {{ hero.heroClass }} · {{ isMystery(hero) ? 'mystery recruit' : CLASS_TEMPERAMENT[hero.heroClass].label.toLowerCase() }}
+              {{ hero.race }} {{ hero.heroClass }}{{ isMystery(hero) ? ' · mystery recruit' : '' }}
             </span>
+            <TraitChips :traits="hero.traits" />
           </RouterLink>
           <span class="level">{{ levelText(hero) }}</span>
           <span class="controls">
@@ -143,7 +149,8 @@ async function save() {
           <ClassIcon :hero-class="hero.heroClass" :size="36" />
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
-            <span class="muted small">{{ hero.race }} {{ hero.heroClass }}</span>
+            <span class="muted small">{{ hero.race }} {{ hero.heroClass }}{{ isMystery(hero) ? ' · mystery recruit' : '' }}</span>
+            <TraitChips :traits="hero.traits" />
           </RouterLink>
           <span class="level">{{ levelText(hero) }}</span>
           <button type="button" class="add-button" :aria-label="`Rank ${hero.name}`" @click="add(hero.id)">Rank</button>
@@ -165,6 +172,7 @@ async function save() {
         <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
           <span class="hero-name">{{ hero.name }}</span>
           <span class="muted small">{{ hero.heroClass }} · {{ partyName(hero.partyId) }}</span>
+          <TraitChips :traits="hero.traits" />
         </RouterLink>
         <span class="level">{{ levelText(hero) }}</span>
       </li>
@@ -234,11 +242,16 @@ async function save() {
   font-size: 20px;
   color: var(--gold);
 }
+.traits-help {
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
 .hero-text {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 2px;
   color: var(--text);
   text-decoration: none;
 }

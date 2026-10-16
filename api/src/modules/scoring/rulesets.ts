@@ -58,12 +58,25 @@ export interface PoolRules {
   perParty: Readonly<Record<HeroClass, number>>
 }
 
+/** Weekly Champion and trait synergies. Rules: docs/CLASSIC_SCORING.md, "Strategy layer". */
+export interface StrategyRules {
+  /** A named Champion's damage multiplier */
+  championMultiplier: number
+  /** Mighty Champion: replaces championMultiplier when the Champion is Mighty */
+  mightyChampionMultiplier: number
+  /** Order & Chaos: bonus to the party total when Steadfast and Wild heroes both fight */
+  orderAndChaosBonus: number
+  /** Bulwark: a Wild Champion with a Steadfast ally deals at least this much */
+  bulwarkFloor: number
+}
+
 export interface Ruleset {
   readonly version: number
   readonly offense: Readonly<OffenseRules>
   readonly defense: Readonly<DefenseRules>
   readonly lineup: Readonly<LineupRules>
   readonly pool: Readonly<PoolRules>
+  readonly strategy: Readonly<StrategyRules>
 }
 
 export const RULESET_V1: Ruleset = {
@@ -116,7 +129,10 @@ export const RULESET_V1: Ruleset = {
   pool: {
     // About 2.3x what a roster of 10 needs
     perParty: { Mage: 4, Warrior: 6, Ranger: 6, Rogue: 4, Paladin: 3 }
-  }
+  },
+  // Calibrated on 2012-2025 (decided 2026-10-15): each trait plan beats Level-only drafting by
+  // 3-6 points of win rate, combining them reaches ~57%, and no plan runs away.
+  strategy: { championMultiplier: 1.25, mightyChampionMultiplier: 1.5, orderAndChaosBonus: 0.05, bulwarkFloor: 15 }
 }
 
 const RULESETS = new Map<number, Ruleset>([[RULESET_V1.version, RULESET_V1]])

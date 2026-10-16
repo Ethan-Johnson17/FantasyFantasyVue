@@ -5,6 +5,7 @@ import * as draft from '../draft/draft.service.js'
 import { advanceLeague } from '../season/advance.js'
 import * as season from '../season/season.service.js'
 import {
+  ChampionSchema,
   CreateLeagueSchema,
   JoinLeagueSchema,
   LineupSchema,
@@ -102,6 +103,10 @@ export function leagueRouter() {
     .put('/:id/lineup', async (req, res) => {
       const lineup = LineupSchema.parse(req.body)
       res.json(await season.setLineup(currentAccount(req), parseId(req.params.id), lineup))
+    })
+    .put('/:id/champion', async (req, res) => {
+      const { heroId } = ChampionSchema.parse(req.body)
+      res.json(await season.setChampion(currentAccount(req), parseId(req.params.id), heroId))
     })
     .get('/:id/schedule', async (req, res) => {
       res.json(await season.getSchedule(currentAccount(req), parseId(req.params.id)))

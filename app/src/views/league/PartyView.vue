@@ -4,7 +4,8 @@ import { useApi } from '../../api/inject'
 import type { Hero, Lineup } from '../../api/types'
 import ClassIcon from '../../components/ClassIcon.vue'
 import FormError from '../../components/FormError.vue'
-import { CLASS_TEMPERAMENT, levelText, levelValue } from '../../heroes'
+import TraitChips from '../../components/TraitChips.vue'
+import { activeSynergies, levelText, levelValue, SYNERGY_ORDER, synergyInfo } from '../../heroes'
 import { useLeague } from '../../league'
 import { timeUntil } from '../../time'
 
@@ -16,6 +17,7 @@ const data = ref<Lineup | null>(null)
 const draft = ref<Record<string, string>>({})
 const selectedSlot = ref<string | null>(null)
 const saving = ref(false)
+const namingChampion = ref(false)
 const error = ref<unknown>(null)
 const notice = ref('')
 
@@ -30,6 +32,9 @@ onMounted(async () => {
 })
 
 const heroById = computed(() => new Map((data.value?.roster ?? []).map(hero => [hero.id, hero])))
+const starters = computed(() =>
+  (data.value?.slots ?? []).map(slot => ({ slot, hero: heroById.value.get(draft.value[slot.key] ?? '') ?? null }))
+)
 const starterIds = computed(() => new Set(Object.values(draft.value)))
 const bench = computed(() =>
   (data.value?.roster ?? []).filter(hero => !starterIds.value.has(hero.id)).sort((a, b) => levelValue(b) - levelValue(a))
@@ -37,6 +42,15 @@ const bench = computed(() =>
 const changed = computed(() => JSON.stringify(draft.value) !== JSON.stringify(data.value?.lineup ?? {}))
 const selectedRule = computed(() => data.value?.slots.find(slot => slot.key === selectedSlot.value) ?? null)
 const canFill = (hero: Hero) => !!selectedRule.value && selectedRule.value.classes.includes(hero.heroClass)
+
+const champion = computed(() => data.value?.champion ?? null)
+const championHero = computed(() => heroById.value.get(champion.value ?? '') ?? null)
+/** Synergies the lineup on screen would trigger next battle. Resting starters don't fight. */
+const synergies = computed(() => {
+  const fighters = starters.value.flatMap(({ hero }) => (hero && !hero.restingNextWeek ? [hero] : []))
+  return new Set(activeSynergies(fighters, champion.value))
+})
+const times = (value: number) => `${String(value)}×`
 
 function selectSlot(key: string) {
   selectedSlot.value = selectedSlot.value === key ? null : key
@@ -66,6 +80,21 @@ async function save() {
     error.value = caught
   } finally {
     saving.value = false
+  }
+}
+
+/** Names a starter as Champion for the next battle, or withdraws them when tapped again. */
+async function toggleChampion(hero: Hero) {
+  if (!league.value || !data.value || changed.value) return
+  namingChampion.value = true
+  error.value = null
+  try {
+    data.value = await api.setChampion(league.value.id, champion.value === hero.id ? null : hero.id)
+    notice.value = data.value.champion ? `${hero.name} will lead your party as Champion.` : 'Champion withdrawn.'
+  } catch (caught) {
+    error.value = caught
+  } finally {
+    namingChampion.value = false
   }
 }
 
@@ -100,6 +129,19 @@ async function toggleAutoSwap(event: Event) {
       <div class="muted small">Battle begins {{ data.nextWeekAt ? timeUntil(new Date(data.nextWeekAt)) : 'soon' }} · your lineup locks then</div>
     </section>
 
+    <section v-if="data.nextWeek" class="card champion-card" :class="{ named: championHero }" aria-live="polite">
+      <div class="champion-title"><span class="crown-mark" aria-hidden="true">♛</span> Champion</div>
+      <p v-if="championHero" class="champion-text">
+        <strong>{{ championHero.name }}</strong> leads your party this battle, dealing
+        {{ times(championHero.traits.includes('mighty') ? data.strategy.mightyChampionMultiplier : data.strategy.championMultiplier) }} damage.
+        <span v-if="championHero.restingNextWeek" class="resting-text">They're resting this week, so the bonus would be lost. Choose another.</span>
+      </p>
+      <p v-else class="champion-text muted">
+        No Champion yet. Tap ♛ on a starter: your Champion deals {{ times(data.strategy.championMultiplier) }} damage
+        ({{ times(data.strategy.mightyChampionMultiplier) }} if Mighty). Name one before every battle.
+      </p>
+    </section>
+
     <div class="row-heading">
       <h2 class="section-title">Starting party</h2>
       <span class="muted small">{{ data.slots.length }} slots · any class</span>
@@ -108,31 +150,53 @@ async function toggleAutoSwap(event: Event) {
       Choose a bench hero to start in {{ selectedRule?.label }}, or tap the slot again to cancel.
     </p>
     <ol class="starters">
-      <li v-for="slot in data.slots" :key="slot.key">
-        <template v-if="heroById.get(draft[slot.key] ?? '')">
+      <li v-for="{ slot, hero } in starters" :key="slot.key" class="starter">
+        <template v-if="hero">
           <button
             type="button"
             class="hero-row"
-            :class="{ selected: selectedSlot === slot.key, resting: heroById.get(draft[slot.key]!)!.restingNextWeek }"
+            :class="{ selected: selectedSlot === slot.key, resting: hero.restingNextWeek, champion: champion === hero.id }"
             :aria-pressed="selectedSlot === slot.key"
             @click="selectSlot(slot.key)"
           >
-            <ClassIcon :hero-class="heroById.get(draft[slot.key]!)!.heroClass" />
+            <ClassIcon :hero-class="hero.heroClass" />
             <span class="hero-text">
-              <span class="hero-name">{{ heroById.get(draft[slot.key]!)!.name }}</span>
-              <span v-if="heroById.get(draft[slot.key]!)!.restingNextWeek" class="resting-text">
+              <span class="hero-name">{{ hero.name }}</span>
+              <span v-if="hero.restingNextWeek" class="resting-text">
                 Resting this week{{ data.autoSwap ? ' · auto-swap ready' : '' }}
               </span>
-              <span v-else class="muted small">
-                {{ heroById.get(draft[slot.key]!)!.race }} {{ heroById.get(draft[slot.key]!)!.heroClass }} ·
-                {{ CLASS_TEMPERAMENT[heroById.get(draft[slot.key]!)!.heroClass].label.toLowerCase() }}
-              </span>
+              <span v-else class="muted small">{{ hero.race }} {{ hero.heroClass }}</span>
+              <TraitChips :traits="hero.traits" />
             </span>
-            <span class="level">{{ levelText(heroById.get(draft[slot.key]!)!) }}</span>
+            <span class="level">{{ levelText(hero) }}</span>
+          </button>
+          <button
+            v-if="data.nextWeek"
+            type="button"
+            class="crown"
+            :class="{ active: champion === hero.id }"
+            :aria-pressed="champion === hero.id"
+            :aria-label="champion === hero.id ? `Withdraw ${hero.name} as Champion` : `Name ${hero.name} Champion`"
+            :title="changed ? 'Save your lineup to choose a Champion' : undefined"
+            :disabled="changed || namingChampion"
+            @click="toggleChampion(hero)"
+          >
+            ♛
           </button>
         </template>
       </li>
     </ol>
+
+    <h2 class="section-title synergy-title">Synergies</h2>
+    <ul class="synergies">
+      <li v-for="synergy in SYNERGY_ORDER" :key="synergy" class="synergy" :class="{ active: synergies.has(synergy) }">
+        <span class="synergy-text">
+          <span class="synergy-name">{{ synergyInfo(synergy).label }}</span>
+          <span class="muted small">{{ synergyInfo(synergy, data.strategy).description }}</span>
+        </span>
+        <span class="synergy-state small">{{ synergies.has(synergy) ? 'Active' : 'Inactive' }}</span>
+      </li>
+    </ul>
 
     <div class="row-heading">
       <h2 class="section-title">Bench</h2>
@@ -152,12 +216,13 @@ async function toggleAutoSwap(event: Event) {
         >
           <span class="hero-name">{{ hero.name }}</span>
           <span class="muted small">{{ hero.heroClass }} · {{ levelText(hero) }}{{ hero.restingNextWeek ? ' · resting' : '' }}</span>
+          <TraitChips :traits="hero.traits" />
         </button>
         <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="details" :aria-label="`About ${hero.name}`">›</RouterLink>
       </li>
     </ul>
 
-    <p class="muted small help">Tap a starter, then a bench hero, to swap them. If a starter rests and auto-swap is on, your best bench hero steps in at half damage.</p>
+    <p class="muted small help">Tap a starter, then a bench hero, to swap them. If a starter rests and auto-swap is on, your best bench hero steps in at half damage. Benching your Champion withdraws them.</p>
 
     <p v-if="notice" class="muted" role="status">{{ notice }}</p>
     <div v-if="changed" class="actions">
@@ -224,6 +289,9 @@ async function toggleAutoSwap(event: Event) {
   border-color: var(--gold);
   background: var(--surface-raised);
 }
+.hero-row.champion {
+  border-color: var(--gold);
+}
 .hero-row.resting {
   border-style: dashed;
   border-color: #8a7a5a;
@@ -233,6 +301,90 @@ async function toggleAutoSwap(event: Event) {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 2px;
+}
+.starter {
+  display: flex;
+  gap: 6px;
+}
+.crown {
+  width: var(--tap);
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+.crown.active {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: var(--on-gold);
+}
+.crown:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.champion-card {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.champion-card.named {
+  border-color: var(--gold);
+}
+.champion-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+}
+.crown-mark {
+  color: var(--gold);
+}
+.champion-text {
+  margin: 0;
+  line-height: 1.45;
+}
+.synergy-title {
+  margin: 16px 0 8px;
+}
+.synergies {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.synergy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+}
+.synergy.active {
+  border: 1px solid var(--gold);
+  background: var(--surface-raised);
+}
+.synergy-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.synergy-name {
+  font-weight: 700;
+}
+.synergy-state {
+  color: var(--text-muted);
+}
+.synergy.active .synergy-state {
+  color: var(--gold);
+  font-weight: 700;
 }
 .hero-name {
   font-size: 16px;
