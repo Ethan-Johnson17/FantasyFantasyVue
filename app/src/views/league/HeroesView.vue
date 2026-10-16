@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useApi } from '../../api/inject'
-import type { Hero, HeroClass } from '../../api/types'
+import type { Hero, HeroClass, Lineup, RosterMove } from '../../api/types'
+import ClaimPanel from '../../components/ClaimPanel.vue'
 import ClassIcon from '../../components/ClassIcon.vue'
 import FormError from '../../components/FormError.vue'
 import TraitChips from '../../components/TraitChips.vue'
@@ -10,7 +11,7 @@ import { useLeague } from '../../league'
 import { timeUntil } from '../../time'
 
 const api = useApi()
-const { league } = useLeague()
+const { league, myParty } = useLeague()
 
 const heroes = ref<Hero[]>([])
 const ranking = ref<string[]>([])
@@ -21,6 +22,13 @@ const notice = ref('')
 const error = ref<unknown>(null)
 
 const drafting = computed(() => league.value?.status === 'drafting')
+const canClaim = computed(() => league.value?.status === 'active' && !!myParty.value)
+
+const moves = ref<RosterMove[]>([])
+/** The free agent being claimed, with my lineup for choosing whom to drop. */
+const claiming = ref<{ target: Hero; lineup: Lineup } | null>(null)
+const claimError = ref<unknown>(null)
+const claimBusy = ref(false)
 
 onMounted(async () => {
   if (!league.value || league.value.status === 'forming') return
@@ -30,6 +38,8 @@ onMounted(async () => {
       const saved = await api.getRankings(league.value.id)
       ranking.value = [...saved.heroIds]
       savedRanking.value = [...saved.heroIds]
+    } else {
+      moves.value = await api.listMoves(league.value.id)
     }
   } catch (caught) {
     error.value = caught
@@ -50,7 +60,43 @@ const unranked = computed(() =>
     .sort((a, b) => levelValue(b) - levelValue(a) || a.name.localeCompare(b.name))
 )
 const changed = computed(() => JSON.stringify(ranking.value) !== JSON.stringify(savedRanking.value))
-const partyName = (partyId: string | null) => league.value?.parties.find(party => party.id === partyId)?.name ?? 'Undrafted'
+const partyName = (partyId: string | null) => league.value?.parties.find(party => party.id === partyId)?.name ?? 'Free agent'
+const freeAgents = computed(() => heroes.value.filter(hero => hero.partyId === null && matches(hero)))
+const drafted = computed(() => heroes.value.filter(hero => hero.partyId !== null && matches(hero)))
+
+async function openClaim(target: Hero) {
+  if (!league.value) return
+  claimError.value = null
+  try {
+    claiming.value = { target, lineup: await api.getLineup(league.value.id) }
+  } catch (caught) {
+    error.value = caught
+  }
+}
+
+async function confirmClaim(dropHeroId: string) {
+  if (!league.value || !claiming.value) return
+  const { target } = claiming.value
+  claimBusy.value = true
+  claimError.value = null
+  try {
+    await api.claimHero(league.value.id, target.id, dropHeroId)
+    claiming.value = null
+    flash(`${target.name} joined your party.`)
+  } catch (caught) {
+    claimError.value = caught
+  } finally {
+    claimBusy.value = false
+  }
+  // Refresh either way: on a lost race the hero now belongs to someone else.
+  try {
+    const [freshHeroes, freshMoves] = await Promise.all([api.listHeroes(league.value.id), api.listMoves(league.value.id)])
+    heroes.value = freshHeroes
+    moves.value = freshMoves
+  } catch (caught) {
+    error.value = caught
+  }
+}
 
 function move(id: string, delta: number) {
   const list = [...ranking.value]
@@ -177,19 +223,64 @@ async function save() {
       </div>
     </template>
 
-    <!-- After the draft: who's where -->
-    <ul v-else class="list">
-      <li v-for="hero in heroes.filter(matches)" :key="hero.id" class="row">
-        <ClassIcon :hero-class="hero.heroClass" :size="36" />
-        <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
-          <span class="hero-name">{{ hero.name }}</span>
-          <span class="muted small">{{ hero.heroClass }} · {{ partyName(hero.partyId) }}</span>
-          <TraitChips :traits="hero.traits" />
-        </RouterLink>
-        <span class="level">{{ levelText(hero) }}</span>
-      </li>
-    </ul>
+    <!-- After the draft: free agents to claim, then who's where -->
+    <template v-else>
+      <h2 class="section-title">Free agents</h2>
+      <p v-if="canClaim" class="muted small">
+        Claim a free agent by dropping one of your heroes. First come, first served; the change counts from the next battle.
+      </p>
+      <p v-if="freeAgents.length === 0" class="muted small">No free agents{{ filter === 'All' ? '' : ` in ${filter}` }}.</p>
+      <ul class="list">
+        <li v-for="hero in freeAgents" :key="hero.id" class="row">
+          <ClassIcon :hero-class="hero.heroClass" :size="36" />
+          <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
+            <span class="hero-name">{{ hero.name }}</span>
+            <span class="muted small">{{ hero.race }} {{ hero.heroClass }}{{ isMystery(hero) ? ' · mystery recruit' : '' }}</span>
+            <TraitChips :traits="hero.traits" />
+          </RouterLink>
+          <span class="level">{{ levelText(hero) }}</span>
+          <button v-if="canClaim" type="button" class="add-button" :aria-label="`Claim ${hero.name}`" @click="openClaim(hero)">Claim</button>
+        </li>
+      </ul>
+
+      <h2 class="section-title">In parties</h2>
+      <ul class="list">
+        <li v-for="hero in drafted" :key="hero.id" class="row">
+          <ClassIcon :hero-class="hero.heroClass" :size="36" />
+          <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
+            <span class="hero-name">{{ hero.name }}</span>
+            <span class="muted small">{{ hero.heroClass }} · {{ partyName(hero.partyId) }}</span>
+            <TraitChips :traits="hero.traits" />
+          </RouterLink>
+          <span class="level">{{ levelText(hero) }}</span>
+        </li>
+      </ul>
+
+      <template v-if="moves.length">
+        <h2 class="section-title">Recent moves</h2>
+        <ul class="moves">
+          <li v-for="entry in moves" :key="`${entry.at}-${entry.added.heroId}`" class="move">
+            <strong>{{ entry.party.name }}</strong> claimed {{ entry.added.name }}, dropped {{ entry.dropped.name }}
+            <span class="muted small">· from battle {{ entry.effectiveWeek }}</span>
+          </li>
+        </ul>
+      </template>
+
+      <div class="save-bar" role="status">
+        <span v-if="notice" class="saved-pill">✓ {{ notice }}</span>
+      </div>
+    </template>
   </template>
+
+  <ClaimPanel
+    v-if="claiming"
+    :target="claiming.target"
+    :lineup="claiming.lineup"
+    :busy="claimBusy"
+    :error="claimError"
+    @confirm="confirmClaim"
+    @cancel="claiming = null"
+  />
 </template>
 
 <style scoped>
@@ -253,6 +344,19 @@ async function save() {
   font-weight: 700;
   font-size: 20px;
   color: var(--gold);
+}
+.moves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.move {
+  padding: 8px 12px;
+  border-left: 2px solid var(--line-strong);
+  line-height: 1.4;
 }
 .traits-help {
   margin: 8px 0 0;

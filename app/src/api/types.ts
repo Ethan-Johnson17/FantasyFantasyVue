@@ -119,6 +119,16 @@ export interface StrategyRules {
   bulwarkFloor: number
 }
 
+export interface RosterMove {
+  kind: 'claim'
+  party: { partyId: string; name: string }
+  added: { heroId: string; name: string; heroClass: string }
+  dropped: { heroId: string; name: string; heroClass: string }
+  /** The first battle the change counts for */
+  effectiveWeek: number
+  at: string
+}
+
 export interface PartyRef {
   partyId: string
   name: string

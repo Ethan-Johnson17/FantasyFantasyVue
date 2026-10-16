@@ -278,11 +278,25 @@ Champion costs about 10 points of win rate; since the Champion carries over, tha
 Champion was tested and rejected: plans came out about the same, but parties without one fell further behind (about
 12 points).
 
-### Free agency and trades (later PRs)
+### Free agency
 
-- **Free agency:** heroes left undrafted are free agents. During the season a party may claim one by dropping one;
-  first come, first served. Changes never affect a week already due (due weeks resolve first).
-- **Trades:** two parties agree and the trade happens immediately. No trades after week 10.
+- Heroes left undrafted, and any hero a party drops, are **free agents**.
+- From the draft until the season ends, a party may claim a free agent by dropping one of its own heroes, so rosters
+  stay at 10. **First come, first served:** a claim takes effect immediately, and if two parties claim the same hero at
+  once, the first wins and the other is told the hero is gone (their roster is unchanged). No limit on claims.
+- The dropped hero becomes a free agent at once and can be claimed by anyone, including the party that dropped them.
+- A claim never changes a week that is already due: due weeks are resolved first, with the old roster. If a battle is
+  mid-resolution, the claim is refused with "try again in a moment". The move counts from the next week.
+- If the dropped hero was starting, the new hero takes that slot (Classic's open slots accept any class; a ruleset with
+  class-specific slots rebuilds the lineup instead). Dropping the Champion withdraws them. A claim that would leave a
+  party unable to fill its lineup is refused.
+- Every claim is listed in the league's recent moves.
+- A free agent's hero page shows what they would have dealt each resolved week (rounded, like all hero-weeks), so
+  parties can compare them. It reveals nothing more than a drafted hero's page does.
+
+### Trades (later PR)
+
+Two parties agree and the trade happens immediately. No trades after week 10.
 
 ## Attribution
 

@@ -2,10 +2,12 @@ import { Router } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import { currentAccount } from '../../middleware/auth.js'
 import * as draft from '../draft/draft.service.js'
+import * as roster from '../roster/roster.service.js'
 import { advanceLeague } from '../season/advance.js'
 import * as season from '../season/season.service.js'
 import {
   ChampionSchema,
+  ClaimSchema,
   CreateLeagueSchema,
   JoinLeagueSchema,
   LineupSchema,
@@ -107,6 +109,13 @@ export function leagueRouter() {
     .put('/:id/champion', async (req, res) => {
       const { heroId } = ChampionSchema.parse(req.body)
       res.json(await season.setChampion(currentAccount(req), parseId(req.params.id), heroId))
+    })
+    .post('/:id/claims', async (req, res) => {
+      const { heroId, dropHeroId } = ClaimSchema.parse(req.body)
+      res.json(await roster.claimFreeAgent(currentAccount(req), parseId(req.params.id), heroId, dropHeroId))
+    })
+    .get('/:id/moves', async (req, res) => {
+      res.json(await roster.listMoves(currentAccount(req), parseId(req.params.id)))
     })
     .get('/:id/schedule', async (req, res) => {
       res.json(await season.getSchedule(currentAccount(req), parseId(req.params.id)))

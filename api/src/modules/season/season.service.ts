@@ -30,14 +30,18 @@ const { trusted } = mongoose
 // ---------------------------------------------------------------------------
 // Weekly resolution
 
+/** How many game weeks should have resolved by now (0 before week 1). */
+export function dueWeekCount(league: Pick<LeagueDocument, 'weekOneAt' | 'cadence'>, now = Date.now()): number {
+  if (!league.weekOneAt) return 0
+  const due = Math.floor((now - league.weekOneAt.getTime()) / CADENCE_MS[league.cadence]) + 1
+  return Math.max(0, Math.min(SEASON_WEEKS, due))
+}
+
 /** Resolves every game week that is due, in order. Safe to call often and concurrently. */
 export async function resolveDueWeeks(leagueId: string): Promise<void> {
   const league = await LeagueModel.findById(leagueId).select('+season +seed')
   if (league?.status !== 'active' || !league.weekOneAt) return
-  const due = Math.min(
-    SEASON_WEEKS,
-    Math.floor((Date.now() - league.weekOneAt.getTime()) / CADENCE_MS[league.cadence]) + 1
-  )
+  const due = dueWeekCount(league)
   for (let week = league.resolvedWeeks + 1; week <= due; week++) {
     if (!(await resolveWeek(league, week))) return // another request is resolving
   }
@@ -427,10 +431,13 @@ export interface HeroDetailView {
   history: { week: number; slot: string; damage: number; resting: boolean; swappedInto: string | null }[]
 }
 
-/** A hero and its week-by-week damage (rounded), for members or anyone in a public league. */
+/**
+ * A hero and its week-by-week damage (rounded), for members or anyone in a public league. Weeks the
+ * hero spent as a free agent show what they would have dealt, so free agents can be compared.
+ */
 export async function getHeroDetail(viewer: AccountDocument, leagueId: string, heroId: string): Promise<HeroDetailView> {
   const league = await loadVisibleLeague(viewer, leagueId)
-  const hero = await HeroModel.findOne({ _id: heroId, leagueId: league._id })
+  const hero = await HeroModel.findOne({ _id: heroId, leagueId: league._id }).select('+source')
   if (!hero) throw new NotFound()
   const multipliers = getRuleset(league.rulesetVersion).lineup.classMultipliers
   const results = await WeekResultModel.find({ leagueId: league._id }).sort({ week: 1 })
@@ -450,7 +457,32 @@ export async function getHeroDetail(viewer: AccountDocument, leagueId: string, h
       }
     ]
   })
-  return { hero: toHeroView(hero), history }
+  const freeWeeks = results.map(result => result.week).filter(week => !history.some(entry => entry.week === week))
+  const freeAgentHistory = freeWeeks.length ? await freeAgentWeeks(league, hero, freeWeeks) : []
+  return { hero: toHeroView(hero), history: [...history, ...freeAgentHistory].sort((a, b) => a.week - b.week) }
+}
+
+/** What a hero would have dealt in weeks spent as a free agent. Rounded, like every hero-week. */
+async function freeAgentWeeks(league: LeagueDocument, hero: HeroDocument, weeks: readonly number[]) {
+  const season = (await LeagueModel.findById(league._id).select('+season'))?.season
+  if (season === undefined || season === null) return []
+  const ruleset = getRuleset(league.rulesetVersion)
+  const filter = { season, seasonType: 'REG' as const, week: trusted({ $in: [...weeks] }) }
+  const scored =
+    hero.source.kind === 'player'
+      ? (await PlayerWeekStatModel.find({ ...filter, playerId: hero.source.id })).map(line => ({ week: line.week, points: scoreOffense(line.stats, ruleset) }))
+      : (await DefenseWeekStatModel.find({ ...filter, team: hero.source.id })).map(line => ({ week: line.week, points: scoreDefense(line.stats, ruleset) }))
+  const byWeek = new Map(scored.map(entry => [entry.week, entry.points]))
+  return weeks.map(week => {
+    const points = byWeek.get(week)
+    return {
+      week,
+      slot: 'Free agent',
+      damage: points === undefined ? 0 : Math.round(points * ruleset.lineup.classMultipliers[hero.heroClass]),
+      resting: points === undefined,
+      swappedInto: null
+    }
+  })
 }
 
 async function partyRefs(league: LeagueDocument): Promise<Map<string, PartyRef>> {

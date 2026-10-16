@@ -63,7 +63,7 @@ const chartLabel = computed(() =>
           {{ hero.heroClass }}
         </span>
         <span v-for="trait in hero.traits" :key="trait" class="chip" :class="`trait-${trait}`">{{ TRAITS[trait].label }}</span>
-        <span class="chip">{{ owner ? owner.name : 'Undrafted' }}</span>
+        <span class="chip">{{ owner ? owner.name : 'Free agent' }}</span>
       </div>
     </section>
 
