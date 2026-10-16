@@ -83,7 +83,7 @@ async function save() {
   }
 }
 
-/** Names a starter as Champion for the next battle, or withdraws them when tapped again. */
+/** Names a starter as Champion (kept until changed), or withdraws them when tapped again. */
 async function toggleChampion(hero: Hero) {
   if (!league.value || !data.value || changed.value) return
   namingChampion.value = true
@@ -132,13 +132,13 @@ async function toggleAutoSwap(event: Event) {
     <section v-if="data.nextWeek" class="card champion-card" :class="{ named: championHero }" aria-live="polite">
       <div class="champion-title"><span class="crown-mark" aria-hidden="true">♛</span> Champion</div>
       <p v-if="championHero" class="champion-text">
-        <strong>{{ championHero.name }}</strong> leads your party this battle, dealing
+        <strong>{{ championHero.name }}</strong> leads your party in every battle until you choose another, dealing
         {{ times(championHero.traits.includes('mighty') ? data.strategy.mightyChampionMultiplier : data.strategy.championMultiplier) }} damage.
-        <span v-if="championHero.restingNextWeek" class="resting-text">They're resting this week, so the bonus would be lost. Choose another.</span>
+        <span v-if="championHero.restingNextWeek" class="resting-text">They're resting this week, so this week's bonus would be lost. Consider another.</span>
       </p>
       <p v-else class="champion-text muted">
         No Champion yet. Tap ♛ on a starter: your Champion deals {{ times(data.strategy.championMultiplier) }} damage
-        ({{ times(data.strategy.mightyChampionMultiplier) }} if Mighty). Name one before every battle.
+        ({{ times(data.strategy.mightyChampionMultiplier) }} if Mighty) and stays Champion until you change them.
       </p>
     </section>
 

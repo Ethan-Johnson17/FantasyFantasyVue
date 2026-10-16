@@ -379,7 +379,7 @@ describe('weekly Champion and synergies', () => {
     return line.points * classMultipliers[hero.heroClass]
   }
 
-  it('names a starter for the next battle only, then lapses', async () => {
+  it('names a starter, who stays Champion week after week', async () => {
     const id = await draftedLeague()
     const view = await myLineup(id)
     const partyId = view.roster[0]!.partyId
@@ -403,12 +403,24 @@ describe('weekly Champion and synergies', () => {
     const line1 = week1.heroes.find(h => h.heroId.toString() === starter)!
     expect(line1.counted).toBeCloseTo((await baseDamage(starter, line1)) * championMultiplier, 2)
 
-    // Not renamed for week 2, so no Champion that week.
+    // Carries over to week 2 without being named again.
     const week2 = await storedSide(id, 2, partyId)
-    expect(week2.champion).toBeNull()
+    expect(week2.champion?.toString()).toBe(starter)
     const line2 = week2.heroes.find(h => h.heroId.toString() === starter)!
-    expect(line2.counted).toBeCloseTo(await baseDamage(starter, line2), 2)
-    expect((await myLineup(id)).champion).toBeNull()
+    expect(line2.counted).toBeCloseTo((await baseDamage(starter, line2)) * championMultiplier, 2)
+    expect((await myLineup(id)).champion).toBe(starter)
+  })
+
+  it('locks at resolve time: naming a Champion after the deadline only counts from the next week', async () => {
+    const id = await draftedLeague()
+    const view = await myLineup(id)
+    const partyId = view.roster[0]!.partyId
+    const starter = view.lineup![view.slots[0]!.key]!
+    await makeWeeksDue(id, 1)
+    // Week 1 is due but unresolved; this request resolves it first.
+    expect((await alice.put(`/api/leagues/${id}/champion`, { heroId: starter })).status).toBe(200)
+    expect((await storedSide(id, 1, partyId)).champion).toBeNull()
+    expect((await myLineup(id)).champion).toBe(starter)
   })
 
   it('can be withdrawn, and benching the Champion withdraws them', async () => {

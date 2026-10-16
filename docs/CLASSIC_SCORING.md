@@ -237,9 +237,11 @@ Mystery recruits have no traits (no previous season). Traits come from coarse th
 
 ### Weekly Champion
 
-Each week a party may name one **starter** as its Champion, who deals extra damage. The choice applies to the next
-week only and is cleared once that week resolves; **with no Champion named, there is no Champion that week**. A
-Champion who is resting or benched at resolve time gets no bonus (an auto-swapped hero doesn't inherit it).
+A party may name one **starter** as its Champion, who deals extra damage. **The Champion carries over from week to
+week** until the party names another, withdraws them, or benches them (benching withdraws them, since a Champion must
+start). With no Champion named, there is none. A Champion who is resting gets no bonus that week but stays Champion;
+an auto-swapped hero doesn't inherit it. Changes made after a week is due never affect that week. (Decided
+2026-10-15, replacing an earlier name-every-week rule.)
 
 ### Trait synergies
 
@@ -271,9 +273,10 @@ each party following one plan through the real draft, lineup, and auto-swap code
 | Value all three traits | 53% | 57% |
 
 Even with every bonus off, trait-aware drafting does a little better: the traits themselves carry real information.
-The bonuses widen that so ranking heroes before the draft pays off, without any plan running away. Forgetting to name
-a Champion costs about 10 points of win rate, a deliberate reason to check in each week. A 1.5× Champion was tested
-and rejected: plans came out about the same, but forgetting would cost about 12 points.
+The bonuses widen that so ranking heroes before the draft pays off, without any plan running away. Never naming a
+Champion costs about 10 points of win rate; since the Champion carries over, that takes naming one once. A 1.5×
+Champion was tested and rejected: plans came out about the same, but parties without one fell further behind (about
+12 points).
 
 ### Free agency and trades (later PRs)
 

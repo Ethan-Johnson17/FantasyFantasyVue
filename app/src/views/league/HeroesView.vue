@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useApi } from '../../api/inject'
 import type { Hero, HeroClass } from '../../api/types'
 import ClassIcon from '../../components/ClassIcon.vue'
@@ -70,6 +70,17 @@ function remove(id: string) {
   notice.value = ''
 }
 
+/** Shows a short confirmation in the save pill's place, then clears it. */
+let noticeTimer: ReturnType<typeof setTimeout> | undefined
+function flash(text: string) {
+  notice.value = text
+  clearTimeout(noticeTimer)
+  noticeTimer = setTimeout(() => (notice.value = ''), 2500)
+}
+onBeforeUnmount(() => {
+  clearTimeout(noticeTimer)
+})
+
 async function save() {
   if (!league.value) return
   saving.value = true
@@ -77,7 +88,7 @@ async function save() {
   try {
     const saved = await api.setRankings(league.value.id, ranking.value)
     savedRanking.value = [...saved.heroIds]
-    notice.value = 'Ranking saved.'
+    flash('Ranking saved.')
   } catch (caught) {
     error.value = caught
   } finally {
@@ -157,11 +168,12 @@ async function save() {
         </li>
       </ul>
 
-      <p v-if="notice" class="muted" role="status">{{ notice }}</p>
-      <div class="save-bar">
-        <button type="button" class="btn btn-primary" :disabled="saving || !changed" @click="save">
-          {{ saving ? 'Saving…' : changed ? 'Save ranking' : 'Ranking saved' }}
+      <!-- Only while there is something to save (or just saved), so it never covers the list for nothing. -->
+      <div class="save-bar" role="status">
+        <button v-if="changed || saving" type="button" class="btn btn-primary save-button" :disabled="saving" @click="save">
+          {{ saving ? 'Saving…' : 'Save ranking' }}
         </button>
+        <span v-else-if="notice" class="saved-pill">✓ {{ notice }}</span>
       </div>
     </template>
 
@@ -290,12 +302,32 @@ async function save() {
   font-weight: 700;
   cursor: pointer;
 }
+/* A compact pill in the corner, so the list stays visible on short screens. */
 .save-bar {
   position: sticky;
-  bottom: 76px;
+  bottom: 84px;
   margin-top: 14px;
-  padding: 10px 0;
-  background: var(--ink);
-  display: grid;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+.save-button {
+  min-height: var(--tap);
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 15px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 45%);
+  pointer-events: auto;
+}
+.saved-pill {
+  min-height: var(--tap);
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 15px;
 }
 </style>
