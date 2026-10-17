@@ -61,8 +61,37 @@ const unranked = computed(() =>
 )
 const changed = computed(() => JSON.stringify(ranking.value) !== JSON.stringify(savedRanking.value))
 const partyName = (partyId: string | null) => league.value?.parties.find(party => party.id === partyId)?.name ?? 'Free agent'
-const freeAgents = computed(() => heroes.value.filter(hero => hero.partyId === null && matches(hero)))
-const drafted = computed(() => heroes.value.filter(hero => hero.partyId !== null && matches(hero)))
+const battlesPlayed = computed(() => (league.value?.resolvedWeeks ?? 0) > 0)
+/** Free agents and drafted heroes sort by Level, or by recent form once battles have been played. */
+const sortBy = ref<'level' | 'form'>('form')
+const bySort = (a: Hero, b: Hero) =>
+  (sortBy.value === 'form' && battlesPlayed.value ? (b.form?.recent ?? -Infinity) - (a.form?.recent ?? -Infinity) : 0) ||
+  levelValue(b) - levelValue(a) ||
+  a.name.localeCompare(b.name)
+const freeAgents = computed(() => heroes.value.filter(hero => hero.partyId === null && matches(hero)).sort(bySort))
+const drafted = computed(() => heroes.value.filter(hero => hero.partyId !== null && matches(hero)).sort(bySort))
+
+/** "Last 3: 22 · season 18" ("Avg 47 · 1 battle" early on), or why there's nothing to show yet. */
+function formText(hero: Hero): string {
+  const form = hero.form
+  if (!form || !battlesPlayed.value) return ''
+  if (!form.played) return 'No battles fought yet'
+  // Until there are more than three battles, recent form and the season average are the same.
+  if (form.played <= 3) return `Avg ${String(form.average ?? 0)} · ${String(form.played)} battle${form.played === 1 ? '' : 's'}`
+  return `Last 3: ${String(form.recent ?? 0)} · season ${String(form.average ?? 0)}`
+}
+
+/** Ranks every unranked hero in view, best Level first, after the ones already ranked. */
+function rankAll() {
+  ranking.value = [...ranking.value, ...unranked.value.map(hero => hero.id)]
+  notice.value = ''
+}
+
+function clearRanking() {
+  const scope = filter.value === 'All' ? 'your whole ranking' : `every ${filter.value} in your ranking`
+  if (!window.confirm(`Clear ${scope}? Nothing changes until you save.`)) return
+  ranking.value = filter.value === 'All' ? [] : ranking.value.filter(id => byId.value.get(id)?.heroClass !== filter.value)
+}
 
 async function openClaim(target: Hero) {
   if (!league.value) return
@@ -180,7 +209,10 @@ async function save() {
         <RouterLink to="/how-it-works#traits">How traits work ›</RouterLink>
       </p>
 
-      <h2 class="section-title">Your ranking</h2>
+      <div class="row-heading">
+        <h2 class="section-title">Your ranking</h2>
+        <button v-if="ranked.length" type="button" class="link-button" @click="clearRanking">Clear{{ filter === 'All' ? '' : ` ${filter}s` }}</button>
+      </div>
       <p v-if="ranked.length === 0" class="muted small">Nothing ranked{{ filter === 'All' ? ' yet' : ` in ${filter}` }}. Add heroes from the pool below.</p>
       <ol class="list">
         <li v-for="{ hero, rank } in ranked" :key="hero.id" class="row" :class="{ mystery: isMystery(hero) }">
@@ -201,7 +233,13 @@ async function save() {
         </li>
       </ol>
 
-      <h2 class="section-title">Pool</h2>
+      <div class="row-heading">
+        <h2 class="section-title">Pool</h2>
+        <button v-if="unranked.length" type="button" class="btn btn-secondary rank-all" @click="rankAll">
+          Rank all {{ filter === 'All' ? unranked.length : `${unranked.length} ${filter}${unranked.length === 1 ? '' : 's'}` }} by Level
+        </button>
+      </div>
+      <p v-if="unranked.length" class="muted small">Start from Level, then move heroes up for the traits you want.</p>
       <ul class="list">
         <li v-for="hero in unranked" :key="hero.id" class="row" :class="{ mystery: isMystery(hero) }">
           <ClassIcon :hero-class="hero.heroClass" :size="36" />
@@ -230,6 +268,11 @@ async function save() {
       <p v-if="canClaim" class="muted small">
         Claim a free agent by dropping one of your heroes. First come, first served; the change counts from the next battle.
       </p>
+      <div v-if="battlesPlayed" class="sort" role="group" aria-label="Sort heroes">
+        <span class="muted small">Sort by</span>
+        <button type="button" class="chip" :aria-pressed="sortBy === 'form'" @click="sortBy = 'form'">Recent form</button>
+        <button type="button" class="chip" :aria-pressed="sortBy === 'level'" @click="sortBy = 'level'">Level</button>
+      </div>
       <p v-if="freeAgents.length === 0" class="muted small">No free agents{{ filter === 'All' ? '' : ` in ${filter}` }}.</p>
       <ul class="list">
         <li v-for="hero in freeAgents" :key="hero.id" class="row">
@@ -237,6 +280,7 @@ async function save() {
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
             <span class="muted small">{{ hero.race }} {{ hero.heroClass }}{{ isMystery(hero) ? ' · mystery recruit' : '' }}</span>
+            <span v-if="formText(hero)" class="form small">{{ formText(hero) }}</span>
             <TraitChips :traits="hero.traits" />
           </RouterLink>
           <span class="level">{{ levelText(hero) }}</span>
@@ -251,6 +295,7 @@ async function save() {
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
             <span class="muted small">{{ hero.heroClass }} · {{ partyName(hero.partyId) }}</span>
+            <span v-if="formText(hero)" class="form small">{{ formText(hero) }}</span>
             <TraitChips :traits="hero.traits" />
           </RouterLink>
           <span class="level">{{ levelText(hero) }}</span>
@@ -358,6 +403,37 @@ async function save() {
   padding: 8px 12px;
   border-left: 2px solid var(--line-strong);
   line-height: 1.4;
+}
+.row-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.link-button {
+  min-height: var(--tap);
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--gold);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.rank-all {
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+.sort {
+  margin: 4px 0 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.form {
+  color: var(--gold);
 }
 .traits-help {
   margin: 8px 0 0;

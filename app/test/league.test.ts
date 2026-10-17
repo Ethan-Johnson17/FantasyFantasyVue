@@ -300,6 +300,90 @@ describe('Heroes tab', () => {
   })
 })
 
+describe('Draft prep and form', () => {
+  const pool = () => [
+    hero('m1', { level: 4 }),
+    hero('m2', { level: 9 }),
+    hero('w1', { heroClass: 'Warrior', level: 7 }),
+    hero('w2', { heroClass: 'Warrior', level: null, levelRange: { min: 1, max: 4 } })
+  ]
+  const drafting = () => detail({ status: 'drafting', draftAt: new Date(Date.now() + 86_400_000).toISOString() })
+
+  it('ranks every unranked hero by Level in one tap, after the ones already ranked', async () => {
+    const api = fakeApi({
+      listHeroes: vi.fn().mockResolvedValue(pool()),
+      getRankings: vi.fn().mockResolvedValue({ heroIds: ['w2'] }),
+      setRankings: vi.fn().mockImplementation((_id: string, heroIds: string[]) => Promise.resolve({ heroIds }))
+    })
+    const { wrapper } = await mountLeague(HeroesView, api, drafting())
+    const rankAll = wrapper.find('.rank-all')
+    expect(rankAll.text()).toBe('Rank all 3 by Level')
+    await rankAll.trigger('click')
+    expect(wrapper.find('.rank-all').exists()).toBe(false)
+    await wrapper.findAll('button').find(b => b.text() === 'Save ranking')!.trigger('click')
+    await flushPromises()
+    expect(api.setRankings).toHaveBeenCalledWith('l1', ['w2', 'm2', 'w1', 'm1'])
+  })
+
+  it('ranks or clears one class at a time when filtered', async () => {
+    const api = fakeApi({
+      listHeroes: vi.fn().mockResolvedValue(pool()),
+      getRankings: vi.fn().mockResolvedValue({ heroIds: ['m1', 'w1'] }),
+      setRankings: vi.fn().mockImplementation((_id: string, heroIds: string[]) => Promise.resolve({ heroIds }))
+    })
+    const { wrapper } = await mountLeague(HeroesView, api, drafting())
+    await wrapper.findAll('.filters .chip').find(c => c.text() === 'Mage')!.trigger('click')
+    expect(wrapper.find('.rank-all').text()).toBe('Rank all 1 Mage by Level')
+
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await wrapper.findAll('button').find(b => b.text() === 'Clear Mages')!.trigger('click')
+    expect(confirm).toHaveBeenCalledWith('Clear every Mage in your ranking? Nothing changes until you save.')
+    await wrapper.findAll('button').find(b => b.text() === 'Save ranking')!.trigger('click')
+    await flushPromises()
+    expect(api.setRankings).toHaveBeenCalledWith('l1', ['w1'])
+  })
+
+  it('keeps the ranking when clearing is cancelled', async () => {
+    const api = fakeApi({ listHeroes: vi.fn().mockResolvedValue(pool()), getRankings: vi.fn().mockResolvedValue({ heroIds: ['m1'] }) })
+    const { wrapper } = await mountLeague(HeroesView, api, drafting())
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await wrapper.findAll('button').find(b => b.text() === 'Clear')!.trigger('click')
+    expect(wrapper.findAll('button').some(b => b.text() === 'Save ranking')).toBe(false)
+  })
+
+  it('shows recent form and sorts free agents by it once battles are played', async () => {
+    const form = (recent: number | null, average: number | null, played: number) => ({ recent, average, played })
+    const api = fakeApi({
+      listHeroes: vi.fn().mockResolvedValue([
+        hero('f1', { level: 9, form: form(12, 15, 4) }),
+        hero('f2', { level: 3, form: form(27, 20, 4) }),
+        hero('f3', { level: 5, form: form(null, null, 0) }),
+        hero('f4', { level: 2, form: form(9, 9, 1) })
+      ]),
+      listMoves: vi.fn().mockResolvedValue([])
+    })
+    const { wrapper } = await mountLeague(HeroesView, api, detail({ status: 'active', resolvedWeeks: 4, parties: [party('p1', true)] }))
+    const names = () => wrapper.findAll('.list')[0]!.findAll('.hero-name').map(n => n.text())
+    expect(names()).toEqual(['Hero f2', 'Hero f1', 'Hero f4', 'Hero f3'])
+    expect(wrapper.findAll('.list')[0]!.findAll('.form').map(f => f.text())).toEqual([
+      'Last 3: 27 · season 20',
+      'Last 3: 12 · season 15',
+      'Avg 9 · 1 battle',
+      'No battles fought yet'
+    ])
+
+    await wrapper.findAll('.sort .chip').find(c => c.text() === 'Level')!.trigger('click')
+    expect(names()).toEqual(['Hero f1', 'Hero f3', 'Hero f2', 'Hero f4'])
+  })
+
+  it('has no form or sort before the first battle', async () => {
+    const api = fakeApi({ listHeroes: vi.fn().mockResolvedValue([hero('f1', { form: { recent: null, average: null, played: 0 } })]), listMoves: vi.fn().mockResolvedValue([]) })
+    const { wrapper } = await mountLeague(HeroesView, api, detail({ status: 'active', resolvedWeeks: 0, parties: [party('p1', true)] }))
+    expect(wrapper.find('.sort').exists()).toBe(false)
+    expect(wrapper.find('.form').exists()).toBe(false)
+  })
+})
+
 describe('Free agency', () => {
   const myLineup = (): Lineup => ({
     slots: [{ key: 'slot1', label: 'Hero 1', classes: ['Mage', 'Warrior', 'Ranger', 'Rogue', 'Paladin'] }],

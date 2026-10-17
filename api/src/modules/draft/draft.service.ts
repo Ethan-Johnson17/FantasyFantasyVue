@@ -11,6 +11,7 @@ import { inTransaction, loadLeagueAsHost, loadLeagueAsMember, loadVisibleLeague 
 import { CADENCE_MS, LeagueModel } from '../leagues/league.model.js'
 import { PartyModel, storedLineup } from '../leagues/party.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
+import { heroForm, type HeroForm } from '../season/form.service.js'
 import { roundRobin } from '../season/schedule.js'
 import { loadPoolCandidates, pickSeason } from './candidates.js'
 import { DraftRankingModel } from './ranking.model.js'
@@ -148,13 +149,15 @@ export async function runDueDraft(leagueId: string): Promise<void> {
   })
 }
 
-export async function listHeroes(viewer: AccountDocument, leagueId: string): Promise<HeroView[]> {
+/** The league's whole hero pool, with each hero's recent form once battles have been played. */
+export async function listHeroes(viewer: AccountDocument, leagueId: string): Promise<(HeroView & { form: HeroForm })[]> {
   const league = await loadVisibleLeague(viewer, leagueId)
-  const heroes = await HeroModel.find({ leagueId: league._id })
+  const heroes = await HeroModel.find({ leagueId: league._id }).select('+source')
+  const form = await heroForm(league, heroes)
   const classOrder = (hero: HeroDocument) => HERO_CLASSES.indexOf(hero.heroClass)
   return heroes
     .sort((a, b) => classOrder(a) - classOrder(b) || expectedLevel(b) - expectedLevel(a) || a.name.localeCompare(b.name))
-    .map(toHeroView)
+    .map(hero => ({ ...toHeroView(hero), form: form.get(hero.id) ?? { average: null, recent: null, played: 0 } }))
 }
 
 export async function getRankings(member: AccountDocument, leagueId: string): Promise<{ heroIds: string[] }> {
