@@ -177,6 +177,7 @@ async function save() {
       <p class="muted small traits-help">
         Look past Level: a Steadfast and a Wild hero fighting together deal bonus damage, Mighty heroes make the
         strongest Champions, and a Wild Champion guarded by a Steadfast ally never has a truly bad battle.
+        <RouterLink to="/how-it-works#traits">How traits work ›</RouterLink>
       </p>
 
       <h2 class="section-title">Your ranking</h2>

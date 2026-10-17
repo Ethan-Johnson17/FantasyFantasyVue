@@ -4,6 +4,8 @@ import { createRouter, createWebHistory, type RouteLocationNormalized, type Rout
 
 export const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/leagues' },
+  // Public, so newcomers can read it before signing in
+  { path: '/how-it-works', name: 'how-it-works', component: () => import('./views/HowItWorksView.vue') },
   { path: '/sign-in', name: 'sign-in', component: () => import('./views/SignInView.vue'), meta: { guestOnly: true } },
   { path: '/leagues', name: 'leagues', component: () => import('./views/LeaguesView.vue'), meta: { auth: true } },
   { path: '/leagues/new', name: 'host', component: () => import('./views/HostLeagueView.vue'), meta: { auth: true } },
@@ -52,7 +54,12 @@ export function authGuard(auth: AuthState) {
 }
 
 export function createAppRouter(auth: AuthState) {
-  const router = createRouter({ history: createWebHistory(), routes })
+  const router = createRouter({
+    history: createWebHistory(),
+    routes,
+    // Back/forward restores the old position; links to a section (#traits) scroll to it; otherwise start at the top.
+    scrollBehavior: (to, _from, saved) => saved ?? (to.hash ? { el: to.hash, top: 16 } : { top: 0 })
+  })
   router.beforeEach(authGuard(auth))
   return router
 }

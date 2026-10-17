@@ -8,7 +8,7 @@ import { ApiError, createApiClient } from '../src/api/client'
 import { loadConfig } from '../src/config'
 import { BANNERS, crestName, EMBLEMS } from '../src/crests'
 import { normalizePin } from '../src/pin'
-import { authGuard } from '../src/router'
+import { authGuard, routes } from '../src/router'
 import { DEFAULT_DISPLAY_NAME, suggestedDisplayName, useSessionStore } from '../src/stores/session'
 import { nextBattleAt, timeUntil } from '../src/time'
 import { fakeApi } from './helpers'
@@ -40,6 +40,16 @@ describe('createApiClient', () => {
   it('falls back to a friendly message when the body is not JSON', async () => {
     const api = createApiClient('', () => Promise.resolve('t'), vi.fn().mockResolvedValue(new Response('oops', { status: 502 })))
     await expect(api.getAccount()).rejects.toMatchObject({ status: 502, message: 'Something went wrong. Please try again.' })
+  })
+
+  it('reads the public rules without asking for a token', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(json(200, { version: 1 }))
+    const getToken = vi.fn().mockRejectedValue(new Error('signed out'))
+    const api = createApiClient('http://api.test', getToken, fetchImpl)
+    expect(await api.getRules()).toEqual({ version: 1 })
+    expect(getToken).not.toHaveBeenCalled()
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit]
+    expect(init.headers).not.toHaveProperty('Authorization')
   })
 
   it('encodes path segments', async () => {
@@ -106,6 +116,15 @@ describe('authGuard', () => {
     const guard = authGuard({ isLoading: ref(false), isAuthenticated: ref(false) })
     expect(await guard(route({ auth: true }, '/join?pin=K7QX4M'))).toEqual({ name: 'sign-in', query: { next: '/join?pin=K7QX4M' } })
     expect(await guard(route({ guestOnly: true }))).toBe(true)
+  })
+
+  it('lets anyone read How it works, signed in or not', async () => {
+    const page = routes.find(r => r.path === '/how-it-works')!
+    expect(page.meta).toBeUndefined()
+    for (const signedIn of [false, true]) {
+      const guard = authGuard({ isLoading: ref(false), isAuthenticated: ref(signedIn) })
+      expect(await guard(route({}, '/how-it-works'))).toBe(true)
+    }
   })
 
   it('keeps signed-in users out of sign-in', async () => {

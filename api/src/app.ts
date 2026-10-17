@@ -10,6 +10,7 @@ import { errorHandler, notFound } from './middleware/errors.js'
 import { accountRouter } from './modules/accounts/account.routes.js'
 import { leagueRouter, partyRouter } from './modules/leagues/league.routes.js'
 import { healthRouter } from './routes/health.js'
+import { rulesRouter } from './routes/rules.js'
 
 export interface AppDependencies {
   env: Pick<Env, 'CORS_ORIGINS' | 'TRUST_PROXY_HOPS'>
@@ -41,6 +42,8 @@ export function createApp({ env, logger, authenticate }: AppDependencies) {
   app.use(rateLimit({ windowMs: 60_000, limit: 300, standardHeaders: 'draft-8', legacyHeaders: false }))
 
   app.use('/health', healthRouter)
+  // Public, so the rules can be read before signing in. Mounted ahead of the authenticated API.
+  app.use('/api/rules', rulesRouter)
 
   const api = express.Router()
   api.use(authenticate, loadAccount)

@@ -188,7 +188,10 @@ async function toggleAutoSwap(event: Event) {
       </li>
     </ol>
 
-    <h2 class="section-title synergy-title">Synergies</h2>
+    <div class="row-heading">
+      <h2 class="section-title">Synergies</h2>
+      <RouterLink to="/how-it-works#synergies" class="small">How they work ›</RouterLink>
+    </div>
     <ul class="synergies">
       <li v-for="synergy in SYNERGY_ORDER" :key="synergy" class="synergy" :class="{ active: synergies.has(synergy) }">
         <span class="synergy-text">
@@ -352,9 +355,6 @@ async function toggleAutoSwap(event: Event) {
 .champion-text {
   margin: 0;
   line-height: 1.45;
-}
-.synergy-title {
-  margin: 16px 0 8px;
 }
 .synergies {
   list-style: none;
