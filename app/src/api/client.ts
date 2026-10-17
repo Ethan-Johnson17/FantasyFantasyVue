@@ -56,7 +56,8 @@ export interface ApiClient {
   claimHero(leagueId: string, heroId: string, dropHeroId: string): Promise<Lineup>
   listMoves(leagueId: string): Promise<RosterMove[]>
   getSchedule(leagueId: string): Promise<ScheduleWeek[]>
-  getMatchup(leagueId: string): Promise<Matchup>
+  /** An upcoming battle: the next one by default */
+  getMatchup(leagueId: string, week?: number): Promise<Matchup>
   /** Public: works signed out */
   getRules(): Promise<GameRules>
   getWeekResult(leagueId: string, week: number): Promise<WeekResult>
@@ -105,7 +106,7 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     claimHero: (id, heroId, dropHeroId) => request('POST', `/api/leagues/${segment(id)}/claims`, { heroId, dropHeroId }),
     listMoves: id => request('GET', `/api/leagues/${segment(id)}/moves`),
     getSchedule: id => request('GET', `/api/leagues/${segment(id)}/schedule`),
-    getMatchup: id => request('GET', `/api/leagues/${segment(id)}/matchup`),
+    getMatchup: (id, week) => request('GET', `/api/leagues/${segment(id)}/matchup${week === undefined ? '' : `?week=${String(week)}`}`),
     getRules: () => request('GET', '/api/rules', undefined, false),
     getWeekResult: (id, week) => request('GET', `/api/leagues/${segment(id)}/results/${String(week)}`),
     getStandings: id => request('GET', `/api/leagues/${segment(id)}/standings`),

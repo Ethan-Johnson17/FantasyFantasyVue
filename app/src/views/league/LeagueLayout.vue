@@ -17,6 +17,7 @@ const base = computed(() => `/leagues/${leagueId()}`)
 const tabs = computed(() => [
   { to: base.value, label: 'League', exact: true },
   { to: `${base.value}/party`, label: 'Party', exact: false },
+  { to: `${base.value}/matchup`, label: 'Matchup', exact: false },
   { to: `${base.value}/battles`, label: 'Battles', exact: false },
   { to: `${base.value}/heroes`, label: 'Heroes', exact: false }
 ])

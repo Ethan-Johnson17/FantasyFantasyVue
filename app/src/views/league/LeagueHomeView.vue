@@ -215,7 +215,7 @@ const isMine = (partyId: string) => partyId === myParty.value?.id
         <p v-if="thisWeek.matchups.some(m => !m.away)" class="muted small">
           The odd party out battles a monster as strong as the league average.
         </p>
-        <RouterLink v-if="league.status === 'active' && myParty" :to="`/leagues/${league.id}/battles/upcoming`" class="recap-link">
+        <RouterLink v-if="league.status === 'active' && myParty" :to="`/leagues/${league.id}/matchup`" class="recap-link">
           See your matchup ›
         </RouterLink>
       </template>

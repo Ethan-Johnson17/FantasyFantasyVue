@@ -1,12 +1,12 @@
 import mongoose from 'mongoose'
-import { NotFound } from '../../lib/errors.js'
+import { BadRequest, NotFound } from '../../lib/errors.js'
 import { createRng } from '../../lib/random.js'
 import type { AccountDocument } from '../accounts/account.model.js'
 import { toHeroView, type HeroView } from '../draft/draft.service.js'
 import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
 import { loadLeagueAsMember } from '../leagues/league.access.js'
 import type { Crest } from '../leagues/crests.js'
-import { LeagueModel } from '../leagues/league.model.js'
+import { CADENCE_MS, LeagueModel } from '../leagues/league.model.js'
 import { PartyModel, readLineup, type PartyDocument } from '../leagues/party.model.js'
 import { getRuleset, type Ruleset } from '../scoring/rulesets.js'
 import { monsterName } from './monsters.js'
@@ -17,8 +17,10 @@ import { WeekResultModel } from './weekResult.model.js'
 const { trusted } = mongoose
 
 /*
- * The head-to-head preview for a member's next battle: both starting lineups as they stand now,
- * who is resting, each Champion, the synergies each lineup would trigger, and earlier meetings.
+ * The head-to-head preview for one of a member's upcoming battles: both starting lineups as they
+ * stand now, each Champion, the synergies each lineup would trigger, and earlier meetings. Who is
+ * resting is shown for the next battle only: revealing rest weeks further ahead would help identify
+ * the players behind heroes. Played weeks are results (GET /results/:week), not previews.
  */
 
 export interface MatchupSideView {
@@ -35,6 +37,8 @@ export interface MatchupSideView {
 export interface MatchupView {
   week: number
   resolvesAt: Date
+  /** Whether restingNextWeek is known: only for the next battle */
+  restingKnown: boolean
   me: MatchupSideView
   /** null when the viewer's party faces the dungeon monster this week */
   opponent: MatchupSideView | null
@@ -43,12 +47,18 @@ export interface MatchupView {
   meetings: { week: number; myTotal: number; theirTotal: number; outcome: 'win' | 'loss' | 'draw' }[]
 }
 
-export async function getMatchup(member: AccountDocument, leagueId: string): Promise<MatchupView> {
+/** A preview of an upcoming battle: the next one by default, or a later week. */
+export async function getMatchup(member: AccountDocument, leagueId: string, requestedWeek?: number): Promise<MatchupView> {
   const { league, party } = await loadLeagueAsMember(member, leagueId)
-  const next = nextWeek(league)
-  const scheduled = next && league.schedule?.find(entry => entry.week === next.week)
+  const upcoming = nextWeek(league)
+  if (!upcoming) throw new NotFound('There is no upcoming battle')
+  const week = requestedWeek ?? upcoming.week
+  if (week < upcoming.week) throw new BadRequest('That battle has been played; see its result')
+  const isNext = week === upcoming.week
+  const next = { week, at: new Date(upcoming.at.getTime() + (week - upcoming.week) * CADENCE_MS[league.cadence]) }
+  const scheduled = league.schedule?.find(entry => entry.week === week)
   const matchup = scheduled?.matchups.find(m => m.home.equals(party._id) || m.away?.equals(party._id))
-  if (!next || !matchup) throw new NotFound('There is no upcoming battle')
+  if (!matchup) throw new NotFound('There is no battle that week')
 
   const opponentId = matchup.home.equals(party._id) ? matchup.away : matchup.home
   const [hidden, opponent, standings, results] = await Promise.all([
@@ -63,8 +73,11 @@ export async function getMatchup(member: AccountDocument, leagueId: string): Pro
   const sides = opponent ? [party, opponent] : [party]
   const heroes = await HeroModel.find({ leagueId: league._id, partyId: trusted({ $in: sides.map(side => side._id) }) }).select('+source')
   const ruleset = getRuleset(league.rulesetVersion)
-  const points = await heroPoints(heroes, season, next.week, ruleset)
-  const resting = new Set([...points].filter(([, value]) => value.resting).map(([id]) => id))
+  const resting = new Set<string>()
+  if (isNext) {
+    const points = await heroPoints(heroes, season, next.week, ruleset)
+    for (const [id, value] of points) if (value.resting) resting.add(id)
+  }
   const side = (subject: PartyDocument) => sideView(subject, heroes, resting, standings, ruleset)
 
   const meetings = opponent
@@ -83,6 +96,7 @@ export async function getMatchup(member: AccountDocument, leagueId: string): Pro
   return {
     week: next.week,
     resolvesAt: next.at,
+    restingKnown: isNext,
     me: side(party),
     opponent: opponent ? side(opponent) : null,
     // The same name the battle will use: derived from the league seed and the week.

@@ -32,14 +32,9 @@ const weeks = computed(() =>
     return { week: week.week, opponent, monster: !!mine && !mine.away, mineTotal, theirTotal, outcome, played: !!result }
   })
 )
-/** The next battle opens the head-to-head preview. */
+/** Every week opens on the matchup screen: the result once played, a preview before. */
 const upcomingWeek = computed(() => (league.value?.status === 'active' ? league.value.resolvedWeeks + 1 : null))
-const linkFor = (row: { week: number; played: boolean }) =>
-  row.played
-    ? `/leagues/${league.value?.id ?? ''}/battles/${String(row.week)}`
-    : row.week === upcomingWeek.value
-      ? `/leagues/${league.value?.id ?? ''}/battles/upcoming`
-      : undefined
+const linkFor = (row: { week: number }) => `/leagues/${league.value?.id ?? ''}/matchup/${String(row.week)}`
 </script>
 
 <template>
@@ -53,8 +48,7 @@ const linkFor = (row: { week: number; played: boolean }) =>
 
   <ol class="weeks">
     <li v-for="row in weeks" :key="row.week">
-      <component
-        :is="linkFor(row) ? 'RouterLink' : 'div'"
+      <RouterLink
         :to="linkFor(row)"
         class="card week"
         :class="{ played: row.played, monster: row.monster, next: row.week === upcomingWeek }"
@@ -66,7 +60,7 @@ const linkFor = (row: { week: number; played: boolean }) =>
         </span>
         <span v-else-if="row.week === upcomingWeek" class="upcoming next-label">Matchup ›</span>
         <span v-else class="muted upcoming">Upcoming</span>
-      </component>
+      </RouterLink>
     </li>
   </ol>
 </template>

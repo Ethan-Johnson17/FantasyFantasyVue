@@ -13,6 +13,7 @@ import {
   CreateLeagueSchema,
   JoinLeagueSchema,
   LineupSchema,
+  MatchupQuerySchema,
   PageQuerySchema,
   parseId,
   PinSchema,
@@ -120,7 +121,8 @@ export function leagueRouter() {
       res.json(await roster.listMoves(currentAccount(req), parseId(req.params.id)))
     })
     .get('/:id/matchup', async (req, res) => {
-      res.json(await getMatchup(currentAccount(req), parseId(req.params.id)))
+      const { week } = MatchupQuerySchema.parse(req.query)
+      res.json(await getMatchup(currentAccount(req), parseId(req.params.id), week))
     })
     .get('/:id/schedule', async (req, res) => {
       res.json(await season.getSchedule(currentAccount(req), parseId(req.params.id)))

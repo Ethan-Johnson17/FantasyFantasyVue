@@ -160,6 +160,8 @@ export interface MatchupSide extends PartyRef {
 export interface Matchup {
   week: number
   resolvesAt: string
+  /** Who rests is shown for the next battle only */
+  restingKnown: boolean
   me: MatchupSide
   /** null when my party faces the dungeon monster */
   opponent: MatchupSide | null

@@ -7,7 +7,6 @@ import { ApiError, type ApiClient } from '../src/api/client'
 import { apiKey } from '../src/api/inject'
 import type { Finale, Hero, LeagueDetail, Lineup, Matchup, MatchupSide, Party, Standing, WeekResult } from '../src/api/types'
 import { provideLeagueForTest } from '../src/league'
-import BattleResultView from '../src/views/league/BattleResultView.vue'
 import BattlesView from '../src/views/league/BattlesView.vue'
 import DraftRecapView from '../src/views/league/DraftRecapView.vue'
 import FinaleView from '../src/views/league/FinaleView.vue'
@@ -52,6 +51,7 @@ async function mountLeague(view: Component, api: ApiClient, league: LeagueDetail
     routes: [
       { path: '/', component: view },
       { path: '/battles/:week', component: view },
+      { path: '/matchup/:week?', component: view },
       { path: '/heroes/:heroId', component: view },
       { path: '/:rest(.*)*', component: { template: '<div>elsewhere</div>' } }
     ]
@@ -242,13 +242,17 @@ describe('Battle result', () => {
       ]
     }
     const api = fakeApi({ getWeekResult: vi.fn().mockResolvedValue(result) })
-    const { wrapper } = await mountLeague(BattleResultView, api, detail({ status: 'active', parties: [party('a', true), party('b')] }), '/battles/3')
+    const { wrapper } = await mountLeague(MatchupView, api, detail({ status: 'active', resolvedWeeks: 3, parties: [party('a', true), party('b')] }), '/matchup/3')
     expect(api.getWeekResult).toHaveBeenCalledWith('l1', 3)
+    expect(api.getMatchup).not.toHaveBeenCalled()
     expect(wrapper.find('.verdict').text()).toBe('VICTORY')
-    expect(wrapper.find('.scores').text()).toMatch(/Dragon Slayers\s*112.*Ember Wolves\s*98/s)
-    expect(wrapper.text()).toContain('Lyra was resting this week, so Freya stepped in from the bench at half damage.')
-    expect(wrapper.find('.champion-tag').exists()).toBe(true)
-    expect(wrapper.findAll('.fighter')[0]!.text()).toContain('♛ Kael')
+    expect(wrapper.find('.scoreboard').text()).toMatch(/Dragon Slayers\s*112.*Ember Wolves\s*98/s)
+    // Paired by slot, like the preview: my hero beside the opponent's, by name.
+    const rows = wrapper.findAll('.lineup-row')
+    expect(rows[0]!.text()).toMatch(/♛ Kael\s*103.*Wolf\s*98/s)
+    // Lyra rested; Freya fought her slot from the bench.
+    expect(rows[1]!.text()).toContain('Freya')
+    expect(rows[1]!.text()).toContain('↺ in for Lyra · half damage')
     expect(wrapper.find('.synergies').text()).toContain('Mighty Champion')
   })
 
@@ -266,11 +270,11 @@ describe('Battle result', () => {
       week: 2,
       matchups: [{ home: side(champion), away: null, monster: { name: 'Grimjaw', total: 60 }, outcome: 'away' }]
     })
-    const league = detail({ status: 'active', parties: [party('a', true)] })
+    const league = detail({ status: 'active', resolvedWeeks: 2, parties: [party('a', true)] })
 
-    const none = await mountLeague(BattleResultView, fakeApi({ getWeekResult: vi.fn().mockResolvedValue(result(null)) }), league, '/battles/2')
+    const none = await mountLeague(MatchupView, fakeApi({ getWeekResult: vi.fn().mockResolvedValue(result(null)) }), league, '/matchup/2')
     expect(none.wrapper.text()).toContain('No Champion was named for this battle.')
-    const resting = await mountLeague(BattleResultView, fakeApi({ getWeekResult: vi.fn().mockResolvedValue(result('h2')) }), league, '/battles/2')
+    const resting = await mountLeague(MatchupView, fakeApi({ getWeekResult: vi.fn().mockResolvedValue(result('h2')) }), league, '/matchup/2')
     expect(resting.wrapper.text()).toContain('Lyra was named Champion but was resting, so the bonus was lost.')
   })
 })
@@ -394,6 +398,7 @@ describe('Matchup', () => {
   const base = (): Matchup => ({
     week: 4,
     resolvesAt: new Date(Date.now() + 3_600_000).toISOString(),
+    restingKnown: true,
     me: side('a', 'Dragon Slayers', [hero('m1', { name: 'Kael', traits: ['mighty'] }), hero('m2', { name: 'Lyra' })], 'm1'),
     opponent: side('b', 'Ember Wolves', [hero('t1', { name: 'Wolf' }), hero('t2', { name: 'Fang' })]),
     monster: null,
@@ -407,7 +412,7 @@ describe('Matchup', () => {
   it('puts my lineup beside my opponent’s, with Champions, resting heroes, and the series', async () => {
     const api = fakeApi({ getMatchup: vi.fn().mockResolvedValue(base()) })
     const { wrapper } = await mountLeague(MatchupView, api, league())
-    expect(api.getMatchup).toHaveBeenCalledWith('l1')
+    expect(api.getMatchup).toHaveBeenCalledWith('l1', 4)
     expect(wrapper.find('.scoreboard').text()).toMatch(/Dragon Slayers\s*2–1.*Ember Wolves\s*2–1/s)
     expect(wrapper.find('.series').text()).toBe('Tied 1–1')
     const rows = wrapper.findAll('.lineup-row')
@@ -419,6 +424,54 @@ describe('Matchup', () => {
     expect(wrapper.find('.synergies').text()).toContain('Mighty Champion')
     const meetings = wrapper.findAll('.meeting')
     expect(meetings.map(m => m.text())).toEqual([expect.stringMatching(/Week 1\s*Victory\s*112–98/), expect.stringMatching(/Week 3\s*Defeat\s*90–101/)])
+  })
+
+  it('steps between weeks: results for played weeks, previews for upcoming ones', async () => {
+    const played: WeekResult = {
+      week: 3,
+      matchups: [
+        {
+          home: { partyId: 'a', name: 'Dragon Slayers', crest, total: 90, champion: null, synergies: [], heroes: [] },
+          away: { partyId: 'b', name: 'Ember Wolves', crest, total: 101, champion: null, synergies: [], heroes: [] },
+          monster: null,
+          outcome: 'away'
+        }
+      ]
+    }
+    const api = fakeApi({
+      getMatchup: vi.fn().mockImplementation((_id: string, week: number) => Promise.resolve({ ...base(), week, restingKnown: week === 4 })),
+      getWeekResult: vi.fn().mockResolvedValue(played)
+    })
+    const { wrapper, router } = await mountLeague(MatchupView, api, league(), '/matchup')
+    // Opens on the next battle.
+    expect(wrapper.find('.week-number').text()).toBe('Week 4 of 14')
+    expect(wrapper.find('.week-state').text()).toBe('Next battle')
+    expect(wrapper.findAll('.weeks a').map(a => a.attributes('href'))).toEqual(['/leagues/l1/matchup/3', '/leagues/l1/matchup/5'])
+    expect(wrapper.find('.jump').exists()).toBe(false)
+
+    await router.push('/matchup/3')
+    await flushPromises()
+    expect(api.getWeekResult).toHaveBeenCalledWith('l1', 3)
+    expect(wrapper.find('.week-state').text()).toBe('Played')
+    expect(wrapper.find('.verdict').text()).toBe('DEFEAT')
+    expect(wrapper.find('.jump').attributes('href')).toBe('/leagues/l1/matchup/4')
+
+    await router.push('/matchup/6')
+    await flushPromises()
+    expect(api.getMatchup).toHaveBeenLastCalledWith('l1', 6)
+    expect(wrapper.find('.week-state').text()).toBe('Upcoming')
+    expect(wrapper.text()).toContain('Who rests shows once this is the next battle.')
+
+    await router.push('/matchup/14')
+    await flushPromises()
+    expect(wrapper.find('.weeks .step.disabled').exists()).toBe(true)
+  })
+
+  it('waits for the draft before showing matchups', async () => {
+    const api = fakeApi()
+    const { wrapper } = await mountLeague(MatchupView, api, detail({ status: 'drafting' }), '/matchup')
+    expect(wrapper.text()).toContain('Matchups appear once the draft has run.')
+    expect(api.getMatchup).not.toHaveBeenCalled()
   })
 
   it('shows the dungeon monster when I have no opponent', async () => {
@@ -441,7 +494,7 @@ describe('Matchup', () => {
     })
     const { wrapper } = await mountLeague(BattlesView, api, detail({ status: 'active', resolvedWeeks: 1, parties: [party('a', true), party('b')] }))
     const links = wrapper.findAll('a.week').map(link => link.attributes('href'))
-    expect(links).toEqual(['/leagues/l1/battles/1', '/leagues/l1/battles/upcoming'])
+    expect(links).toEqual(['/leagues/l1/matchup/1', '/leagues/l1/matchup/2', '/leagues/l1/matchup/3'])
     expect(wrapper.find('.week.next').text()).toContain('Matchup ›')
   })
 })
