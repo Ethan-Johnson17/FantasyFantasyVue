@@ -294,9 +294,11 @@ Champion was tested and rejected: plans came out about the same, but parties wit
 - A free agent's hero page shows what they would have dealt each resolved week (rounded, like all hero-weeks), so
   parties can compare them. It reveals nothing more than a drafted hero's page does.
 
-### Trades (later PR)
+### Trades (post-MVP)
 
-Two parties agree and the trade happens immediately. No trades after week 10.
+Not in the MVP (decided 2026-10-16); free agency is the only way to change a roster after the draft. The design
+agreed so far, for when trades are built: two parties agree and the trade happens immediately, and no trades after
+week 10. Listed in ROADMAP.md.
 
 ## Attribution
 

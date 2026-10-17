@@ -6,6 +6,7 @@ import type {
   LeagueDetail,
   LeagueSummary,
   Lineup,
+  Matchup,
   RosterMove,
   MyLeague,
   Party,
@@ -53,6 +54,7 @@ export interface ApiClient {
   claimHero(leagueId: string, heroId: string, dropHeroId: string): Promise<Lineup>
   listMoves(leagueId: string): Promise<RosterMove[]>
   getSchedule(leagueId: string): Promise<ScheduleWeek[]>
+  getMatchup(leagueId: string): Promise<Matchup>
   getWeekResult(leagueId: string, week: number): Promise<WeekResult>
   getStandings(leagueId: string): Promise<Standing[]>
 }
@@ -98,6 +100,7 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     claimHero: (id, heroId, dropHeroId) => request('POST', `/api/leagues/${segment(id)}/claims`, { heroId, dropHeroId }),
     listMoves: id => request('GET', `/api/leagues/${segment(id)}/moves`),
     getSchedule: id => request('GET', `/api/leagues/${segment(id)}/schedule`),
+    getMatchup: id => request('GET', `/api/leagues/${segment(id)}/matchup`),
     getWeekResult: (id, week) => request('GET', `/api/leagues/${segment(id)}/results/${String(week)}`),
     getStandings: id => request('GET', `/api/leagues/${segment(id)}/standings`)
   }

@@ -32,6 +32,14 @@ const weeks = computed(() =>
     return { week: week.week, opponent, monster: !!mine && !mine.away, mineTotal, theirTotal, outcome, played: !!result }
   })
 )
+/** The next battle opens the head-to-head preview. */
+const upcomingWeek = computed(() => (league.value?.status === 'active' ? league.value.resolvedWeeks + 1 : null))
+const linkFor = (row: { week: number; played: boolean }) =>
+  row.played
+    ? `/leagues/${league.value?.id ?? ''}/battles/${String(row.week)}`
+    : row.week === upcomingWeek.value
+      ? `/leagues/${league.value?.id ?? ''}/battles/upcoming`
+      : undefined
 </script>
 
 <template>
@@ -46,16 +54,17 @@ const weeks = computed(() =>
   <ol class="weeks">
     <li v-for="row in weeks" :key="row.week">
       <component
-        :is="row.played ? 'RouterLink' : 'div'"
-        :to="row.played ? `/leagues/${league?.id}/battles/${row.week}` : undefined"
+        :is="linkFor(row) ? 'RouterLink' : 'div'"
+        :to="linkFor(row)"
         class="card week"
-        :class="{ played: row.played, monster: row.monster }"
+        :class="{ played: row.played, monster: row.monster, next: row.week === upcomingWeek }"
       >
         <span class="week-number">Week {{ row.week }}</span>
         <span class="opponent">vs {{ row.opponent ?? '—' }}</span>
         <span v-if="row.played" class="result" :class="row.outcome?.toLowerCase()">
           {{ row.outcome }} · {{ Math.round(row.mineTotal ?? 0) }}–{{ Math.round(row.theirTotal ?? 0) }}
         </span>
+        <span v-else-if="row.week === upcomingWeek" class="upcoming next-label">Matchup ›</span>
         <span v-else class="muted upcoming">Upcoming</span>
       </component>
     </li>
@@ -108,6 +117,12 @@ const weeks = computed(() =>
 }
 .result.loss {
   color: var(--text-muted);
+}
+.week.next {
+  border-color: var(--gold);
+}
+.next-label {
+  color: var(--gold);
 }
 .upcoming {
   font-size: 13px;

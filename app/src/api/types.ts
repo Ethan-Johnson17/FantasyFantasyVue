@@ -119,6 +119,25 @@ export interface StrategyRules {
   bulwarkFloor: number
 }
 
+export interface MatchupSide extends PartyRef {
+  record: { wins: number; losses: number; draws: number }
+  starters: { slot: string; label: string; hero: (Hero & { restingNextWeek: boolean }) | null }[]
+  champion: string | null
+  /** Synergies this lineup would trigger if the battle resolved now */
+  synergies: Synergy[]
+}
+
+export interface Matchup {
+  week: number
+  resolvesAt: string
+  me: MatchupSide
+  /** null when my party faces the dungeon monster */
+  opponent: MatchupSide | null
+  monster: { name: string } | null
+  /** Earlier battles between us, oldest first */
+  meetings: { week: number; myTotal: number; theirTotal: number; outcome: 'win' | 'loss' | 'draw' }[]
+}
+
 export interface RosterMove {
   kind: 'claim'
   party: { partyId: string; name: string }
