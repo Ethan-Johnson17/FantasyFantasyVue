@@ -4,6 +4,7 @@ import { currentAccount } from '../../middleware/auth.js'
 import * as draft from '../draft/draft.service.js'
 import * as roster from '../roster/roster.service.js'
 import { advanceLeague } from '../season/advance.js'
+import { getFinale } from '../season/finale.service.js'
 import { getMatchup } from '../season/matchup.service.js'
 import * as season from '../season/season.service.js'
 import {
@@ -127,6 +128,9 @@ export function leagueRouter() {
     .get('/:id/results/:week', async (req, res) => {
       const week = WeekParamSchema.parse(req.params.week)
       res.json(await season.getWeekResult(currentAccount(req), parseId(req.params.id), week))
+    })
+    .get('/:id/finale', async (req, res) => {
+      res.json(await getFinale(currentAccount(req), parseId(req.params.id)))
     })
     .get('/:id/standings', async (req, res) => {
       res.json(await season.getStandings(currentAccount(req), parseId(req.params.id)))

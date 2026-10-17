@@ -165,6 +165,11 @@ const isMine = (partyId: string) => partyId === myParty.value?.id
 
     <!-- In season: standings and this week -->
     <template v-if="inSeason">
+      <RouterLink v-if="league.status === 'complete'" :to="`/leagues/${league.id}/finale`" class="finale-banner">
+        <span class="finale-eyebrow">Season complete</span>
+        <span class="finale-name">{{ standings[0]?.name ?? 'The champions' }} take the crown</span>
+        <span class="finale-cta">See the finale and awards ›</span>
+      </RouterLink>
       <h2 class="section-title spaced">Standings</h2>
       <table class="standings">
         <thead>
@@ -408,5 +413,36 @@ tr.mine .rank {
   margin-top: 24px;
   display: flex;
   justify-content: center;
+}
+.finale-banner {
+  margin-top: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--gold) 18%, transparent), transparent 70%),
+    var(--surface);
+  color: var(--text);
+  text-align: center;
+  text-decoration: none;
+}
+.finale-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.finale-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+}
+.finale-cta {
+  font-size: 14px;
+  color: var(--gold);
 }
 </style>

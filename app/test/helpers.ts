@@ -35,6 +35,7 @@ export function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
     getRules: vi.fn(),
     getWeekResult: vi.fn(),
     getStandings: vi.fn().mockResolvedValue([]),
+    getFinale: vi.fn(),
     ...overrides
   }
 }

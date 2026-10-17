@@ -2,13 +2,15 @@ import type { MyLeague, PartyOutlook } from './api/types'
 
 /*
  * Which league leads My leagues: whatever happens soonest, a battle or a draft. With neither, a
- * league I'm hosting that is still gathering parties, so I remember to share the PIN.
+ * league I'm hosting that is still gathering parties, so I remember to share the PIN; then a
+ * finished league's finale.
  */
 
 export type Spotlight =
   | { kind: 'battle'; league: MyLeague; battle: NonNullable<PartyOutlook['nextBattle']> }
   | { kind: 'draft'; league: MyLeague; at: string; ranking: PartyOutlook['ranking'] }
   | { kind: 'gather'; league: MyLeague }
+  | { kind: 'finale'; league: MyLeague }
 
 export function pickSpotlight(leagues: readonly MyLeague[]): Spotlight | null {
   const timed = leagues.flatMap((league): { at: number; spotlight: Spotlight }[] => {
@@ -22,5 +24,7 @@ export function pickSpotlight(leagues: readonly MyLeague[]): Spotlight | null {
   const soonest = timed.sort((a, b) => a.at - b.at)[0]
   if (soonest) return soonest.spotlight
   const gathering = leagues.find(league => league.status === 'forming' && league.isHost)
-  return gathering ? { kind: 'gather', league: gathering } : null
+  if (gathering) return { kind: 'gather', league: gathering }
+  const finished = leagues.find(league => league.status === 'complete')
+  return finished ? { kind: 'finale', league: finished } : null
 }

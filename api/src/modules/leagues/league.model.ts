@@ -61,7 +61,7 @@ const leagueSchema = new Schema(
     rulesetVersion: { type: Number, required: true, immutable: true, default: CURRENT_RULESET_VERSION },
     pin: { type: String, required: true, unique: true, immutable: true },
 
-    // Set when the draft is scheduled. Hidden from clients until the end-of-season reveal.
+    // Set when the draft is scheduled. Never sent to clients, even after the season ("No reveal, ever" in docs/CLASSIC_SCORING.md).
     season: { type: Number, select: false },
     // Seeds the league's hero pool and draft (see lib/random.ts). Never sent to clients.
     seed: { type: String, select: false },

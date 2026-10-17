@@ -1,6 +1,7 @@
 import type {
   Account,
   CreateLeagueInput,
+  Finale,
   GameRules,
   Hero,
   HeroDetail,
@@ -60,6 +61,7 @@ export interface ApiClient {
   getRules(): Promise<GameRules>
   getWeekResult(leagueId: string, week: number): Promise<WeekResult>
   getStandings(leagueId: string): Promise<Standing[]>
+  getFinale(leagueId: string): Promise<Finale>
 }
 
 export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchImpl: FetchLike = fetch): ApiClient {
@@ -106,7 +108,8 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     getMatchup: id => request('GET', `/api/leagues/${segment(id)}/matchup`),
     getRules: () => request('GET', '/api/rules', undefined, false),
     getWeekResult: (id, week) => request('GET', `/api/leagues/${segment(id)}/results/${String(week)}`),
-    getStandings: id => request('GET', `/api/leagues/${segment(id)}/standings`)
+    getStandings: id => request('GET', `/api/leagues/${segment(id)}/standings`),
+    getFinale: id => request('GET', `/api/leagues/${segment(id)}/finale`)
   }
 }
 

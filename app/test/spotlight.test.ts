@@ -30,11 +30,13 @@ describe('pickSpotlight', () => {
     expect(pickSpotlight([later, soon])).toMatchObject({ kind: 'battle', league: { id: 'b' } })
   })
 
-  it('falls back to a league I host that is still gathering, and otherwise nothing', () => {
+  it('falls back to a league I host that is gathering, then a finished season, and otherwise nothing', () => {
     const joined = myLeague({ id: 'f1', status: 'forming', isHost: false })
     const hosting = myLeague({ id: 'f2', status: 'forming', isHost: true })
-    expect(pickSpotlight([joined, hosting])).toMatchObject({ kind: 'gather', league: { id: 'f2' } })
-    expect(pickSpotlight([joined, myLeague({ status: 'complete' })])).toBeNull()
+    const finished = myLeague({ id: 'c', status: 'complete' })
+    expect(pickSpotlight([finished, joined, hosting])).toMatchObject({ kind: 'gather', league: { id: 'f2' } })
+    expect(pickSpotlight([joined, finished])).toMatchObject({ kind: 'finale', league: { id: 'c' } })
+    expect(pickSpotlight([joined, myLeague({ status: 'canceled' })])).toBeNull()
     expect(pickSpotlight([])).toBeNull()
   })
 })
@@ -85,6 +87,16 @@ describe('My leagues spotlight', () => {
     expect(spot.find('.progress-fill').attributes('style')).toContain('width: 25%')
     expect(wrapper.find('.league').text()).toContain('Ranked 23 of 92 heroes ›')
     expect(wrapper.find('.league').attributes('href')).toBe('/leagues/d/heroes')
+  })
+
+  it('celebrates a finished season and opens the finale', async () => {
+    const league = myLeague({ id: 'c', status: 'complete', standing: { rank: 1, wins: 10, losses: 4, draws: 0 } })
+    const { wrapper } = await mountView(LeaguesView, fakeApi({ listMyLeagues: vi.fn().mockResolvedValue([league]) }))
+    await flushPromises()
+    expect(wrapper.find('.spotlight').text()).toContain('Champions!')
+    expect(wrapper.find('.spotlight a').attributes('href')).toBe('/leagues/c/finale')
+    expect(wrapper.find('.league').text()).toContain('Finished 1st')
+    expect(wrapper.find('.league').attributes('href')).toBe('/leagues/c/finale')
   })
 
   it('reminds a host to share the PIN while gathering', async () => {
