@@ -7,12 +7,12 @@ import { ApiError, type ApiClient } from '../src/api/client'
 import { apiKey } from '../src/api/inject'
 import type { Finale, Hero, LeagueDetail, Lineup, Matchup, MatchupSide, Party, Standing, WeekResult } from '../src/api/types'
 import { provideLeagueForTest } from '../src/league'
-import BattlesView from '../src/views/league/BattlesView.vue'
 import DraftRecapView from '../src/views/league/DraftRecapView.vue'
 import FinaleView from '../src/views/league/FinaleView.vue'
 import HeroDetailView from '../src/views/league/HeroDetailView.vue'
 import HeroesView from '../src/views/league/HeroesView.vue'
 import LeagueHomeView from '../src/views/league/LeagueHomeView.vue'
+import LeagueLayout from '../src/views/league/LeagueLayout.vue'
 import MatchupView from '../src/views/league/MatchupView.vue'
 import PartyView from '../src/views/league/PartyView.vue'
 import { detail, fakeApi } from './helpers'
@@ -447,14 +447,12 @@ describe('Matchup', () => {
     expect(wrapper.find('.week-number').text()).toBe('Week 4 of 14')
     expect(wrapper.find('.week-state').text()).toBe('Next battle')
     expect(wrapper.findAll('.weeks a').map(a => a.attributes('href'))).toEqual(['/leagues/l1/matchup/3', '/leagues/l1/matchup/5'])
-    expect(wrapper.find('.jump').exists()).toBe(false)
 
     await router.push('/matchup/3')
     await flushPromises()
     expect(api.getWeekResult).toHaveBeenCalledWith('l1', 3)
     expect(wrapper.find('.week-state').text()).toBe('Played')
     expect(wrapper.find('.verdict').text()).toBe('DEFEAT')
-    expect(wrapper.find('.jump').attributes('href')).toBe('/leagues/l1/matchup/4')
 
     await router.push('/matchup/6')
     await flushPromises()
@@ -483,23 +481,55 @@ describe('Matchup', () => {
     expect(wrapper.text()).toContain("Grimjaw fights as strong as the league's average party this week.")
   })
 
-  it('is reached from the next battle on the Battles tab', async () => {
-    const week = (n: number, result: ScheduleResult | null) => ({
+  it('shows my season as a strip of weeks: results, the next battle, and monster weeks', async () => {
+    const week = (n: number, result: ScheduleResult | null, monster = false) => ({
       week: n,
       resolvesAt: null,
-      matchups: [{ home: { partyId: 'a', name: 'Party a', crest }, away: { partyId: 'b', name: 'Party b', crest }, result }]
+      matchups: [{ home: { partyId: 'a', name: 'Party a', crest }, away: monster ? null : { partyId: 'b', name: 'Party b', crest }, result }]
     })
     const api = fakeApi({
-      getSchedule: vi.fn().mockResolvedValue([week(1, { homeTotal: 100, awayTotal: 90, outcome: 'home', monster: null }), week(2, null), week(3, null)])
+      getSchedule: vi.fn().mockResolvedValue([
+        week(1, { homeTotal: 100, awayTotal: 90, outcome: 'home', monster: null }),
+        week(2, { homeTotal: 80, awayTotal: 95, outcome: 'away', monster: null }),
+        week(3, null),
+        week(4, null, true)
+      ]),
+      getMatchup: vi.fn().mockResolvedValue(base()),
+      getWeekResult: vi.fn().mockResolvedValue({ week: 1, matchups: [] })
     })
-    const { wrapper } = await mountLeague(BattlesView, api, detail({ status: 'active', resolvedWeeks: 1, parties: [party('a', true), party('b')] }))
-    const links = wrapper.findAll('a.week').map(link => link.attributes('href'))
-    expect(links).toEqual(['/leagues/l1/matchup/1', '/leagues/l1/matchup/2', '/leagues/l1/matchup/3'])
-    expect(wrapper.find('.week.next').text()).toContain('Matchup ›')
+    const { wrapper } = await mountLeague(MatchupView, api, detail({ status: 'active', resolvedWeeks: 2, parties: [party('a', true), party('b')] }), '/matchup')
+    const chips = wrapper.findAll('.strip .chip')
+    expect(chips.map(chip => chip.attributes('href'))).toEqual(['/leagues/l1/matchup/1', '/leagues/l1/matchup/2', '/leagues/l1/matchup/3', '/leagues/l1/matchup/4'])
+    expect(chips.map(chip => chip.text())).toEqual(['1W', '2L', '3•', '4☠'])
+    expect(chips[0]!.classes()).toContain('win')
+    expect(chips[1]!.classes()).toContain('loss')
+    expect(chips[2]!.classes()).toEqual(expect.arrayContaining(['next', 'selected']))
+    expect(chips[2]!.attributes('aria-current')).toBe('page')
+    expect(chips[0]!.attributes('aria-label')).toBe('Week 1: win vs Party b, 100 to 90')
   })
 })
 
 type ScheduleResult = { homeTotal: number; awayTotal: number; outcome: 'home' | 'away' | 'draw'; monster: string | null }
+
+describe('League navigation', () => {
+  it('has four tabs, one per row slot, each with an icon and a label', async () => {
+    setActivePinia(createPinia())
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/leagues/:id', component: LeagueLayout, children: [{ path: ':rest(.*)*', component: { template: '<div />' } }] }]
+    })
+    await router.push('/leagues/l1/matchup/3')
+    await router.isReady()
+    const api = fakeApi({ getLeague: vi.fn().mockResolvedValue(detail({ status: 'active', parties: [party('a', true)] })) })
+    const wrapper = mount({ template: '<RouterView />' }, { global: { plugins: [router], provide: { [apiKey as symbol]: api } } })
+    await flushPromises()
+    const tabs = wrapper.findAll('.tabs a')
+    // The bar is a four-column grid: a fifth tab would wrap onto a second row.
+    expect(tabs.map(tab => tab.text())).toEqual(['League', 'Party', 'Matchup', 'Heroes'])
+    expect(tabs.every(tab => tab.find('svg').exists())).toBe(true)
+    expect(tabs.map(tab => tab.attributes('href'))).toEqual(['/leagues/l1', '/leagues/l1/party', '/leagues/l1/matchup', '/leagues/l1/heroes'])
+  })
+})
 
 describe('Season finale', () => {
   const row = (partyId: string, name: string, wins: number, losses: number): Standing => ({ partyId, name, crest, wins, losses, draws: 0, totalDamage: 1500.6 - losses })
