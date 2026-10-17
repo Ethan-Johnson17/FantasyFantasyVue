@@ -15,6 +15,7 @@ export function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
     getLeague: vi.fn(),
     createLeague: vi.fn(),
     previewLeague: vi.fn(),
+    listPublicLeagues: vi.fn().mockResolvedValue([]),
     joinLeague: vi.fn(),
     scheduleDraft: vi.fn(),
     cancelLeague: vi.fn(),

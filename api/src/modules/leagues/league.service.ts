@@ -132,10 +132,13 @@ export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueVi
 }
 
 /** Public leagues that still have room. */
+/** Public leagues that still have room, newest first, leaving out leagues the viewer is already in. */
 export async function listPublicLeagues(viewer: AccountDocument, page: number): Promise<LeagueSummaryView[]> {
+  const mine = await PartyModel.distinct('leagueId', { accountId: viewer._id })
   const leagues = await LeagueModel.find({
     visibility: 'public',
     status: 'forming',
+    _id: trusted({ $nin: mine }),
     $expr: trusted({ $lt: ['$partyCount', '$maxParties'] })
   })
     .sort({ createdAt: -1 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useApi } from '../api/inject'
 import type { LeagueSummary, PartyInput } from '../api/types'
@@ -38,6 +38,11 @@ async function findLeague() {
     busy.value = false
   }
 }
+
+// Arriving from an invite or a public league with the PIN already filled in: look it up right away.
+onMounted(() => {
+  if (pinComplete.value) void findLeague()
+})
 
 async function join() {
   busy.value = true

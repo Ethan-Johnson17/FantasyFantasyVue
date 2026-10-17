@@ -40,6 +40,8 @@ export interface ApiClient {
   getLeague(id: string): Promise<LeagueDetail>
   createLeague(input: CreateLeagueInput): Promise<LeagueDetail>
   previewLeague(pin: string): Promise<LeagueSummary>
+  /** Public leagues with room that I'm not in, newest first; pages start at 1 */
+  listPublicLeagues(page: number): Promise<LeagueSummary[]>
   joinLeague(pin: string, party: PartyInput): Promise<LeagueDetail>
   scheduleDraft(leagueId: string, draftAt: Date): Promise<LeagueDetail>
   cancelLeague(leagueId: string): Promise<LeagueDetail>
@@ -90,6 +92,7 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     getLeague: id => request('GET', `/api/leagues/${segment(id)}`),
     createLeague: input => request('POST', '/api/leagues', input),
     previewLeague: pin => request('GET', `/api/leagues/pin/${segment(pin)}`),
+    listPublicLeagues: page => request('GET', `/api/leagues/public?page=${String(page)}`),
     joinLeague: (pin, party) => request('POST', '/api/leagues/join', { pin, party }),
     scheduleDraft: (id, draftAt) => request('POST', `/api/leagues/${segment(id)}/draft`, { draftAt: draftAt.toISOString() }),
     cancelLeague: id => request('POST', `/api/leagues/${segment(id)}/cancel`),

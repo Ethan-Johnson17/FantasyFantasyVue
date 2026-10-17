@@ -189,7 +189,7 @@ function signOut() {
           <path d="M32 5l22 8v16c0 14-9.5 23-22 30C19.5 52 10 43 10 29V13z" />
           <path d="M32 20l3.4 7 7.6.9-5.6 5.2 1.5 7.6L32 37l-6.9 3.7 1.5-7.6-5.6-5.2 7.6-.9z" />
         </svg>
-        <p class="spot-text">You haven't joined a league yet. Host one for your friends, or join with a PIN.</p>
+        <p class="spot-text">You haven't joined a league yet. Host one for your friends, join with a PIN, or find a public league.</p>
       </section>
 
       <h2 v-if="leagues.length" class="section-title list-title">All leagues</h2>
@@ -237,6 +237,7 @@ function signOut() {
     <div class="actions">
       <RouterLink to="/leagues/new" class="btn btn-primary">Host a league</RouterLink>
       <RouterLink to="/join" class="btn btn-secondary">Join with PIN</RouterLink>
+      <RouterLink to="/leagues/find" class="btn btn-secondary find">Find a public league</RouterLink>
     </div>
     <RouterLink to="/how-it-works" class="how-link">How it works</RouterLink>
   </main>
@@ -256,6 +257,9 @@ function signOut() {
   margin-top: 16px;
   text-align: center;
   font-size: 14px;
+}
+.find {
+  grid-column: 1 / -1;
 }
 .account {
   display: flex;

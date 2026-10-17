@@ -8,6 +8,7 @@ export const routes: RouteRecordRaw[] = [
   { path: '/how-it-works', name: 'how-it-works', component: () => import('./views/HowItWorksView.vue') },
   { path: '/sign-in', name: 'sign-in', component: () => import('./views/SignInView.vue'), meta: { guestOnly: true } },
   { path: '/leagues', name: 'leagues', component: () => import('./views/LeaguesView.vue'), meta: { auth: true } },
+  { path: '/leagues/find', name: 'find', component: () => import('./views/FindLeaguesView.vue'), meta: { auth: true } },
   { path: '/leagues/new', name: 'host', component: () => import('./views/HostLeagueView.vue'), meta: { auth: true } },
   { path: '/join', name: 'join', component: () => import('./views/JoinLeagueView.vue'), meta: { auth: true } },
   {
