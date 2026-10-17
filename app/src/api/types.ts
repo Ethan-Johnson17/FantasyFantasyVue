@@ -52,6 +52,24 @@ export interface LeagueDetail extends LeagueSummary {
 export interface MyLeague extends LeagueSummary {
   myParty: { id: string; name: string; crest: Crest }
   standing: { rank: number; wins: number; losses: number; draws: number } | null
+  outlook: PartyOutlook
+}
+
+/** Next battle, last result, and anything to fix before the lineup locks. */
+export interface PartyOutlook {
+  /** While drafting */
+  ranking: { ranked: number; pool: number } | null
+  /** While the season runs */
+  nextBattle: {
+    week: number
+    at: string
+    /** null against the dungeon monster */
+    opponent: { name: string; crest: Crest } | null
+    monster: string | null
+    noChampion: boolean
+    restingStarters: number
+  } | null
+  lastBattle: { week: number; outcome: 'win' | 'loss' | 'draw'; myTotal: number; theirTotal: number; opponentName: string } | null
 }
 
 export interface PartyInput {

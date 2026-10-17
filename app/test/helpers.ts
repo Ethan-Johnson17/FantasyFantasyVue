@@ -78,6 +78,7 @@ export const myLeague = (overrides: Partial<MyLeague> = {}): MyLeague => ({
   ...summary(),
   myParty: { id: 'p1', name: 'Dragon Slayers', crest: { emblem: 'crown', banner: 'crimson' } },
   standing: null,
+  outlook: { ranking: null, nextBattle: null, lastBattle: null },
   ...overrides
 })
 
