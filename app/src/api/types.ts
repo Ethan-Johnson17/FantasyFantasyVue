@@ -113,7 +113,7 @@ export interface Hero {
 
 /** Average class damage, rounded: over the season so far and the latest three played weeks. */
 export interface HeroForm {
-  season: number | null
+  average: number | null
   recent: number | null
   played: number
 }

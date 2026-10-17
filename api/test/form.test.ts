@@ -11,7 +11,7 @@ interface ListedHero {
   id: string
   partyId: string | null
   heroClass: 'Mage' | 'Warrior' | 'Ranger' | 'Rogue' | 'Paladin'
-  form: { season: number | null; recent: number | null; played: number }
+  form: { average: number | null; recent: number | null; played: number }
 }
 
 const heroesOf = async (id: string) => (await alice.get(`/api/leagues/${id}/heroes`)).body as ListedHero[]
@@ -38,7 +38,7 @@ beforeEach(async () => {
 describe('hero form', () => {
   it('is empty before any battle', async () => {
     const id = await draftedLeague([alice])
-    for (const hero of await heroesOf(id)) expect(hero.form).toEqual({ season: null, recent: null, played: 0 })
+    for (const hero of await heroesOf(id)) expect(hero.form).toEqual({ average: null, recent: null, played: 0 })
   })
 
   it('averages class damage over played weeks: the whole season and the latest three', async () => {
@@ -52,7 +52,7 @@ describe('hero form', () => {
     const listed = (await heroesOf(id)).find(entry => entry.id === hero._id.toString())!
     const m = RULESET_V1.lineup.classMultipliers[listed.heroClass]
     expect(listed.form).toEqual({
-      season: Math.round(((10 + 20 + 30 + 40) / 4) * m),
+      average: Math.round(((10 + 20 + 30 + 40) / 4) * m),
       recent: Math.round(((20 + 30 + 40) / 3) * m),
       played: 4
     })
@@ -71,8 +71,9 @@ describe('hero form', () => {
     const heroes = await heroesOf(id)
     const listed = heroes.find(entry => entry.id === free._id.toString())!
     expect(listed.partyId).toBeNull()
-    expect(listed.form).toEqual({ season: Math.round(25 * RULESET_V1.lineup.classMultipliers[listed.heroClass]), recent: Math.round(25 * RULESET_V1.lineup.classMultipliers[listed.heroClass]), played: 1 })
-    expect(heroes.every(hero => Number.isInteger(hero.form.season ?? 0))).toBe(true)
-    expect(JSON.stringify(heroes)).not.toMatch(new RegExp(`source|season"?:\\s*${String(SEEDED_SEASON)}|${String(SEEDED_SEASON)}`))
+    expect(listed.form).toEqual({ average: Math.round(25 * RULESET_V1.lineup.classMultipliers[listed.heroClass]), recent: Math.round(25 * RULESET_V1.lineup.classMultipliers[listed.heroClass]), played: 1 })
+    expect(heroes.every(hero => Number.isInteger(hero.form.average ?? 0))).toBe(true)
+    // Same guard as the draft's hidden-player test: no "season" or "source" key, and no season year.
+    expect(JSON.stringify(heroes)).not.toMatch(new RegExp(`"season"|"source"|${String(SEEDED_SEASON)}`))
   })
 })

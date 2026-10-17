@@ -77,8 +77,8 @@ function formText(hero: Hero): string {
   if (!form || !battlesPlayed.value) return ''
   if (!form.played) return 'No battles fought yet'
   // Until there are more than three battles, recent form and the season average are the same.
-  if (form.played <= 3) return `Avg ${String(form.season ?? 0)} · ${String(form.played)} battle${form.played === 1 ? '' : 's'}`
-  return `Last 3: ${String(form.recent ?? 0)} · season ${String(form.season ?? 0)}`
+  if (form.played <= 3) return `Avg ${String(form.average ?? 0)} · ${String(form.played)} battle${form.played === 1 ? '' : 's'}`
+  return `Last 3: ${String(form.recent ?? 0)} · season ${String(form.average ?? 0)}`
 }
 
 /** Ranks every unranked hero in view, best Level first, after the ones already ranked. */

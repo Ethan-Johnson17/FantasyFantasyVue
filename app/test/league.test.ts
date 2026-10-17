@@ -352,7 +352,7 @@ describe('Draft prep and form', () => {
   })
 
   it('shows recent form and sorts free agents by it once battles are played', async () => {
-    const form = (recent: number | null, season: number | null, played: number) => ({ recent, season, played })
+    const form = (recent: number | null, average: number | null, played: number) => ({ recent, average, played })
     const api = fakeApi({
       listHeroes: vi.fn().mockResolvedValue([
         hero('f1', { level: 9, form: form(12, 15, 4) }),
@@ -377,7 +377,7 @@ describe('Draft prep and form', () => {
   })
 
   it('has no form or sort before the first battle', async () => {
-    const api = fakeApi({ listHeroes: vi.fn().mockResolvedValue([hero('f1', { form: { recent: null, season: null, played: 0 } })]), listMoves: vi.fn().mockResolvedValue([]) })
+    const api = fakeApi({ listHeroes: vi.fn().mockResolvedValue([hero('f1', { form: { recent: null, average: null, played: 0 } })]), listMoves: vi.fn().mockResolvedValue([]) })
     const { wrapper } = await mountLeague(HeroesView, api, detail({ status: 'active', resolvedWeeks: 0, parties: [party('p1', true)] }))
     expect(wrapper.find('.sort').exists()).toBe(false)
     expect(wrapper.find('.form').exists()).toBe(false)

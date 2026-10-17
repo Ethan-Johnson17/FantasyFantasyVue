@@ -17,8 +17,8 @@ const { trusted } = mongoose
 export const RECENT_WEEKS = 3
 
 export interface HeroForm {
-  /** Average over every played week so far */
-  season: number | null
+  /** Average over every played week so far (not "season": that name is kept off the wire entirely) */
+  average: number | null
   /** Average over the latest few played weeks */
   recent: number | null
   /** Weeks the hero played (didn't rest) */
@@ -27,7 +27,7 @@ export interface HeroForm {
 
 /** Form for each hero over the league's resolved weeks; heroes need `source` selected. */
 export async function heroForm(league: LeagueDocument, heroes: readonly HeroDocument[]): Promise<Map<string, HeroForm>> {
-  const empty = new Map(heroes.map(hero => [hero.id, { season: null, recent: null, played: 0 }]))
+  const empty = new Map(heroes.map(hero => [hero.id, { average: null, recent: null, played: 0 }]))
   if (league.resolvedWeeks === 0) return empty
   const season = (await LeagueModel.findById(league._id).select('+season'))?.season
   if (season === undefined || season === null) return empty
@@ -51,7 +51,7 @@ export async function heroForm(league: LeagueDocument, heroes: readonly HeroDocu
       const multiplier = ruleset.lineup.classMultipliers[hero.heroClass]
       const played = [...(pointsBySource.get(`${hero.source.kind}|${hero.source.id}`) ?? [])].sort((a, b) => b.week - a.week)
       const damage = played.map(entry => entry.points * multiplier)
-      return [hero.id, { season: average(damage), recent: average(damage.slice(0, RECENT_WEEKS)), played: damage.length }]
+      return [hero.id, { average: average(damage), recent: average(damage.slice(0, RECENT_WEEKS)), played: damage.length }]
     })
   )
 }
