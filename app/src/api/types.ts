@@ -107,6 +107,15 @@ export interface Hero {
   levelRange: { min: number; max: number } | null
   traits: HeroTrait[]
   partyId: string | null
+  /** Recent form; included in the league's hero list */
+  form?: HeroForm
+}
+
+/** Average class damage, rounded: over the season so far and the latest three played weeks. */
+export interface HeroForm {
+  season: number | null
+  recent: number | null
+  played: number
 }
 
 export interface DraftResult {

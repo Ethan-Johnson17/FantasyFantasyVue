@@ -46,7 +46,7 @@ Everything under `/api` requires an Auth0 access token (`Authorization: Bearer .
 | `DELETE /api/leagues/:id/parties/:partyId` | host, while forming | Remove a member's party |
 | `PATCH /api/parties/:id` | party owner | Rename a party or change its crest |
 | `POST /api/leagues/:id/draft` | host | Schedule (or reschedule) the draft; builds the hidden hero pool and locks membership |
-| `GET /api/leagues/:id/heroes` | members; anyone if public | The league's hero pool (never the real players) |
+| `GET /api/leagues/:id/heroes` | members; anyone if public | The league's hero pool (never the real players), with each hero's rounded season and recent (last 3 played) average damage once battles are played |
 | `GET` / `PUT /api/leagues/:id/rankings` | members, before the draft | Read or replace my party's hero ranking |
 
 | `GET` / `PUT /api/leagues/:id/lineup` | members | My roster, lineup, Champion, and who is resting next week; set the lineup while the season runs |
