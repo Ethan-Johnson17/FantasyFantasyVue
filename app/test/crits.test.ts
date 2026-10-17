@@ -57,6 +57,10 @@ describe('battleRecap', () => {
     expect(lines).toContain("For Bot Party 3, Wolf's Divine Smite landed for 47: a natural 20!")
     expect(lines).toContain('Gideon rolled a natural 1. Spell Fizzles, just 2 damage.')
     expect(lines.at(-1)).toMatch(/Order & Chaos/)
+    const both = battleRecap({ week: 3, us: { ...us, synergies: ['mightyChampion', 'orderAndChaos'] }, them, opponentName: them.name, opponentTotal: them.total })
+    expect(both.filter(line => line.includes('Mighty Champion') || line.includes('Order & Chaos'))).toEqual([
+      expect.stringMatching(/Mighty Champion and Order & Chaos/)
+    ])
   })
 
   it('is the same every time for the same battle', () => {

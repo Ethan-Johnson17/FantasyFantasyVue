@@ -66,9 +66,10 @@ export function battleRecap({ week, us, them, opponentName, opponentTotal }: Rec
     })
   lines.push(...critLines)
 
-  for (const synergy of us.synergies) {
-    const { label } = synergyInfo(synergy)
-    lines.push(pick([`${label} bolstered ${us.name}.`, `${us.name} fought with ${label} on their side.`], key + synergy))
+  if (us.synergies.length) {
+    const labels = us.synergies.map(synergy => synergyInfo(synergy).label)
+    const list = labels.length > 1 ? `${labels.slice(0, -1).join(', ')} and ${labels.at(-1) ?? ''}` : (labels[0] ?? '')
+    lines.push(pick([`${list} bolstered ${us.name}.`, `${us.name} fought with ${list} on their side.`], key + list))
   }
   return lines
 }
