@@ -76,6 +76,10 @@ function describe(award: Award): { icon: string; title: string; subject: string;
       }
     case 'unbreakable':
       return { icon: '⛨', title: 'Unbreakable', subject: award.party.name, detail: `Faced the least damage: ${number(award.damageFaced)}` }
+    case 'natural20':
+      return { icon: '20', title: 'Natural 20', subject: award.party.name, detail: `Rolled the most natural 20s: ${String(award.count)}` }
+    case 'cursedDice':
+      return { icon: '1', title: 'Cursed Dice', subject: award.party.name, detail: `Rolled the most natural 1s: ${String(award.count)}` }
   }
 }
 </script>

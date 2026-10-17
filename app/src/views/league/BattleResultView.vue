@@ -4,8 +4,10 @@ import { useRoute } from 'vue-router'
 import { useApi } from '../../api/inject'
 import type { ResultSide, WeekResult } from '../../api/types'
 import CrestShield from '../../components/CrestShield.vue'
+import D20Badge from '../../components/D20Badge.vue'
 import FormError from '../../components/FormError.vue'
-import { synergyInfo } from '../../heroes'
+import { critLabel, synergyInfo } from '../../heroes'
+import { battleRecap } from '../../recap'
 import { useLeague } from '../../league'
 
 const api = useApi()
@@ -41,6 +43,8 @@ const featured = computed(() => {
   const share = us.total + opponentTotal > 0 ? Math.round((us.total / (us.total + opponentTotal)) * 100) : 50
   return { us, them, opponentName, opponentTotal, verdict, share }
 })
+
+const recap = computed(() => (featured.value ? battleRecap({ week, ...featured.value }) : []))
 
 /** Heroes that dealt damage for a side: starters and swapped-in bench heroes, best first. */
 function fighters(side: ResultSide) {
@@ -98,6 +102,10 @@ const others = computed(() => (result.value?.matchups ?? []).filter(m => m.home.
       </div>
     </section>
 
+    <section v-if="recap.length" class="recap" aria-label="Battle recap">
+      <p v-for="line in recap" :key="line">{{ line }}</p>
+    </section>
+
     <ul v-if="featured.us.synergies.length" class="synergies" aria-label="Synergies">
       <li v-for="synergy in featured.us.synergies" :key="synergy" class="synergy" :title="synergyInfo(synergy).description">
         {{ synergyInfo(synergy).label }}
@@ -114,8 +122,13 @@ const others = computed(() => (result.value?.matchups ?? []).filter(m => m.home.
           <span v-if="hero.heroId === featured.us.champion" class="champion-tag" aria-label="Champion">♛ </span>{{ hero.name
           }}<span v-if="hero.swappedInto" class="swap-tag"> ↺ swapped in</span>
         </RouterLink>
-        <span class="muted small">{{ hero.heroClass }}{{ hero.swappedInto ? ' · from the bench' : '' }}</span>
-        <span class="damage" :class="{ top: index === 0 }">{{ hero.damage }}</span>
+        <span class="muted small">
+          {{ hero.heroClass }}{{ hero.swappedInto ? ' · from the bench' : '' }}<span v-if="hero.crit" class="crit-name" :class="hero.crit">
+            · {{ critLabel(hero.crit, hero.heroClass) }}</span>
+        </span>
+        <span class="damage" :class="{ top: index === 0 }">
+          <D20Badge v-if="hero.crit" :crit="hero.crit" />{{ hero.damage }}
+        </span>
       </li>
     </ul>
     <p v-for="text in swapNotes(featured.us)" :key="text" class="note swap-note">{{ text }}</p>
@@ -124,8 +137,9 @@ const others = computed(() => (result.value?.matchups ?? []).filter(m => m.home.
     <template v-if="featured.them">
       <h2 class="section-title opponent-title">{{ featured.them.name }}</h2>
       <div class="opponent-grid">
-        <div v-for="hero in fighters(featured.them)" :key="hero.heroId" class="opponent-hero">
+        <div v-for="hero in fighters(featured.them)" :key="hero.heroId" class="opponent-hero" :class="hero.crit">
           <span class="opponent-damage">{{ hero.damage }}</span>
+          <D20Badge v-if="hero.crit" :crit="hero.crit" :size="20" class="opponent-crit" />
           <span class="muted tiny">{{ hero.heroClass }}</span>
         </div>
       </div>
@@ -286,6 +300,44 @@ const others = computed(() => (result.value?.matchups ?? []).filter(m => m.home.
 }
 .damage.top {
   color: var(--gold);
+}
+.recap {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--gold);
+  background: var(--surface-sunken);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-style: italic;
+}
+.recap p {
+  margin: 0;
+  line-height: 1.5;
+}
+.recap p + p {
+  margin-top: 4px;
+}
+.crit-name.success {
+  color: var(--gold-bright);
+}
+.crit-name.fail {
+  color: var(--danger);
+}
+.damage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.opponent-hero {
+  position: relative;
+}
+.opponent-hero.success {
+  outline: 1px solid var(--gold);
+}
+.opponent-hero.fail {
+  outline: 1px solid var(--danger);
+}
+.opponent-crit {
+  align-self: center;
 }
 .swap-note {
   margin-top: 12px;

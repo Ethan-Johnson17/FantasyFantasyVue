@@ -1,4 +1,4 @@
-import type { Hero, HeroClass, HeroTrait, StrategyRules, Synergy } from './api/types'
+import type { Crit, Hero, HeroClass, HeroTrait, StrategyRules, Synergy } from './api/types'
 
 export const HERO_CLASSES: HeroClass[] = ['Mage', 'Warrior', 'Ranger', 'Rogue', 'Paladin']
 
@@ -95,4 +95,20 @@ export function activeSynergies(fighters: readonly Pick<Hero, 'id' | 'traits'>[]
   if (champion?.traits.includes('mighty')) active.push('mightyChampion')
   if (champion?.traits.includes('wild') && has('steadfast', champion.id)) active.push('bulwark')
   return active
+}
+
+/** Each class's name for a natural 20 and a natural 1. Flavor only. */
+export const CRIT_NAMES: Record<HeroClass, Record<Crit, string>> = {
+  Mage: { success: 'Arcane Surge', fail: 'Spell Fizzles' },
+  Warrior: { success: 'Cleave', fail: 'Stumble' },
+  Ranger: { success: 'Bullseye', fail: 'Snapped Bowstring' },
+  Rogue: { success: 'Sneak Attack', fail: 'Caught in the Act' },
+  Paladin: { success: 'Divine Smite', fail: 'Shield Shattered' }
+}
+
+/** "Natural 20 · Cleave" */
+export function critLabel(crit: Crit, heroClass: string): string {
+  const name = (CRIT_NAMES as Record<string, Record<Crit, string> | undefined>)[heroClass]?.[crit]
+  const roll = crit === 'success' ? 'Natural 20' : 'Natural 1'
+  return name ? `${roll} · ${name}` : roll
 }

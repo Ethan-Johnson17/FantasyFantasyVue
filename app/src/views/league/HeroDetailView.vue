@@ -5,7 +5,7 @@ import { useApi } from '../../api/inject'
 import type { HeroDetail } from '../../api/types'
 import ClassIcon from '../../components/ClassIcon.vue'
 import FormError from '../../components/FormError.vue'
-import { CLASS_COLOR, CLASS_TEMPERAMENT, isMystery, levelText, TRAITS } from '../../heroes'
+import { CLASS_COLOR, CLASS_TEMPERAMENT, CRIT_NAMES, isMystery, levelText, TRAITS } from '../../heroes'
 import { useLeague } from '../../league'
 import { SEASON_WEEKS } from '../../time'
 
@@ -38,9 +38,13 @@ const bars = computed(() =>
     return { week: index + 1, entry: week ?? null, height: week ? Math.max(4, Math.round((week.damage / maxDamage.value) * 100)) : 0 }
   })
 )
+const critCounts = computed(() => ({
+  success: detail.value?.history.filter(week => week.crit === 'success').length ?? 0,
+  fail: detail.value?.history.filter(week => week.crit === 'fail').length ?? 0
+}))
 const chartLabel = computed(() =>
   (detail.value?.history ?? [])
-    .map(week => `week ${String(week.week)}, ${week.resting ? 'resting' : String(week.damage)}`)
+    .map(week => `week ${String(week.week)}, ${week.resting ? 'resting' : String(week.damage)}${week.crit === 'success' ? ', natural 20' : week.crit === 'fail' ? ', natural 1' : ''}`)
     .join('; ') || 'No battles yet'
 )
 </script>
@@ -91,11 +95,16 @@ const chartLabel = computed(() =>
           v-for="bar in bars"
           :key="bar.week"
           class="bar"
-          :class="{ resting: bar.entry?.resting, empty: !bar.entry, latest: bar.week === latestWeek }"
+          :class="[{ resting: bar.entry?.resting, empty: !bar.entry, latest: bar.week === latestWeek }, bar.entry?.crit ?? '']"
           :style="{ height: bar.entry && !bar.entry.resting ? `${bar.height}%` : undefined }"
         ></div>
       </div>
       <div class="axis muted small"><span>Week 1</span><span>Week {{ SEASON_WEEKS }}</span></div>
+      <p v-if="critCounts.success || critCounts.fail" class="crit-summary muted small">
+        <span v-if="critCounts.success" class="crit-success">{{ critCounts.success }} × natural 20 ({{ CRIT_NAMES[hero.heroClass].success }})</span>
+        <span v-if="critCounts.success && critCounts.fail"> · </span>
+        <span v-if="critCounts.fail" class="crit-fail">{{ critCounts.fail }} × natural 1 ({{ CRIT_NAMES[hero.heroClass].fail }})</span>
+      </p>
     </section>
   </template>
 </template>
@@ -203,6 +212,22 @@ const chartLabel = computed(() =>
 }
 .bar.latest:not(.resting) {
   background: var(--gold);
+}
+.bar.success {
+  background: var(--gold-bright);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 70%, transparent);
+}
+.bar.fail {
+  background: var(--danger);
+}
+.crit-summary {
+  margin: 6px 0 0;
+}
+.crit-success {
+  color: var(--gold-bright);
+}
+.crit-fail {
+  color: var(--danger);
 }
 .bar.resting {
   height: 8px;

@@ -88,6 +88,8 @@ export interface CreateLeagueInput {
 export type HeroClass = 'Mage' | 'Warrior' | 'Ranger' | 'Rogue' | 'Paladin'
 export type HeroTrait = 'steadfast' | 'wild' | 'mighty'
 export type Synergy = 'orderAndChaos' | 'mightyChampion' | 'bulwark'
+/** A natural 20 (top 5% week for the class) or natural 1 (bottom 5%) */
+export type Crit = 'success' | 'fail'
 
 export interface Hero {
   id: string
@@ -175,6 +177,8 @@ export type Award =
   | { kind: 'greatestStrike'; hero: AwardHero; party: AwardParty; week: number; damage: number }
   | { kind: 'closestBattle'; winner: AwardParty; loser: AwardParty; week: number; margin: number }
   | { kind: 'unbreakable'; party: AwardParty; damageFaced: number }
+  | { kind: 'natural20'; party: AwardParty; count: number }
+  | { kind: 'cursedDice'; party: AwardParty; count: number }
 
 /** After the season (GET /api/leagues/:id/finale). */
 export interface Finale {
@@ -220,6 +224,7 @@ export interface ResultHero {
   damage: number
   resting: boolean
   swappedInto: string | null
+  crit: Crit | null
 }
 
 export interface ResultSide extends PartyRef {
@@ -244,5 +249,5 @@ export interface Standing extends PartyRef {
 
 export interface HeroDetail {
   hero: Hero
-  history: { week: number; slot: string; damage: number; resting: boolean; swappedInto: string | null }[]
+  history: { week: number; slot: string; damage: number; resting: boolean; swappedInto: string | null; crit: Crit | null }[]
 }

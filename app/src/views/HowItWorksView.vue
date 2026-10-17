@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useApi } from '../api/inject'
 import type { GameRules, HeroTrait } from '../api/types'
 import ClassIcon from '../components/ClassIcon.vue'
-import { CLASS_COLOR, CLASS_TEMPERAMENT, HERO_CLASSES, SYNERGY_ORDER, synergyInfo, TRAITS } from '../heroes'
+import { CLASS_COLOR, CLASS_TEMPERAMENT, CRIT_NAMES, HERO_CLASSES, SYNERGY_ORDER, synergyInfo, TRAITS } from '../heroes'
 
 /*
  * How the game works, readable before signing in. This is the one screen that explains the real
@@ -64,6 +64,7 @@ function back() {
       <a href="#synergies">Synergies</a>
       <a href="#draft">The draft</a>
       <a href="#battles">Battles</a>
+      <a href="#crits">Natural 20s</a>
       <a href="#season">The season</a>
     </nav>
 
@@ -164,6 +165,20 @@ function back() {
         <li>The side with more damage wins. Ties go to the side whose best hero dealt more, then to the stronger bench.</li>
         <li>With an odd number of parties, one party each week battles a dungeon monster as strong as the league's average party.</li>
       </ul>
+    </section>
+
+    <section id="crits" class="section">
+      <h2 class="section-title">Natural 20s and natural 1s</h2>
+      <p>
+        A d20 lands on 20 one time in 20. When a hero has a battle in the top 5% for their class, they rolled a natural 20;
+        a battle in the bottom 5% is a natural 1. Crits are for glory only: they never change damage or who wins.
+      </p>
+      <dl class="terms">
+        <template v-for="heroClass in HERO_CLASSES" :key="heroClass">
+          <dt :style="{ color: CLASS_COLOR[heroClass] }">{{ heroClass }}</dt>
+          <dd>{{ CRIT_NAMES[heroClass].success }} · {{ CRIT_NAMES[heroClass].fail }}</dd>
+        </template>
+      </dl>
     </section>
 
     <section id="season" class="section">
