@@ -3,6 +3,7 @@ import { isDuplicateKeyError } from '../../db/mongoose.js'
 import { Conflict, NotFound } from '../../lib/errors.js'
 import { AccountModel, type AccountDocument } from '../accounts/account.model.js'
 import { advanceLeague } from '../season/advance.js'
+import { partyOutlook, type PartyOutlook } from '../season/outlook.service.js'
 import { computeStandings } from '../season/season.service.js'
 import { inTransaction, loadLeagueAsHost } from './league.access.js'
 import { LeagueModel, type LeagueDocument, type LeagueStatus } from './league.model.js'
@@ -78,6 +79,8 @@ export interface MyLeagueView extends LeagueSummaryView {
   myParty: { id: string; name: string; crest: Crest }
   /** My party's place once games have been played */
   standing: { rank: number; wins: number; losses: number; draws: number } | null
+  /** Next battle, last result, and anything to fix before the lineup locks */
+  outlook: PartyOutlook
 }
 
 // ---------------------------------------------------------------------------
@@ -120,7 +123,8 @@ export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueVi
       return {
         ...toSummary(league, viewer, profiles, true),
         myParty: { id: party.id, name: party.name, crest: crestOf(party) },
-        standing: league.resolvedWeeks > 0 ? await standingOf(league, party.id) : null
+        standing: league.resolvedWeeks > 0 ? await standingOf(league, party.id) : null,
+        outlook: await partyOutlook(league, party)
       }
     })
   )
