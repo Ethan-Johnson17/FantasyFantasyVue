@@ -40,6 +40,16 @@ Also required:
 | `npm test` | Component and unit tests (jsdom) |
 | `npm run lint` / `npm run typecheck` | ESLint and `vue-tsc` |
 | `npm run build` | Type-check and build to `dist/` |
+| `npx vite preview` | Serve the production build (port 4173), e.g. to check installing |
+| `node scripts/make-icons.mjs` | Redraw the app icons in `public/icons/` (no dependencies) |
+
+## Installing on phones
+
+The app is an installable web app: `public/manifest.webmanifest`, the icons in `public/icons/`, and a small service
+worker, `public/sw.js`. The worker is registered in production builds only. Page loads go to the network first (the
+last good page opens offline); built assets are cached; the API and sign-in are never touched. Bump `VERSION` in
+`sw.js` to drop old caches. Chrome and Edge show our **Install** button (`src/install.ts`); iPhone and iPad get
+"Share, then Add to Home Screen" steps. Service workers need HTTPS in production (localhost is exempt).
 
 ## Conventions
 

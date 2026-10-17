@@ -5,6 +5,7 @@ import { ApiError } from '../api/client'
 import { useApi } from '../api/inject'
 import type { MyLeague } from '../api/types'
 import CrestShield from '../components/CrestShield.vue'
+import InstallCard from '../components/InstallCard.vue'
 import NamePrompt from '../components/NamePrompt.vue'
 import { pickSpotlight } from '../spotlight'
 import { useSessionStore } from '../stores/session'
@@ -239,6 +240,7 @@ function signOut() {
       <RouterLink to="/join" class="btn btn-secondary">Join with PIN</RouterLink>
       <RouterLink to="/leagues/find" class="btn btn-secondary find">Find a public league</RouterLink>
     </div>
+    <InstallCard />
     <RouterLink to="/how-it-works" class="how-link">How it works</RouterLink>
   </main>
 </template>

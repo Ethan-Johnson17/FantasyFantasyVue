@@ -63,5 +63,10 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
   callback, logout and web-origin lists, and to the API's `CORS_ORIGINS`.
 - **Production database:** a separate Atlas project and free cluster, so development data never mixes with real
   players' data.
-- **App stores (when shipping mobile):** Apple Developer Program ($99/year) and Google Play ($25 one-time).
+- **App stores (when shipping mobile):** Apple Developer Program ($99/year) and Google Play ($25 one-time). Until
+  then the web app installs to the home screen for free (see app/README.md, "Installing on phones").
+- **HTTPS:** service workers, and so installing, need the hosted app on HTTPS.
+- **Installed-app sign-in check:** on a real iPhone and Android phone, sign in from the installed app and confirm the
+  Auth0 redirect returns to the app (iOS keeps installed-app storage separate from Safari, so players sign in once
+  more after installing).
 
