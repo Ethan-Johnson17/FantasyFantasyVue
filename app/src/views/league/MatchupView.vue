@@ -2,16 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useApi } from '../../api/inject'
-import type { Matchup, WeekResult } from '../../api/types'
+import type { Matchup, ScheduleWeek, WeekResult } from '../../api/types'
 import FormError from '../../components/FormError.vue'
 import MatchupPreview from '../../components/matchup/MatchupPreview.vue'
 import MatchupResult from '../../components/matchup/MatchupResult.vue'
 import { useLeague } from '../../league'
+import { mySeason, type MyWeek } from '../../mySeason'
 import { SEASON_WEEKS } from '../../time'
 
 /*
  * My matchup for any week of the season: the result once it's played, a preview before that.
- * Opens on the current week; the switcher steps through the season.
+ * Opens on the current week. The week strip doubles as my season at a glance (wins, losses, and
+ * monster weeks), replacing a separate schedule screen.
  */
 
 const api = useApi()
@@ -51,6 +53,31 @@ async function load() {
 }
 watch([week, () => league.value?.resolvedWeeks], load, { immediate: true })
 
+const schedule = ref<ScheduleWeek[]>([])
+watch(
+  () => league.value?.resolvedWeeks,
+  async () => {
+    const id = league.value?.id
+    if (!id || !scheduled.value) return
+    try {
+      schedule.value = await api.getSchedule(id)
+    } catch (caught) {
+      error.value = caught
+    }
+  },
+  { immediate: true }
+)
+const season = computed(() => mySeason(schedule.value, myParty.value?.id))
+
+const OUTCOME_MARK = { win: 'W', loss: 'L', draw: 'D' } as const
+function chipLabel(entry: MyWeek): string {
+  const versus = entry.opponent ? ` vs ${entry.opponent}` : ''
+  if (entry.outcome && entry.myTotal !== null && entry.theirTotal !== null) {
+    return `Week ${String(entry.week)}: ${entry.outcome}${versus}, ${String(Math.round(entry.myTotal))} to ${String(Math.round(entry.theirTotal))}`
+  }
+  return `Week ${String(entry.week)}${versus}${entry.week === currentWeek.value ? ', next battle' : ''}`
+}
+
 const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/matchup/${String(target)}`
 </script>
 
@@ -73,7 +100,20 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/matchup/$
       <RouterLink v-if="week < SEASON_WEEKS" :to="linkTo(week + 1)" class="step" :aria-label="`Week ${week + 1}`">›</RouterLink>
       <span v-else class="step disabled" aria-hidden="true">›</span>
     </nav>
-    <RouterLink v-if="week !== currentWeek" :to="linkTo(currentWeek)" class="jump small">Back to {{ league?.status === 'complete' ? 'the final week' : 'the next battle' }} ›</RouterLink>
+    <ol v-if="season.length" class="strip" aria-label="Season">
+      <li v-for="entry in season" :key="entry.week">
+        <RouterLink
+          :to="linkTo(entry.week)"
+          class="chip"
+          :class="[entry.outcome ?? '', { selected: entry.week === week, next: !entry.played && entry.week === currentWeek, monster: entry.monster }]"
+          :aria-label="chipLabel(entry)"
+          :aria-current="entry.week === week ? 'page' : undefined"
+        >
+          <span class="chip-week">{{ entry.week }}</span>
+          <span class="chip-mark" aria-hidden="true">{{ entry.outcome ? OUTCOME_MARK[entry.outcome] : entry.monster ? '☠' : entry.week === currentWeek ? '•' : '' }}</span>
+        </RouterLink>
+      </li>
+    </ol>
 
     <FormError :error="error" />
     <p v-if="loading" class="muted" aria-busy="true">Loading…</p>
@@ -127,9 +167,56 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/matchup/$
 .week-state.next {
   color: var(--gold);
 }
-.jump {
-  display: block;
-  margin: -4px 0 10px;
-  text-align: center;
+/* 14 weeks as two rows of seven, so every chip stays a full tap target on a phone. */
+.strip {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+.chip {
+  min-height: var(--tap);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  text-decoration: none;
+  line-height: 1.1;
+}
+.chip-week {
+  font-size: 14px;
+  font-weight: 700;
+}
+.chip-mark {
+  min-height: 14px;
+  font-size: 12px;
+}
+.chip.win {
+  color: var(--gold);
+  border-color: color-mix(in srgb, var(--gold) 45%, var(--line));
+}
+.chip.loss {
+  color: var(--danger);
+}
+.chip.draw {
+  color: var(--text);
+}
+.chip.next {
+  color: var(--gold);
+  border-style: dashed;
+  border-color: var(--gold);
+}
+.chip.selected {
+  background: var(--surface-raised);
+  border-color: var(--gold);
+  border-style: solid;
+  box-shadow: 0 0 0 1px var(--gold) inset;
+  color: var(--text);
 }
 </style>

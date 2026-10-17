@@ -17,7 +17,8 @@ export const routes: RouteRecordRaw[] = [
     children: [
       { path: '', name: 'league', component: () => import('./views/league/LeagueHomeView.vue') },
       { path: 'party', name: 'party', component: () => import('./views/league/PartyView.vue') },
-      { path: 'battles', name: 'battles', component: () => import('./views/league/BattlesView.vue') },
+      // The season schedule now lives in the Matchup week strip.
+      { path: 'battles', redirect: to => `/leagues/${String(to.params.id)}/matchup` },
       { path: 'matchup/:week?', name: 'matchup', component: () => import('./views/league/MatchupView.vue') },
       // Older links: results and the preview now live on the matchup screen.
       { path: 'battles/upcoming', redirect: to => `/leagues/${String(to.params.id)}/matchup` },

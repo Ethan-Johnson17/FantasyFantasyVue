@@ -148,7 +148,7 @@ function describe(award: Award): { icon: string; title: string; subject: string;
     </table>
 
     <nav class="links">
-      <RouterLink :to="`/leagues/${league?.id}/battles`">Every battle ›</RouterLink>
+      <RouterLink :to="`/leagues/${league?.id}/matchup`">Every battle ›</RouterLink>
       <RouterLink v-if="league?.draft" :to="`/leagues/${league.id}/draft`">The draft ›</RouterLink>
     </nav>
   </template>
