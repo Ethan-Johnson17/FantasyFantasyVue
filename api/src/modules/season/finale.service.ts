@@ -1,6 +1,8 @@
 import { Conflict } from '../../lib/errors.js'
 import type { AccountDocument } from '../accounts/account.model.js'
 import { HeroModel } from '../heroes/hero.model.js'
+import { getRuleset } from '../scoring/rulesets.js'
+import { critOf } from './crits.js'
 import { loadVisibleLeague } from '../leagues/league.access.js'
 import { PartyModel } from '../leagues/party.model.js'
 import { computeStandings, type StandingView } from './season.service.js'
@@ -30,6 +32,10 @@ export type Award =
   | { kind: 'closestBattle'; winner: PartyRef; loser: PartyRef; week: number; margin: number }
   /** The least damage faced over the season */
   | { kind: 'unbreakable'; party: PartyRef; damageFaced: number }
+  /** The most natural 20s (critical successes) */
+  | { kind: 'natural20'; party: PartyRef; count: number }
+  /** The most natural 1s (critical fails) */
+  | { kind: 'cursedDice'; party: PartyRef; count: number }
 
 export interface FinaleView {
   champion: StandingView
@@ -63,6 +69,8 @@ export async function getFinale(viewer: AccountDocument, leagueId: string): Prom
   // Hero -> party -> damage, so a hero who changed parties is credited to the one they fought for most.
   const heroDamage = new Map<string, Map<string, number>>()
   const faced = new Map<string, number>()
+  const ruleset = getRuleset(league.rulesetVersion)
+  const crits = { success: new Map<string, number>(), fail: new Map<string, number>() }
 
   for (const result of results) {
     for (const matchup of result.matchups) {
@@ -72,8 +80,10 @@ export async function getFinale(viewer: AccountDocument, leagueId: string): Prom
         const against = index === 0 ? (matchup.away?.total ?? matchup.monster?.total ?? 0) : matchup.home.total
         faced.set(side.partyId.toString(), (faced.get(side.partyId.toString()) ?? 0) + against)
         for (const line of side.heroes) {
-          if (line.counted <= 0) continue
           const id = line.heroId.toString()
+          const crit = critOf(line, heroById.get(id)?.heroClass ?? 'Mage', ruleset)
+          if (crit) crits[crit].set(side.partyId.toString(), (crits[crit].get(side.partyId.toString()) ?? 0) + 1)
+          if (line.counted <= 0) continue
           const byParty = heroDamage.get(id) ?? new Map<string, number>()
           byParty.set(side.partyId.toString(), (byParty.get(side.partyId.toString()) ?? 0) + line.counted)
           heroDamage.set(id, byParty)
@@ -100,6 +110,14 @@ export async function getFinale(viewer: AccountDocument, leagueId: string): Prom
     if (mainParty) hero = { kind: 'heroOfTheSeason', hero: heroRef(id), party: ref(mainParty), damage: total }
   }
   const [wall] = [...faced].sort((a, b) => a[1] - b[1])
+  /** The party with the most of one crit; ties go to the higher-placed party. */
+  const mostCrits = (counts: ReadonlyMap<string, number>) =>
+    standings.reduce<{ partyId: string; count: number } | null>((best, row) => {
+      const count = counts.get(row.partyId) ?? 0
+      return count > (best?.count ?? 0) ? { partyId: row.partyId, count } : best
+    }, null)
+  const luckiest = mostCrits(crits.success)
+  const cursed = mostCrits(crits.fail)
 
   // Hidden-player rule: hero damage is shown rounded; party totals are exact, as in results.
   const awards: Award[] = [
@@ -107,7 +125,9 @@ export async function getFinale(viewer: AccountDocument, leagueId: string): Prom
     ...(hero ? [{ ...hero, damage: Math.round(hero.damage) }] : []),
     ...(strike ? [{ ...strike, damage: Math.round(strike.damage) }] : []),
     ...(closest ? [{ ...closest, margin: Math.round(closest.margin * 100) / 100 }] : []),
-    ...(wall ? [{ kind: 'unbreakable' as const, party: ref(wall[0]), damageFaced: Math.round(wall[1] * 100) / 100 }] : [])
+    ...(wall ? [{ kind: 'unbreakable' as const, party: ref(wall[0]), damageFaced: Math.round(wall[1] * 100) / 100 }] : []),
+    ...(luckiest ? [{ kind: 'natural20' as const, party: ref(luckiest.partyId), count: luckiest.count }] : []),
+    ...(cursed ? [{ kind: 'cursedDice' as const, party: ref(cursed.partyId), count: cursed.count }] : [])
   ]
   const myIndex = mine ? standings.findIndex(row => row.partyId === mine.id) : -1
   return {

@@ -294,6 +294,22 @@ Champion was tested and rejected: plans came out about the same, but parties wit
 - A free agent's hero page shows what they would have dealt each resolved week (rounded, like all hero-weeks), so
   parties can compare them. It reveals nothing more than a drafted hero's page does.
 
+### Natural 20s and natural 1s (decided 2026-10-16)
+
+Flavor only: crits never change damage or outcomes.
+
+- A hero who fought (a starter who wasn't resting, or a hero auto-swapped in) rolls a **natural 20** when their class
+  damage that week (points × class multiplier, before Champion or swap modifiers) is in the top 5% for their class,
+  and a **natural 1** when it is in the bottom 5%. A d20 shows 20 one time in 20, so the odds match.
+- Thresholds (ruleset v1, from the 2012–2025 pools): natural 20 at or above Mage 31, Warrior 39, Ranger 37, Rogue
+  42, Paladin 45; natural 1 at or below Mage 3, Warrior 2, Ranger 2, Rogue 0, Paladin −2. A party has about a 23%
+  chance each week that at least one starter rolls a natural 20, and about the same for a natural 1.
+- Class names: Mage Arcane Surge / Spell Fizzles, Warrior Cleave / Stumble, Ranger Bullseye / Snapped Bowstring,
+  Rogue Sneak Attack / Caught in the Act, Paladin Divine Smite / Shield Shattered.
+- Shown on battle results (with a short recap of the battle), hero pages, and two finale awards: Natural 20 (most
+  natural 20s) and Cursed Dice (most natural 1s); ties go to the higher-placed party.
+- Post-MVP: Inspiration (ROADMAP.md).
+
 ### Trades (post-MVP)
 
 Not in the MVP (decided 2026-10-16); free agency is the only way to change a roster after the draft. The design

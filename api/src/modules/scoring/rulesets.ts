@@ -70,6 +70,14 @@ export interface StrategyRules {
   bulwarkFloor: number
 }
 
+/** Natural 20 / natural 1 thresholds: class damage per week (points x class multiplier). */
+export interface CritRules {
+  /** At or above: a critical success */
+  success: Readonly<Record<HeroClass, number>>
+  /** At or below: a critical fail */
+  fail: Readonly<Record<HeroClass, number>>
+}
+
 export interface Ruleset {
   readonly version: number
   readonly offense: Readonly<OffenseRules>
@@ -77,6 +85,7 @@ export interface Ruleset {
   readonly lineup: Readonly<LineupRules>
   readonly pool: Readonly<PoolRules>
   readonly strategy: Readonly<StrategyRules>
+  readonly crits: Readonly<CritRules>
 }
 
 export const RULESET_V1: Ruleset = {
@@ -132,7 +141,12 @@ export const RULESET_V1: Ruleset = {
   },
   // Calibrated on 2012-2025 (decided 2026-10-15): each trait plan beats Level-only drafting by
   // 3-6 points of win rate, combining them reaches ~57%, and no plan runs away.
-  strategy: { championMultiplier: 1.25, mightyChampionMultiplier: 1.5, orderAndChaosBonus: 0.05, bulwarkFloor: 15 }
+  strategy: { championMultiplier: 1.25, mightyChampionMultiplier: 1.5, orderAndChaosBonus: 0.05, bulwarkFloor: 15 },
+  // The top and bottom 5% of each class's hero-weeks in the 2012-2025 pools (decided 2026-10-16)
+  crits: {
+    success: { Mage: 31, Warrior: 39, Ranger: 37, Rogue: 42, Paladin: 45 },
+    fail: { Mage: 3, Warrior: 2, Ranger: 2, Rogue: 0, Paladin: -2 }
+  }
 }
 
 const RULESETS = new Map<number, Ruleset>([[RULESET_V1.version, RULESET_V1]])

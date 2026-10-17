@@ -47,7 +47,8 @@ describe('GET /api/leagues/:id/finale', () => {
     const id = await finishedLeague()
     const finale = (await alice.get(`/api/leagues/${id}/finale`)).body as Finale
     const award = (kind: string) => finale.awards.find(a => a.kind === kind)!
-    expect(finale.awards.map(a => a.kind)).toEqual(['mightiestBlow', 'heroOfTheSeason', 'greatestStrike', 'closestBattle', 'unbreakable'])
+    // Crit awards follow when anyone rolled one (covered in crits.test.ts).
+    expect(finale.awards.map(a => a.kind).slice(0, 5)).toEqual(['mightiestBlow', 'heroOfTheSeason', 'greatestStrike', 'closestBattle', 'unbreakable'])
 
     const results = await WeekResultModel.find({ leagueId: id }).lean()
     const sides = results.flatMap(r => r.matchups.flatMap(m => (m.away ? [m.home, m.away] : [m.home])))

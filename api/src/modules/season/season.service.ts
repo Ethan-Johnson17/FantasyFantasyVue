@@ -17,6 +17,7 @@ import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models
 import { decideBattle, decideMonsterBattle, monsterDamage, scoreParty, type Outcome } from './battle.js'
 import { monsterName } from './monsters.js'
 import { SEASON_WEEKS } from './schedule.js'
+import { critOf, type Crit } from './crits.js'
 import { applyStrategy, type Synergy } from './strategy.js'
 import { WeekResultModel } from './weekResult.model.js'
 
@@ -332,6 +333,8 @@ interface SideView extends PartyRef {
     resting: boolean
     /** The slot a bench hero was auto-swapped into (scoring at a penalty), if any */
     swappedInto: string | null
+    /** A natural 20 or natural 1 that week, for heroes who fought */
+    crit: Crit | null
   }[]
 }
 
@@ -346,7 +349,8 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
   if (!result) throw new NotFound('That week has not been played yet')
   const [refs, heroes] = await Promise.all([partyRefs(league), HeroModel.find({ leagueId: league._id }, 'name heroClass')])
   const heroById = new Map(heroes.map(hero => [hero.id, hero]))
-  const multipliers = getRuleset(league.rulesetVersion).lineup.classMultipliers
+  const ruleset = getRuleset(league.rulesetVersion)
+  const multipliers = ruleset.lineup.classMultipliers
 
   const side = (stored: (typeof result.matchups)[number]['home']): SideView => ({
     ...(refs.get(stored.partyId.toString()) ?? { partyId: stored.partyId.toString(), name: 'Unknown', crest: DEFAULT_CREST }),
@@ -360,7 +364,8 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
       slot: line.slot,
       damage: displayedDamage(line, heroById.get(line.heroId.toString())?.heroClass ?? 'Mage', multipliers),
       resting: line.resting,
-      swappedInto: line.swappedInto ?? null
+      swappedInto: line.swappedInto ?? null,
+      crit: critOf(line, heroById.get(line.heroId.toString())?.heroClass ?? 'Mage', ruleset)
     }))
   })
 
@@ -428,7 +433,7 @@ function displayedDamage(line: StoredHeroLine, heroClass: HeroClass, multipliers
 
 export interface HeroDetailView {
   hero: HeroView
-  history: { week: number; slot: string; damage: number; resting: boolean; swappedInto: string | null }[]
+  history: { week: number; slot: string; damage: number; resting: boolean; swappedInto: string | null; crit: Crit | null }[]
 }
 
 /**
@@ -439,7 +444,8 @@ export async function getHeroDetail(viewer: AccountDocument, leagueId: string, h
   const league = await loadVisibleLeague(viewer, leagueId)
   const hero = await HeroModel.findOne({ _id: heroId, leagueId: league._id }).select('+source')
   if (!hero) throw new NotFound()
-  const multipliers = getRuleset(league.rulesetVersion).lineup.classMultipliers
+  const ruleset = getRuleset(league.rulesetVersion)
+  const multipliers = ruleset.lineup.classMultipliers
   const results = await WeekResultModel.find({ leagueId: league._id }).sort({ week: 1 })
   const history = results.flatMap(result => {
     const line = result.matchups
@@ -453,7 +459,8 @@ export async function getHeroDetail(viewer: AccountDocument, leagueId: string, h
         slot: line.slot,
         damage: displayedDamage(line, hero.heroClass, multipliers),
         resting: line.resting,
-        swappedInto: line.swappedInto ?? null
+        swappedInto: line.swappedInto ?? null,
+        crit: critOf(line, hero.heroClass, ruleset)
       }
     ]
   })
@@ -480,7 +487,9 @@ async function freeAgentWeeks(league: LeagueDocument, hero: HeroDocument, weeks:
       slot: 'Free agent',
       damage: points === undefined ? 0 : Math.round(points * ruleset.lineup.classMultipliers[hero.heroClass]),
       resting: points === undefined,
-      swappedInto: null
+      swappedInto: null,
+      // Free agents didn't fight, so they can't crit.
+      crit: null
     }
   })
 }

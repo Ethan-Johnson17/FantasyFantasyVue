@@ -45,6 +45,8 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
 - Kicker class
 - "How it works" page explaining Levels, classes, and that hero strength follows a real season (main screens stay pure fantasy, with no mention of real players or the NFL)
 - Mascot crest emblems (dragon, wolf, owl, etc.) as a second emblem set, alongside the 8 heraldic ones
+- Inspiration: a natural 1 earns the party an Inspiration token to spend on a later battle for a small Champion
+  boost (a comeback mechanic; needs a balancing simulation). Builds on natural 20s and natural 1s.
 - Trades between parties: accepted trades happen immediately; no trades after week 10 (cut from the MVP on 2026-10-16)
 
 ## Future ideas

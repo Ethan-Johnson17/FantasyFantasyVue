@@ -222,7 +222,7 @@ describe('Battle result', () => {
       week: 3,
       matchups: [
         {
-          home: { partyId: 'b', name: 'Ember Wolves', crest, total: 98, champion: null, synergies: [], heroes: [{ heroId: 'x', name: 'Wolf', heroClass: 'Warrior', slot: 'slot1', damage: 98, resting: false, swappedInto: null }] },
+          home: { partyId: 'b', name: 'Ember Wolves', crest, total: 98, champion: null, synergies: [], heroes: [{ heroId: 'x', name: 'Wolf', heroClass: 'Warrior', slot: 'slot1', damage: 98, resting: false, swappedInto: null, crit: null }] },
           away: {
             partyId: 'a',
             name: 'Dragon Slayers',
@@ -231,9 +231,9 @@ describe('Battle result', () => {
             champion: 'h1',
             synergies: ['mightyChampion'],
             heroes: [
-              { heroId: 'h1', name: 'Kael', heroClass: 'Rogue', slot: 'slot1', damage: 103, resting: false, swappedInto: null },
-              { heroId: 'h2', name: 'Lyra', heroClass: 'Ranger', slot: 'slot2', damage: 0, resting: true, swappedInto: null },
-              { heroId: 'h3', name: 'Freya', heroClass: 'Warrior', slot: 'Bench', damage: 9, resting: false, swappedInto: 'slot2' }
+              { heroId: 'h1', name: 'Kael', heroClass: 'Rogue', slot: 'slot1', damage: 103, resting: false, swappedInto: null, crit: null },
+              { heroId: 'h2', name: 'Lyra', heroClass: 'Ranger', slot: 'slot2', damage: 0, resting: true, swappedInto: null, crit: null },
+              { heroId: 'h3', name: 'Freya', heroClass: 'Warrior', slot: 'Bench', damage: 9, resting: false, swappedInto: 'slot2', crit: null }
             ]
           },
           monster: null,
@@ -260,7 +260,7 @@ describe('Battle result', () => {
       total: 50,
       champion,
       synergies: [],
-      heroes: [{ heroId: 'h2', name: 'Lyra', heroClass: 'Ranger' as const, slot: 'slot1', damage: 0, resting: true, swappedInto: null }]
+      heroes: [{ heroId: 'h2', name: 'Lyra', heroClass: 'Ranger' as const, slot: 'slot1', damage: 0, resting: true, swappedInto: null, crit: null }]
     })
     const result = (champion: string | null): WeekResult => ({
       week: 2,
