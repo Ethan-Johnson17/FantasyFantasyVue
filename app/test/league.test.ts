@@ -5,11 +5,12 @@ import type { Component } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { ApiError, type ApiClient } from '../src/api/client'
 import { apiKey } from '../src/api/inject'
-import type { Hero, LeagueDetail, Lineup, Matchup, MatchupSide, Party, WeekResult } from '../src/api/types'
+import type { Finale, Hero, LeagueDetail, Lineup, Matchup, MatchupSide, Party, Standing, WeekResult } from '../src/api/types'
 import { provideLeagueForTest } from '../src/league'
 import BattleResultView from '../src/views/league/BattleResultView.vue'
 import BattlesView from '../src/views/league/BattlesView.vue'
 import DraftRecapView from '../src/views/league/DraftRecapView.vue'
+import FinaleView from '../src/views/league/FinaleView.vue'
 import HeroDetailView from '../src/views/league/HeroDetailView.vue'
 import HeroesView from '../src/views/league/HeroesView.vue'
 import LeagueHomeView from '../src/views/league/LeagueHomeView.vue'
@@ -446,6 +447,48 @@ describe('Matchup', () => {
 })
 
 type ScheduleResult = { homeTotal: number; awayTotal: number; outcome: 'home' | 'away' | 'draw'; monster: string | null }
+
+describe('Season finale', () => {
+  const row = (partyId: string, name: string, wins: number, losses: number): Standing => ({ partyId, name, crest, wins, losses, draws: 0, totalDamage: 1500.6 - losses })
+  const finale = (myRank: number): Finale => {
+    const standings = [row('b', 'Ember Wolves', 10, 4), row('a', 'Dragon Slayers', 9, 5), row('c', 'Moon Elves', 5, 9), row('d', 'Last Stand', 4, 10)]
+    return {
+      champion: standings[0]!,
+      standings,
+      myFinish: { partyId: standings[myRank - 1]!.partyId, rank: myRank },
+      awards: [
+        { kind: 'mightiestBlow', party: standings[0]!, week: 6, total: 154.2 },
+        { kind: 'heroOfTheSeason', hero: { heroId: 'h1', name: 'Kael', heroClass: 'Rogue' }, party: standings[1]!, damage: 312 },
+        { kind: 'greatestStrike', hero: { heroId: 'h2', name: 'Lyra', heroClass: 'Ranger' }, party: standings[2]!, week: 9, damage: 48 },
+        { kind: 'closestBattle', winner: standings[1]!, loser: standings[0]!, week: 3, margin: 0.4 },
+        { kind: 'unbreakable', party: standings[3]!, damageFaced: 1104 }
+      ]
+    }
+  }
+
+  it('crowns the champion, shows my finish, the podium, and every award', async () => {
+    const api = fakeApi({ getFinale: vi.fn().mockResolvedValue(finale(2)) })
+    const { wrapper } = await mountLeague(FinaleView, api, detail({ status: 'complete', name: 'Johnson League' }))
+    expect(api.getFinale).toHaveBeenCalledWith('l1')
+    expect(wrapper.find('.champion-name').text()).toBe('Ember Wolves')
+    expect(wrapper.find('.champion-line').text()).toBe('Champions of Johnson League · 10–4')
+    expect(wrapper.find('.my-line').text()).toBe('You finished 2nd of 4 · 9–5')
+    expect(wrapper.findAll('.podium .step-name').map(n => n.text())).toEqual(['Dragon Slayers', 'Ember Wolves', 'Moon Elves'])
+    const awards = wrapper.findAll('.award').map(a => a.text())
+    expect(awards).toHaveLength(5)
+    expect(awards[0]).toMatch(/Mightiest Blow\s*Ember Wolves\s*Dealt 154 in week 6/)
+    expect(awards[1]).toMatch(/Hero of the Season\s*Kael\s*Rogue · 312 damage for Dragon Slayers/)
+    expect(awards[3]).toMatch(/Dragon Slayers over Ember Wolves\s*Won by 0.40 in week 3/)
+    expect(wrapper.find('tr.mine').text()).toContain('Dragon Slayers')
+  })
+
+  it('celebrates when my party won', async () => {
+    const api = fakeApi({ getFinale: vi.fn().mockResolvedValue(finale(1)) })
+    const { wrapper } = await mountLeague(FinaleView, api, detail({ status: 'complete' }))
+    expect(wrapper.find('.my-line').text()).toBe('Your party are the champions!')
+    expect(wrapper.find('.my-line').classes()).toContain('won')
+  })
+})
 
 describe('Draft recap', () => {
   it("lists my picks and tags the ones the draft made for me", async () => {

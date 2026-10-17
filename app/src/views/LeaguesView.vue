@@ -34,6 +34,7 @@ const ordinal = (n: number) => {
   return `${String(n)}${suffix}`
 }
 const OUTCOME = { win: 'Victory', loss: 'Defeat', draw: 'Draw' } as const
+const SPOTLIGHT_TITLE = { battle: 'Up next', draft: 'Draft day', gather: 'Gather your party', finale: 'Season complete' } as const
 const plural = (n: number, word: string) => `${String(n)} ${word}${n === 1 ? '' : 's'}`
 
 /** The one thing worth doing next in an active league. */
@@ -51,6 +52,7 @@ function cardLink(league: MyLeague): string {
   const battle = league.status === 'active' ? league.outlook.nextBattle : null
   if (battle && (battle.noChampion || battle.restingStarters)) return `${base}/party`
   if (league.status === 'drafting') return `${base}/heroes`
+  if (league.status === 'complete') return `${base}/finale`
   return base
 }
 
@@ -72,7 +74,11 @@ function statusLine(league: MyLeague): { label: string; detail: string; callout?
     case 'forming':
       return { label: 'Gathering', detail: `${String(league.partyCount)} of ${String(league.maxParties)} parties` }
     case 'complete':
-      return { label: 'Complete', detail: 'Season finished' }
+      return {
+        label: 'Complete',
+        detail: league.standing ? `Finished ${ordinal(league.standing.rank)}` : 'Season finished',
+        callout: 'See the finale ›'
+      }
     case 'canceled':
       return { label: 'Canceled', detail: 'This league was canceled' }
   }
@@ -105,7 +111,7 @@ function signOut() {
       <!-- Up next: the soonest battle or draft across my leagues -->
       <section v-if="spotlight" class="spotlight" :class="spotlight.kind" aria-labelledby="spotlight-title">
         <div id="spotlight-title" class="spot-eyebrow">
-          {{ spotlight.kind === 'battle' ? 'Up next' : spotlight.kind === 'draft' ? 'Draft day' : 'Gather your party' }} · {{ spotlight.league.name }}
+          {{ SPOTLIGHT_TITLE[spotlight.kind] }} · {{ spotlight.league.name }}
         </div>
 
         <template v-if="spotlight.kind === 'battle'">
@@ -154,6 +160,16 @@ function signOut() {
           </template>
           <div class="spot-actions single">
             <RouterLink :to="`/leagues/${spotlight.league.id}/heroes`" class="btn btn-primary">Rank heroes</RouterLink>
+          </div>
+        </template>
+
+        <template v-else-if="spotlight.kind === 'finale'">
+          <CrestShield :crest="spotlight.league.myParty.crest" :size="56" class="finale-crest" />
+          <div class="countdown big">
+            {{ spotlight.league.standing?.rank === 1 ? 'Champions!' : spotlight.league.standing ? `You finished ${ordinal(spotlight.league.standing.rank)}` : 'The season is over' }}
+          </div>
+          <div class="spot-actions single">
+            <RouterLink :to="`/leagues/${spotlight.league.id}/finale`" class="btn btn-primary">See the finale</RouterLink>
           </div>
         </template>
 
@@ -447,6 +463,9 @@ function signOut() {
   font-weight: 700;
   font-size: 34px;
   letter-spacing: 0.18em;
+}
+.finale-crest {
+  align-self: center;
 }
 .welcome-mark {
   align-self: center;

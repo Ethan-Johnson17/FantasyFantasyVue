@@ -166,6 +166,24 @@ export interface Matchup {
   meetings: { week: number; myTotal: number; theirTotal: number; outcome: 'win' | 'loss' | 'draw' }[]
 }
 
+type AwardParty = PartyRef
+type AwardHero = { heroId: string; name: string; heroClass: string }
+
+export type Award =
+  | { kind: 'mightiestBlow'; party: AwardParty; week: number; total: number }
+  | { kind: 'heroOfTheSeason'; hero: AwardHero; party: AwardParty; damage: number }
+  | { kind: 'greatestStrike'; hero: AwardHero; party: AwardParty; week: number; damage: number }
+  | { kind: 'closestBattle'; winner: AwardParty; loser: AwardParty; week: number; margin: number }
+  | { kind: 'unbreakable'; party: AwardParty; damageFaced: number }
+
+/** After the season (GET /api/leagues/:id/finale). */
+export interface Finale {
+  champion: Standing
+  standings: Standing[]
+  myFinish: { partyId: string; rank: number } | null
+  awards: Award[]
+}
+
 export interface RosterMove {
   kind: 'claim'
   party: { partyId: string; name: string }
