@@ -45,6 +45,7 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
 - Kicker class
 - "How it works" page explaining Levels, classes, and that hero strength follows a real season (main screens stay pure fantasy, with no mention of real players or the NFL)
 - Mascot crest emblems (dragon, wolf, owl, etc.) as a second emblem set, alongside the 8 heraldic ones
+- Trades between parties: accepted trades happen immediately; no trades after week 10 (cut from the MVP on 2026-10-16)
 
 ## Future ideas
 

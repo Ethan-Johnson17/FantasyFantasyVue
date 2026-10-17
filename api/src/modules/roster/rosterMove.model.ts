@@ -2,7 +2,7 @@ import { model, Schema, type InferSchemaType } from 'mongoose'
 
 /*
  * A record of every roster change after the draft, shown to the league as recent moves.
- * Free-agent claims today; trades will add their own kind.
+ * Free-agent claims only in the MVP; post-MVP trades would add their own kind.
  */
 
 export const ROSTER_MOVE_KINDS = ['claim'] as const
