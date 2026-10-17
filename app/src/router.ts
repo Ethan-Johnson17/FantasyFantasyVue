@@ -18,9 +18,10 @@ export const routes: RouteRecordRaw[] = [
       { path: '', name: 'league', component: () => import('./views/league/LeagueHomeView.vue') },
       { path: 'party', name: 'party', component: () => import('./views/league/PartyView.vue') },
       { path: 'battles', name: 'battles', component: () => import('./views/league/BattlesView.vue') },
-      // Static, so it wins over battles/:week
-      { path: 'battles/upcoming', name: 'matchup', component: () => import('./views/league/MatchupView.vue') },
-      { path: 'battles/:week', name: 'battle', component: () => import('./views/league/BattleResultView.vue') },
+      { path: 'matchup/:week?', name: 'matchup', component: () => import('./views/league/MatchupView.vue') },
+      // Older links: results and the preview now live on the matchup screen.
+      { path: 'battles/upcoming', redirect: to => `/leagues/${String(to.params.id)}/matchup` },
+      { path: 'battles/:week', redirect: to => `/leagues/${String(to.params.id)}/matchup/${String(to.params.week)}` },
       { path: 'heroes', name: 'heroes', component: () => import('./views/league/HeroesView.vue') },
       { path: 'heroes/:heroId', name: 'hero', component: () => import('./views/league/HeroDetailView.vue') },
       { path: 'finale', name: 'finale', component: () => import('./views/league/FinaleView.vue') },

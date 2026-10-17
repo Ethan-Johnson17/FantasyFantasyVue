@@ -54,7 +54,7 @@ Everything under `/api` requires an Auth0 access token (`Authorization: Bearer .
 | `GET /api/leagues/:id/moves` | members, or anyone if public | Recent roster moves, newest first |
 | `GET /api/rules` | anyone | The current ruleset's public numbers (roster, starters, Champion and synergy values), for the How it works page |
 | `GET /api/leagues/:id/finale` | members, or anyone if public | After the season: champion, final standings, my finish, and awards |
-| `GET /api/leagues/:id/matchup` | members | My next battle: both lineups, resting heroes, Champions, synergies, records, and earlier meetings |
+| `GET /api/leagues/:id/matchup?week=` | members | Preview of an upcoming battle (the next by default): both lineups, Champions, synergies, records, earlier meetings; resting heroes for the next battle only |
 | `PUT /api/leagues/:id/champion` | members | Name a starter as Champion for the next battle (`{ heroId }`, or `null` to withdraw) |
 | `GET /api/leagues/:id/schedule` | members; anyone if public | 14 weeks of matchups, resolve times, and results so far |
 | `GET /api/leagues/:id/results/:week` | members; anyone if public | A resolved week (per-hero damage rounded) |

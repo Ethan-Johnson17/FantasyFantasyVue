@@ -127,7 +127,7 @@ async function toggleAutoSwap(event: Event) {
     <section v-if="data.nextWeek" class="card week">
       <div class="week-title">Week {{ data.nextWeek }}</div>
       <div class="muted small">Battle begins {{ data.nextWeekAt ? timeUntil(new Date(data.nextWeekAt)) : 'soon' }} · your lineup locks then</div>
-      <RouterLink :to="`/leagues/${league?.id}/battles/upcoming`" class="matchup-link">See the matchup ›</RouterLink>
+      <RouterLink :to="`/leagues/${league?.id}/matchup`" class="matchup-link">See the matchup ›</RouterLink>
     </section>
 
     <section v-if="data.nextWeek" class="card champion-card" :class="{ named: championHero }" aria-live="polite">

@@ -72,6 +72,8 @@ export const ChampionSchema = z.object({ heroId: ObjectIdSchema.transform(id => 
 
 export const WeekParamSchema = z.coerce.number().int().min(1).max(14)
 
+export const MatchupQuerySchema = z.object({ week: WeekParamSchema.optional() }).strict()
+
 export const PageQuerySchema = z.object({ page: z.coerce.number().int().min(1).max(100).default(1) })
 
 export type CreateLeagueInput = z.infer<typeof CreateLeagueSchema>

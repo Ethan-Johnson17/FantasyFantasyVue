@@ -8,7 +8,7 @@ import type { HeroDetail, ResultHero, ResultSide, WeekResult } from '../src/api/
 import { critLabel } from '../src/heroes'
 import { provideLeagueForTest } from '../src/league'
 import { battleRecap } from '../src/recap'
-import BattleResultView from '../src/views/league/BattleResultView.vue'
+import MatchupView from '../src/views/league/MatchupView.vue'
 import HeroDetailView from '../src/views/league/HeroDetailView.vue'
 import { detail, fakeApi } from './helpers'
 
@@ -91,14 +91,14 @@ async function mountAt(view: Component, path: string, api: ReturnType<typeof fak
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: '/battles/:week', component: view },
+      { path: '/matchup/:week?', component: view },
       { path: '/heroes/:heroId', component: view },
       { path: '/:rest(.*)*', component: { template: '<div />' } }
     ]
   })
   await router.push(path)
   await router.isReady()
-  const league = detail({ status: 'active', parties: [{ id: 'a', name: 'The Goblin 5', crest, owner: { id: 'o', displayName: 'Ethan' }, isMine: true }] })
+  const league = detail({ status: 'active', resolvedWeeks: 3, parties: [{ id: 'a', name: 'The Goblin 5', crest, owner: { id: 'o', displayName: 'Ethan' }, isMine: true }] })
   const wrapper = mount(view, {
     global: { plugins: [router], provide: { [apiKey as symbol]: api, ...provideLeagueForTest(league, vi.fn()) } }
   })
@@ -112,19 +112,20 @@ describe('crits on screen', () => {
       week: 3,
       matchups: [
         {
-          home: side('a', 'The Goblin 5', 112, [hero('h1', 'Beldon', 'Warrior', 48, 'success'), hero('h2', 'Gideon', 'Mage', 2, 'fail')]),
-          away: side('b', 'Bot Party 3', 98, [hero('t1', 'Wolf', 'Paladin', 47, 'success')]),
+          home: side('a', 'The Goblin 5', 112, [hero('h1', 'Beldon', 'Warrior', 48, 'success'), { ...hero('h2', 'Gideon', 'Mage', 2, 'fail'), slot: 'slot2' }]),
+          away: side('b', 'Bot Party 3', 98, [hero('t1', 'Wolf', 'Paladin', 47, 'success'), { ...hero('t2', 'Fang', 'Rogue', 12), slot: 'slot2' }]),
           monster: null,
           outcome: 'home'
         }
       ]
     }
-    const wrapper = await mountAt(BattleResultView, '/battles/3', fakeApi({ getWeekResult: vi.fn().mockResolvedValue(result) }))
-    const fighters = wrapper.findAll('.fighter')
-    expect(fighters[0]!.text()).toContain('Natural 20 · Cleave')
-    expect(fighters[0]!.find('[aria-label="Natural 20"]').exists()).toBe(true)
-    expect(fighters[1]!.text()).toContain('Natural 1 · Spell Fizzles')
-    expect(wrapper.find('.opponent-hero.success').exists()).toBe(true)
+    const wrapper = await mountAt(MatchupView, '/matchup/3', fakeApi({ getWeekResult: vi.fn().mockResolvedValue(result) }))
+    const [beldon, wolf, gideon] = wrapper.findAll('.result-cell')
+    expect(beldon!.text()).toContain('Natural 20 · Cleave')
+    expect(beldon!.find('[aria-label="Natural 20"]').exists()).toBe(true)
+    expect(wolf!.text()).toContain('Natural 20 · Divine Smite')
+    expect(wolf!.classes()).toContain('success')
+    expect(gideon!.text()).toContain('Natural 1 · Spell Fizzles')
     expect(wrapper.find('.recap').text()).toContain("Beldon's Cleave landed for 48: a natural 20!")
   })
 

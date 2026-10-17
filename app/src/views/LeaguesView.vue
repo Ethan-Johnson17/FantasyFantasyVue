@@ -134,7 +134,7 @@ function signOut() {
             <li v-if="!spotlight.battle.noChampion && !spotlight.battle.restingStarters" class="alert ok">✓ Lineup ready</li>
           </ul>
           <div class="spot-actions">
-            <RouterLink :to="`/leagues/${spotlight.league.id}/battles/upcoming`" class="btn btn-primary">See matchup</RouterLink>
+            <RouterLink :to="`/leagues/${spotlight.league.id}/matchup`" class="btn btn-primary">See matchup</RouterLink>
             <RouterLink :to="`/leagues/${spotlight.league.id}/party`" class="btn btn-secondary">Set lineup</RouterLink>
           </div>
         </template>

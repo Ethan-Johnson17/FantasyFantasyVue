@@ -1,0 +1,143 @@
+/* Shared by the matchup preview and result: scoreboard, synergies, and the paired lineup rows. */
+
+.small {
+  font-size: 13px;
+}
+.scoreboard {
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 3px var(--ink),
+    0 0 0 4px var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+}
+.sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.side-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.vs {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--text-muted);
+}
+.monster-mark {
+  font-size: 36px;
+  line-height: 48px;
+  color: var(--danger);
+}
+.synergy-columns {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.synergies {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.synergies.theirs {
+  justify-content: flex-end;
+}
+.synergy {
+  padding: 1px 9px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  color: var(--gold);
+  font-size: 13px;
+}
+.row-heading {
+  margin: 16px 0 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.section-title {
+  font-size: 22px;
+}
+.lineups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lineup-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.lineups.solo .lineup-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+.hero-cell {
+  min-width: 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+}
+.hero-cell.theirs {
+  background: var(--surface-sunken);
+}
+.hero-cell.champion {
+  border-color: var(--gold);
+}
+.hero-cell.resting,
+.hero-cell.swapped {
+  border-style: dashed;
+  border-color: #8a7a5a;
+}
+.hero-cell.empty {
+  justify-content: center;
+}
+.hero-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.hero-name {
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.crown,
+.resting-text {
+  color: var(--gold);
+}
+.note {
+  margin-top: 12px;
+}

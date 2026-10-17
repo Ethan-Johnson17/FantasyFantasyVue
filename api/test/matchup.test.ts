@@ -120,6 +120,37 @@ describe('GET /api/leagues/:id/matchup', () => {
     expect(result!.matchups.find(m => !m.away)?.monster?.name).toBe(facing.monster?.name)
   })
 
+  it('previews a later week too, without revealing who rests that far ahead', async () => {
+    const id = await draftedLeague([alice])
+    const starter = Object.values(((await alice.get(`/api/leagues/${id}/lineup`)).body as { lineup: Record<string, string> }).lineup)[0]!
+    await rest(starter, 3)
+
+    const later = (await alice.get(`/api/leagues/${id}/matchup?week=3`)).body as Matchup & { restingKnown: boolean; resolvesAt: string }
+    expect(later.week).toBe(3)
+    expect(later.restingKnown).toBe(false)
+    expect(later.me.starters.every(entry => entry.hero?.restingNextWeek === false)).toBe(true)
+    const next = (await alice.get(`/api/leagues/${id}/matchup`)).body as Matchup & { restingKnown: boolean; resolvesAt: string }
+    expect(next.restingKnown).toBe(true)
+    // Daily league: week 3 resolves two days after week 1.
+    expect(new Date(later.resolvesAt).getTime() - new Date(next.resolvesAt).getTime()).toBe(2 * 24 * 60 * 60 * 1000)
+
+    // Once it's week 3's turn, its resting heroes show.
+    await makeWeeksDue(id, 2)
+    const now = (await alice.get(`/api/leagues/${id}/matchup?week=3`)).body as Matchup & { restingKnown: boolean }
+    expect(now.restingKnown).toBe(true)
+    expect(now.me.starters.find(entry => entry.hero?.id === starter)?.hero?.restingNextWeek).toBe(true)
+  })
+
+  it('rejects played, out-of-range, and malformed weeks', async () => {
+    const id = await draftedLeague([alice])
+    await makeWeeksDue(id, 2)
+    expect((await alice.get(`/api/leagues/${id}/matchup?week=1`)).status).toBe(400)
+    expect((await alice.get(`/api/leagues/${id}/matchup?week=15`)).status).toBe(400)
+    expect((await alice.get(`/api/leagues/${id}/matchup?week=abc`)).status).toBe(400)
+    expect((await alice.get(`/api/leagues/${id}/matchup?week=3&x=1`)).status).toBe(400)
+    expect((await alice.get(`/api/leagues/${id}/matchup?week=3`)).status).toBe(200)
+  })
+
   it('is for members only, and only while a battle is coming', async () => {
     const id = await draftedLeague([alice])
     expect((await outsider.get(`/api/leagues/${id}/matchup`)).status).toBe(404)

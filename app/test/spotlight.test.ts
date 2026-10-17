@@ -59,7 +59,7 @@ describe('My leagues spotlight', () => {
     expect(spot.text()).toMatch(/Dragon Slayers\s*vs\s*Ember Wolves/)
     expect(spot.text()).toMatch(/Week 3 · battle in 4h \d+m|Week 3 · battle in 5h/)
     expect(spot.findAll('.alert').map(a => a.text())).toEqual(['♛ No Champion named', '2 starters resting'])
-    expect(spot.findAll('a').map(a => a.attributes('href'))).toEqual(['/leagues/a/battles/upcoming', '/leagues/a/party'])
+    expect(spot.findAll('a').map(a => a.attributes('href'))).toEqual(['/leagues/a/matchup', '/leagues/a/party'])
 
     // The card shows rank, record, and the last result, and opens where its call to action points.
     const card = wrapper.find('.league')
