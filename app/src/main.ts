@@ -5,8 +5,12 @@ import App from './App.vue'
 import { createApiClient } from './api/client'
 import { apiKey } from './api/inject'
 import { loadConfig } from './config'
+import { startInstallSupport } from './install'
 import { createAppRouter } from './router'
 import './styles/base.css'
+
+// Early, so the browser's install event isn't missed.
+startInstallSupport()
 
 const config = loadConfig()
 const app = createApp(App)
