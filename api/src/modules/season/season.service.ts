@@ -94,7 +94,7 @@ interface HeroPoints {
 }
 
 /** Each drafted hero's exact points for an NFL week; heroes without a stat line are resting. */
-async function heroPoints(
+export async function heroPoints(
   heroes: readonly HeroDocument[],
   season: number,
   week: number,
@@ -249,7 +249,7 @@ export async function setChampion(member: AccountDocument, leagueId: string, her
   return getLineup(member, leagueId)
 }
 
-function nextWeek(league: LeagueDocument): { week: number; at: Date } | null {
+export function nextWeek(league: LeagueDocument): { week: number; at: Date } | null {
   if (league.status !== 'active' || !league.weekOneAt) return null
   const week = league.resolvedWeeks + 1
   return { week, at: new Date(league.weekOneAt.getTime() + (week - 1) * CADENCE_MS[league.cadence]) }

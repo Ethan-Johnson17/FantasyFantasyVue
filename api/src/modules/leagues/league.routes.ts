@@ -4,6 +4,7 @@ import { currentAccount } from '../../middleware/auth.js'
 import * as draft from '../draft/draft.service.js'
 import * as roster from '../roster/roster.service.js'
 import { advanceLeague } from '../season/advance.js'
+import { getMatchup } from '../season/matchup.service.js'
 import * as season from '../season/season.service.js'
 import {
   ChampionSchema,
@@ -116,6 +117,9 @@ export function leagueRouter() {
     })
     .get('/:id/moves', async (req, res) => {
       res.json(await roster.listMoves(currentAccount(req), parseId(req.params.id)))
+    })
+    .get('/:id/matchup', async (req, res) => {
+      res.json(await getMatchup(currentAccount(req), parseId(req.params.id)))
     })
     .get('/:id/schedule', async (req, res) => {
       res.json(await season.getSchedule(currentAccount(req), parseId(req.params.id)))

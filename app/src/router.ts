@@ -16,6 +16,8 @@ export const routes: RouteRecordRaw[] = [
       { path: '', name: 'league', component: () => import('./views/league/LeagueHomeView.vue') },
       { path: 'party', name: 'party', component: () => import('./views/league/PartyView.vue') },
       { path: 'battles', name: 'battles', component: () => import('./views/league/BattlesView.vue') },
+      // Static, so it wins over battles/:week
+      { path: 'battles/upcoming', name: 'matchup', component: () => import('./views/league/MatchupView.vue') },
       { path: 'battles/:week', name: 'battle', component: () => import('./views/league/BattleResultView.vue') },
       { path: 'heroes', name: 'heroes', component: () => import('./views/league/HeroesView.vue') },
       { path: 'heroes/:heroId', name: 'hero', component: () => import('./views/league/HeroDetailView.vue') },

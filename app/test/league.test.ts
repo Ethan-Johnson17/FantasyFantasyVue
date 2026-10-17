@@ -5,13 +5,15 @@ import type { Component } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { ApiError, type ApiClient } from '../src/api/client'
 import { apiKey } from '../src/api/inject'
-import type { Hero, LeagueDetail, Lineup, Party, WeekResult } from '../src/api/types'
+import type { Hero, LeagueDetail, Lineup, Matchup, MatchupSide, Party, WeekResult } from '../src/api/types'
 import { provideLeagueForTest } from '../src/league'
 import BattleResultView from '../src/views/league/BattleResultView.vue'
+import BattlesView from '../src/views/league/BattlesView.vue'
 import DraftRecapView from '../src/views/league/DraftRecapView.vue'
 import HeroDetailView from '../src/views/league/HeroDetailView.vue'
 import HeroesView from '../src/views/league/HeroesView.vue'
 import LeagueHomeView from '../src/views/league/LeagueHomeView.vue'
+import MatchupView from '../src/views/league/MatchupView.vue'
 import PartyView from '../src/views/league/PartyView.vue'
 import { detail, fakeApi } from './helpers'
 
@@ -377,6 +379,73 @@ describe('Free agency', () => {
     expect(wrapper.find('button[aria-label="Claim Hero f1"]').exists()).toBe(false)
   })
 })
+
+describe('Matchup', () => {
+  const side = (partyId: string, name: string, heroes: Hero[], champion: string | null = null): MatchupSide => ({
+    partyId,
+    name,
+    crest,
+    record: { wins: 2, losses: 1, draws: 0 },
+    starters: heroes.map((h, index) => ({ slot: `slot${String(index + 1)}`, label: `Hero ${String(index + 1)}`, hero: { ...h, restingNextWeek: h.id === 'm2' } })),
+    champion,
+    synergies: champion ? ['mightyChampion'] : []
+  })
+  const base = (): Matchup => ({
+    week: 4,
+    resolvesAt: new Date(Date.now() + 3_600_000).toISOString(),
+    me: side('a', 'Dragon Slayers', [hero('m1', { name: 'Kael', traits: ['mighty'] }), hero('m2', { name: 'Lyra' })], 'm1'),
+    opponent: side('b', 'Ember Wolves', [hero('t1', { name: 'Wolf' }), hero('t2', { name: 'Fang' })]),
+    monster: null,
+    meetings: [
+      { week: 1, myTotal: 112.4, theirTotal: 98, outcome: 'win' },
+      { week: 3, myTotal: 90, theirTotal: 101, outcome: 'loss' }
+    ]
+  })
+  const league = () => detail({ status: 'active', resolvedWeeks: 3, parties: [party('a', true), party('b')] })
+
+  it('puts my lineup beside my opponent’s, with Champions, resting heroes, and the series', async () => {
+    const api = fakeApi({ getMatchup: vi.fn().mockResolvedValue(base()) })
+    const { wrapper } = await mountLeague(MatchupView, api, league())
+    expect(api.getMatchup).toHaveBeenCalledWith('l1')
+    expect(wrapper.find('.scoreboard').text()).toMatch(/Dragon Slayers\s*2–1.*Ember Wolves\s*2–1/s)
+    expect(wrapper.find('.series').text()).toBe('Tied 1–1')
+    const rows = wrapper.findAll('.lineup-row')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]!.text()).toMatch(/♛ Kael.*Wolf/s)
+    expect(rows[0]!.find('.hero-cell').classes()).toContain('champion')
+    expect(rows[1]!.text()).toContain('Lyra')
+    expect(rows[1]!.text()).toContain('resting')
+    expect(wrapper.find('.synergies').text()).toContain('Mighty Champion')
+    const meetings = wrapper.findAll('.meeting')
+    expect(meetings.map(m => m.text())).toEqual([expect.stringMatching(/Week 1\s*Victory\s*112–98/), expect.stringMatching(/Week 3\s*Defeat\s*90–101/)])
+  })
+
+  it('shows the dungeon monster when I have no opponent', async () => {
+    const api = fakeApi({ getMatchup: vi.fn().mockResolvedValue({ ...base(), opponent: null, monster: { name: 'Grimjaw' }, meetings: [] }) })
+    const { wrapper } = await mountLeague(MatchupView, api, league())
+    expect(wrapper.find('.scoreboard').text()).toContain('Grimjaw')
+    expect(wrapper.find('.series').exists()).toBe(false)
+    expect(wrapper.find('.lineups').classes()).toContain('solo')
+    expect(wrapper.text()).toContain("Grimjaw fights as strong as the league's average party this week.")
+  })
+
+  it('is reached from the next battle on the Battles tab', async () => {
+    const week = (n: number, result: ScheduleResult | null) => ({
+      week: n,
+      resolvesAt: null,
+      matchups: [{ home: { partyId: 'a', name: 'Party a', crest }, away: { partyId: 'b', name: 'Party b', crest }, result }]
+    })
+    const api = fakeApi({
+      getSchedule: vi.fn().mockResolvedValue([week(1, { homeTotal: 100, awayTotal: 90, outcome: 'home', monster: null }), week(2, null), week(3, null)])
+    })
+    const { wrapper } = await mountLeague(BattlesView, api, detail({ status: 'active', resolvedWeeks: 1, parties: [party('a', true), party('b')] }))
+    const links = wrapper.findAll('a.week').map(link => link.attributes('href'))
+    expect(links).toEqual(['/leagues/l1/battles/1', '/leagues/l1/battles/upcoming'])
+    expect(wrapper.find('.week.next').text()).toContain('Matchup ›')
+  })
+})
+
+type ScheduleResult = { homeTotal: number; awayTotal: number; outcome: 'home' | 'away' | 'draw'; monster: string | null }
 
 describe('Draft recap', () => {
   it("lists my picks and tags the ones the draft made for me", async () => {
