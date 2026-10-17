@@ -112,6 +112,16 @@ export interface Lineup {
   nextWeekAt: string | null
 }
 
+/** The public numbers of the current ruleset (GET /api/rules). */
+export interface GameRules {
+  version: number
+  seasonWeeks: number
+  rosterSize: number
+  starters: number
+  autoSwapMultiplier: number
+  strategy: StrategyRules
+}
+
 export interface StrategyRules {
   championMultiplier: number
   mightyChampionMultiplier: number

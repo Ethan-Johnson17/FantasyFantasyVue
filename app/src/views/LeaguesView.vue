@@ -108,6 +108,7 @@ function signOut() {
       <RouterLink to="/leagues/new" class="btn btn-primary">Host a league</RouterLink>
       <RouterLink to="/join" class="btn btn-secondary">Join with PIN</RouterLink>
     </div>
+    <RouterLink to="/how-it-works" class="how-link">How it works</RouterLink>
   </main>
 </template>
 
@@ -119,6 +120,12 @@ function signOut() {
 }
 .title {
   font-size: 34px;
+}
+.how-link {
+  display: block;
+  margin-top: 16px;
+  text-align: center;
+  font-size: 14px;
 }
 .account {
   display: flex;

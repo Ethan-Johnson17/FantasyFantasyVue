@@ -40,7 +40,7 @@ function signIn() {
     <div class="actions">
       <p v-if="signInError" class="error" role="alert">Sign-in didn't complete: {{ signInError }}</p>
       <button type="button" class="btn btn-primary" @click="signIn">Sign in or create an account</button>
-      <p class="muted fine-print">Free to play. No wagering, ever.</p>
+      <p class="muted fine-print">Free to play. No wagering, ever. <RouterLink to="/how-it-works">How it works</RouterLink></p>
     </div>
   </main>
 </template>

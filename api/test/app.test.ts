@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { createLogger } from '../src/lib/logger.js'
 import { errorHandler } from '../src/middleware/errors.js'
 import { maskPins } from '../src/app.js'
+import { RULESET_V1 } from '../src/modules/scoring/rulesets.js'
 import { buildTestApp } from './helpers.js'
 
 describe('app infrastructure', () => {
@@ -13,6 +14,21 @@ describe('app infrastructure', () => {
     const res = await request(app).get('/health')
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ status: 'ok', db: 'up' })
+  })
+
+  it('serves the public game rules without auth, from the current ruleset', async () => {
+    const res = await request(app).get('/api/rules')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({
+      version: RULESET_V1.version,
+      seasonWeeks: 14,
+      rosterSize: RULESET_V1.lineup.rosterSize,
+      starters: RULESET_V1.lineup.slots.length,
+      autoSwapMultiplier: RULESET_V1.lineup.autoSwapMultiplier,
+      strategy: RULESET_V1.strategy
+    })
+    // The rest of the API still needs a token.
+    expect((await request(app).get('/api/leagues/mine')).status).toBe(401)
   })
 
   it('returns JSON 404 for unknown routes', async () => {

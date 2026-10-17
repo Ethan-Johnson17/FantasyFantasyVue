@@ -1,6 +1,7 @@
 import type {
   Account,
   CreateLeagueInput,
+  GameRules,
   Hero,
   HeroDetail,
   LeagueDetail,
@@ -55,16 +56,18 @@ export interface ApiClient {
   listMoves(leagueId: string): Promise<RosterMove[]>
   getSchedule(leagueId: string): Promise<ScheduleWeek[]>
   getMatchup(leagueId: string): Promise<Matchup>
+  /** Public: works signed out */
+  getRules(): Promise<GameRules>
   getWeekResult(leagueId: string, week: number): Promise<WeekResult>
   getStandings(leagueId: string): Promise<Standing[]>
 }
 
 export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchImpl: FetchLike = fetch): ApiClient {
-  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async function request<T>(method: string, path: string, body?: unknown, signedIn = true): Promise<T> {
     const response = await fetchImpl(`${baseUrl}${path}`, {
       method,
       headers: {
-        Authorization: `Bearer ${await getToken()}`,
+        ...(signedIn ? { Authorization: `Bearer ${await getToken()}` } : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) })
@@ -101,6 +104,7 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     listMoves: id => request('GET', `/api/leagues/${segment(id)}/moves`),
     getSchedule: id => request('GET', `/api/leagues/${segment(id)}/schedule`),
     getMatchup: id => request('GET', `/api/leagues/${segment(id)}/matchup`),
+    getRules: () => request('GET', '/api/rules', undefined, false),
     getWeekResult: (id, week) => request('GET', `/api/leagues/${segment(id)}/results/${String(week)}`),
     getStandings: id => request('GET', `/api/leagues/${segment(id)}/standings`)
   }
