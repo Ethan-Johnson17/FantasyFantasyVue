@@ -205,6 +205,17 @@ describe('viewing leagues', () => {
     expect((await outsider.get('/api/leagues/public?page=0')).status).toBe(400)
   })
 
+  it("leaves out public leagues I'm already in", async () => {
+    const open = await createLeague({ name: 'Open public', visibility: 'public' })
+    const names = async (player: typeof alice) => ((await player.get('/api/leagues/public')).body as { name: string }[]).map(l => l.name)
+    expect(await names(alice)).toEqual(['Open public'])
+    await alice.post('/api/leagues/join', { pin: open.pin, party: party('Elf Squad') })
+    expect(await names(alice)).toEqual([])
+    // The host is in it too; others still see it.
+    expect(await names(host)).toEqual([])
+    expect(await names(outsider)).toEqual(['Open public'])
+  })
+
   it("lists the leagues I'm in, with my party", async () => {
     const hosted = await createLeague({ name: 'Hosted by host' })
     await alice.post('/api/leagues/join', { pin: hosted.pin, party: party('Elf Squad') })
