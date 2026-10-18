@@ -9,7 +9,7 @@ const env = loadEnv()
 const logger = createLogger(env)
 
 configureMongoose()
-await mongoose.connect(env.MONGODB_URI)
+await mongoose.connect(env.MONGODB_URI, { maxPoolSize: env.MONGODB_MAX_POOL_SIZE })
 logger.info('Connected to MongoDB')
 
 const app = createApp({ env, logger, authenticate: auth0Authenticator(env) })

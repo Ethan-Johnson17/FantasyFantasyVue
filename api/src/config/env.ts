@@ -9,6 +9,8 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   MONGODB_URI: z.string().regex(/^mongodb(\+srv)?:\/\//, 'must be a MongoDB connection string'),
+  // Connections per running instance. Keep it small on serverless hosts, where many instances can run at once.
+  MONGODB_MAX_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
   AUTH0_DOMAIN: z.string().min(1),
   AUTH0_AUDIENCE: z.string().min(1),
   CORS_ORIGINS: commaList.default([]),
