@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { rateLimit } from 'express-rate-limit'
+import { MongoRateLimitStore } from '../../lib/rateLimitStore.js'
 import { currentAccount } from '../../middleware/auth.js'
 import * as draft from '../draft/draft.service.js'
 import * as roster from '../roster/roster.service.js'
@@ -35,6 +36,7 @@ const pinLimiter = () =>
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     keyGenerator: req => currentAccount(req).id,
+    store: new MongoRateLimitStore('pin:'),
     message: { error: { status: 429, message: 'Too many attempts, try again in a minute' } }
   })
 

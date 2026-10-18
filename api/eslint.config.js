@@ -28,5 +28,6 @@ export default tseslint.config(
       '@typescript-eslint/no-non-null-assertion': 'off'
     }
   },
-  { files: ['eslint.config.js'], ...tseslint.configs.disableTypeChecked }
+  // Plain JS outside the TypeScript project: the config itself, and Vercel's one-line entry point.
+  { files: ['eslint.config.js', 'index.js'], ...tseslint.configs.disableTypeChecked }
 )

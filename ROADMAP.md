@@ -57,6 +57,9 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
 
 ## Before public launch
 
+Hosting is decided (2026-10-17): Vercel Hobby for the web app and the API, MongoDB Atlas free tier, Auth0 free.
+Step-by-step setup: [docs/DEPLOY.md](docs/DEPLOY.md).
+
 - **Google sign-in keys:** Auth0's Google connection uses shared development keys. Register the app's own Google
   OAuth client (free) and set it on the connection.
 - **Production URLs:** add the hosted web address (and later the mobile app URLs) to the Auth0 application's
