@@ -65,8 +65,7 @@ export function selectHeroPool(
   partyCount: number,
   rules: PoolRules
 ): PoolEntry[] {
-  return HERO_CLASSES.flatMap(heroClass => {
-    const need = rules.perParty[heroClass] * partyCount
+  const pool = HERO_CLASSES.flatMap(heroClass => {
     const ofClass = candidates.filter(candidate => candidate.heroClass === heroClass)
 
     const veterans = ofClass
@@ -79,13 +78,13 @@ export function selectHeroPool(
       )
       .sort((a, b) => a.draft.pick - b.draft.pick || a.sourceId.localeCompare(b.sourceId))
 
+    // Big leagues can want more of a class than a season has (32 team defenses, about 40 quarterbacks):
+    // then the class takes every candidate, veterans first.
+    const need = Math.min(rules.perParty[heroClass] * partyCount, veterans.length + recruits.length)
     const recruitCap = Math.min(recruits.length, Math.floor(need * MYSTERY_SHARE))
-    const takenVeterans = veterans.slice(0, need - recruitCap)
+    const takenVeterans = veterans.slice(0, Math.max(need - recruitCap, need - recruits.length))
     // If veterans run short, more recruits fill the gap.
     const takenRecruits = recruits.slice(0, need - takenVeterans.length)
-    if (takenVeterans.length + takenRecruits.length < need) {
-      throw new Error(`Not enough ${heroClass} candidates for ${String(partyCount)} parties`)
-    }
 
     const n = takenVeterans.length
     const traits = assignTraits(takenVeterans)
@@ -109,6 +108,10 @@ export function selectHeroPool(
       }))
     ]
   })
+  if (pool.length < rules.minPerParty * partyCount) {
+    throw new Error(`Not enough heroes for ${String(partyCount)} parties: ${String(pool.length)} in the pool`)
+  }
+  return pool
 }
 
 /**

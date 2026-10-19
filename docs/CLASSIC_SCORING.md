@@ -137,7 +137,8 @@ Decided 2026-10-12:
 - **Party per league:** hosting or joining a league creates the user's party for that league
   (name + **crest**: one of 8 emblems on one of 6 banner colors, decided 2026-10-14). One party per user per league;
   parties don't exist outside leagues.
-- **Size:** the host picks a maximum of 2–6 parties.
+- **Size:** the host picks a maximum of 2–12 parties (raised from 6 on 2026-10-19). With an odd number, one party
+  battles the dungeon monster each week.
 - **Visibility:** private leagues are joined by PIN only. Public leagues also appear in a search list.
 - **Starting:** no ready flags. Once 2 or more parties have joined, the host schedules the draft, and members rank heroes before it runs.
 - **Leaving:** while a league is forming, members can leave and the host can remove members.
@@ -165,6 +166,14 @@ Only players with at least one game in weeks 1–14 of the hidden season are eli
   calibrated on 2012–2025 data (decided 2026-10-13): **round 1 → 1–4, round 2 → 1–2, round 3+ → 1**. First-round
   rookies played like Level 1–2 veterans on average, with real upside; later rounds played below that.
 - Veterans with fewer than 4 games in the previous season are left out of the MVP pool *(default)*.
+- **Big leagues (decided 2026-10-19):** a season has only so many of some classes: exactly 32 team defenses
+  (Paladins) and 41–56 eligible quarterbacks (Mages). When a league wants more of a class than the season has
+  (Mages and Paladins at 11–12 parties), that class takes every candidate, veterans first. The whole pool must still
+  offer at least **15 heroes per party** (`minPerParty`), or scheduling the draft fails clearly. Every season
+  2012–2025 builds a pool and drafts full rosters at every size from 2 to 12; a 12-party pool holds 265–272 heroes.
+- Because Level is a rank within the class's pool, deeper pools spread Levels further. At 12 parties the capped
+  Paladins and Mages run stronger than their Level: Level 1–2 Paladins average 14.5 damage a battle against about
+  9–10 for other classes (at 6 parties every class's Level 1–2 averaged 13–15). Top Levels stay close (9–10: 18–21).
 
 **Level (1–10).** Within each class in the pool, veterans are split into deciles by previous-season points per game:
 the top 10% are Level 10. Team defenses (Paladins) work the same way, using team defense points per game.

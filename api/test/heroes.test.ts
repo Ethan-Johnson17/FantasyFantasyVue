@@ -101,7 +101,30 @@ describe('selectHeroPool', () => {
     const rogues = selectHeroPool(candidates(6), 2, POOL).filter(entry => entry.heroClass === 'Rogue')
     expect(rogues).toHaveLength(8)
     expect(rogues.filter(entry => entry.level === null)).toHaveLength(2)
-    expect(() => selectHeroPool(candidates(1), 6, POOL)).toThrow(/Not enough Mage candidates/)
+    expect(() => selectHeroPool(candidates(1), 6, POOL)).toThrow(/Not enough heroes for 6 parties/)
+  })
+
+  it('caps a class at every candidate a season has, for big leagues', () => {
+    // Like a real season: 32 team defenses, 37 veteran quarterbacks plus 6 rookies, plenty of the rest.
+    const season = candidates(100).filter(c => !(c.heroClass === 'Paladin' && Number(c.sourceId.slice(-2)) >= 32) && !(c.heroClass === 'Mage' && c.ppg !== null && Number(c.sourceId.slice(-2)) >= 37))
+    const pool = selectHeroPool(season, 12, POOL)
+    const count = (heroClass: string) => pool.filter(entry => entry.heroClass === heroClass).length
+    expect(count('Paladin')).toBe(32) // 12 parties would want 36
+    expect(count('Mage')).toBe(43) // all 37 veterans and all 6 rookies (12 parties would want 48)
+    expect(pool.filter(entry => entry.heroClass === 'Mage' && entry.level !== null)).toHaveLength(37)
+    expect(count('Warrior')).toBe(72)
+    // Still Level 10 down to Level 1 within each capped class.
+    const paladinLevels = pool.filter(entry => entry.heroClass === 'Paladin').map(entry => entry.level)
+    expect(Math.max(...paladinLevels.map(Number))).toBe(10)
+    expect(Math.min(...paladinLevels.map(Number))).toBe(1)
+    expect(pool.length).toBeGreaterThanOrEqual(POOL.minPerParty * 12)
+  })
+
+  it('keeps the same pool as before when a class has enough candidates', () => {
+    const pool = selectHeroPool(candidates(), 6, POOL)
+    for (const heroClass of HERO_CLASSES) {
+      expect(pool.filter(entry => entry.heroClass === heroClass)).toHaveLength(POOL.perParty[heroClass] * 6)
+    }
   })
 
   it('maps draft rounds to the documented ranges', () => {

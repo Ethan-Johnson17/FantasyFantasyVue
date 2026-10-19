@@ -51,6 +51,18 @@ describe('HostLeagueView', () => {
     expect(router.currentRoute.value.fullPath).toBe('/leagues/new-league')
   })
 
+  it('offers leagues of 2 to 12 parties', async () => {
+    const api = fakeApi({ createLeague: vi.fn().mockResolvedValue(detail({ id: 'big' })) })
+    const { wrapper } = await mountView(HostLeagueView, api)
+    expect(wrapper.findAll('input[name="size"]').map(input => Number(input.attributes('value')))).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+    await wrapper.find('#league-name').setValue('Big Dungeon')
+    await wrapper.find('#party-name').setValue('Dragon Slayers')
+    await wrapper.find('input[name="size"][value="12"]').setValue(true)
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(api.createLeague).toHaveBeenCalledWith(expect.objectContaining({ maxParties: 12 }))
+  })
+
   it("shows the server's message when creation fails", async () => {
     const api = fakeApi({ createLeague: vi.fn().mockRejectedValue(new ApiError(400, 'Invalid request', [{ path: 'name', message: 'Too long' }])) })
     const { wrapper } = await mountView(HostLeagueView, api)
