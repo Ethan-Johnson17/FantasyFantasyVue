@@ -98,7 +98,7 @@ function signOut() {
         <h1 class="title">Your leagues</h1>
       </div>
       <div class="account">
-        <span class="avatar" aria-hidden="true">{{ initial }}</span>
+        <RouterLink to="/account" class="avatar" aria-label="Your account">{{ initial }}</RouterLink>
         <button type="button" class="sign-out" @click="signOut">Sign out</button>
       </div>
     </header>
@@ -281,6 +281,7 @@ function signOut() {
   display: flex;
   align-items: center;
   justify-content: center;
+  text-decoration: none;
 }
 .sign-out {
   min-height: var(--tap);

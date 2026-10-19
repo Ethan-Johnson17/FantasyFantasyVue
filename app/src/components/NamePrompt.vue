@@ -26,7 +26,7 @@ async function save() {
 <template>
   <form class="card prompt" @submit.prevent="save">
     <label for="display-name" class="prompt-title">Choose your adventurer name</label>
-    <span class="muted small">Other players in your leagues will see it.</span>
+    <span class="muted small">Other players in your leagues will see it. You can change it any time from your account (tap your initial).</span>
     <div class="row">
       <input id="display-name" v-model.trim="name" class="input" :maxlength="DISPLAY_NAME_MAX" required autocomplete="nickname" />
       <button type="submit" class="btn btn-primary" :disabled="saving || !name">Save</button>
