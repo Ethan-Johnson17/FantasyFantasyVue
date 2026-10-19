@@ -25,7 +25,7 @@ export async function claimFreeAgent(
   const { league, party } = await loadLeagueAsMember(member, leagueId)
   if (league.status !== 'active') throw new Conflict('Free agents can be claimed after the draft and until the season ends')
   if (heroId === dropHeroId) throw new BadRequest('Choose a different hero to drop')
-  const { slots } = getRuleset(league.rulesetVersion).lineup
+  const { slots, classLimits } = getRuleset(league.rulesetVersion).lineup
 
   await inTransaction(async session => {
     // Every due battle must already be resolved, so a claim never changes a week that is due. Writing
@@ -57,6 +57,12 @@ export async function claimFreeAgent(
     }
 
     const roster = await HeroModel.find({ leagueId: league._id, partyId: party._id }).session(session)
+    // A claim can't take a party past a class limit (swapping one Paladin for another is fine).
+    const limit = classLimits[claimed.heroClass]
+    const sameClass = roster.filter(hero => hero.heroClass === claimed.heroClass).length
+    if (limit !== undefined && sameClass > limit && dropped.heroClass !== claimed.heroClass) {
+      throw new BadRequest(`A party can have at most ${String(limit)} ${claimed.heroClass}s`)
+    }
     if (maxFillableSlots(roster.map(hero => hero.heroClass), slots) < slots.length) {
       throw new BadRequest("That change would leave your party unable to fill its lineup")
     }

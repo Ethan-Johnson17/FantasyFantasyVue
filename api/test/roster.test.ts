@@ -158,6 +158,67 @@ describe('free agency', () => {
   })
 })
 
+describe('class limits in free agency', () => {
+  /** Gives alice exactly `want` Paladins (swapping heroes with the free-agent pool), keeping 10 heroes. */
+  async function setPaladins(id: string, want: number) {
+    const mine = (await lineupOf(alice, id)).roster[0]!.partyId
+    for (;;) {
+      const heroes = await HeroModel.find({ leagueId: id }).lean()
+      const own = heroes.filter(hero => hero.partyId?.toString() === mine)
+      const paladins = own.filter(hero => hero.heroClass === 'Paladin')
+      if (paladins.length === want) return { mine, heroes: own }
+      const free = heroes.filter(hero => hero.partyId === null)
+      const [give, take] =
+        paladins.length < want
+          ? [free.find(hero => hero.heroClass === 'Paladin')!, own.find(hero => hero.heroClass !== 'Paladin')!]
+          : [free.find(hero => hero.heroClass !== 'Paladin')!, paladins[0]!]
+      await HeroModel.updateOne({ _id: give._id }, { $set: { partyId: take.partyId } })
+      await HeroModel.updateOne({ _id: take._id }, { $set: { partyId: null } })
+    }
+  }
+
+  it("won't claim a third Paladin, and changes nothing when refused", async () => {
+    const id = await draftedLeague([alice])
+    const { heroes } = await setPaladins(id, 2)
+    const freePaladin = (await HeroModel.findOne({ leagueId: id, partyId: null, heroClass: 'Paladin' }).lean())!
+    const nonPaladin = heroes.find(hero => hero.heroClass !== 'Paladin')!
+    const res = await alice.post(`/api/leagues/${id}/claims`, { heroId: freePaladin._id.toString(), dropHeroId: nonPaladin._id.toString() })
+    expect(res.status).toBe(400)
+    expect(res.body.error.message).toBe('A party can have at most 2 Paladins')
+    expect((await HeroModel.findById(freePaladin._id).lean())?.partyId).toBeNull()
+    expect((await HeroModel.findById(nonPaladin._id).lean())?.partyId?.toString()).toBe(nonPaladin.partyId?.toString())
+  })
+
+  it('lets a party swap one Paladin for another, or claim one below the limit', async () => {
+    const id = await draftedLeague([alice])
+    let { heroes } = await setPaladins(id, 2)
+    const freePaladin = () => HeroModel.findOne({ leagueId: id, partyId: null, heroClass: 'Paladin' }).lean()
+    const swap = await alice.post(`/api/leagues/${id}/claims`, {
+      heroId: (await freePaladin())!._id.toString(),
+      dropHeroId: heroes.find(hero => hero.heroClass === 'Paladin')!._id.toString()
+    })
+    expect(swap.status).toBe(200)
+
+    ;({ heroes } = await setPaladins(id, 1))
+    const below = await alice.post(`/api/leagues/${id}/claims`, {
+      heroId: (await freePaladin())!._id.toString(),
+      dropHeroId: heroes.find(hero => hero.heroClass !== 'Paladin')!._id.toString()
+    })
+    expect(below.status).toBe(200)
+  })
+
+  it('lets a party drafted before the limit, with 3 Paladins, still swap one Paladin for another', async () => {
+    const id = await draftedLeague([alice])
+    const { heroes } = await setPaladins(id, 3)
+    const free = (await HeroModel.findOne({ leagueId: id, partyId: null, heroClass: 'Paladin' }).lean())!
+    const res = await alice.post(`/api/leagues/${id}/claims`, {
+      heroId: free._id.toString(),
+      dropHeroId: heroes.find(hero => hero.heroClass === 'Paladin')!._id.toString()
+    })
+    expect(res.status).toBe(200)
+  })
+})
+
 describe('free agent history', () => {
   it('shows what a free agent would have dealt, rounded, then real results once claimed', async () => {
     const id = await draftedLeague([alice])

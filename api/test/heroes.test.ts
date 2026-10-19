@@ -357,6 +357,46 @@ describe('validateLineup', () => {
   })
 })
 
+describe('class limits in the draft', () => {
+  const limit = LINEUP.classLimits.Paladin!
+  const count = (picks: { partyId: string; heroId: string }[], partyId: string, heroes: DraftHero[], heroClass: HeroClass) =>
+    picks.filter(pick => pick.partyId === partyId && heroes.find(hero => hero.id === pick.heroId)?.heroClass === heroClass).length
+
+  it('stops a party at the Paladin limit even when it ranks every Paladin first', () => {
+    const heroes = draftPool(6)
+    const paladins = heroes.filter(hero => hero.heroClass === 'Paladin').map(hero => hero.id)
+    const parties = [{ id: 'hoarder', ranking: paladins }, ...Array.from({ length: 5 }, (_, i) => ({ id: `p${String(i)}`, ranking: [] }))]
+    const { picks } = runSnakeDraft(parties, heroes, createRng('hoard'), LINEUP)
+    expect(count(picks, 'hoarder', heroes, 'Paladin')).toBe(limit)
+    expect(picks.filter(pick => pick.partyId === 'hoarder')).toHaveLength(LINEUP.rosterSize)
+  })
+
+  it('never lets any party past the limit, at every league size (randomized, greedy rankings)', () => {
+    for (let trial = 0; trial < 120; trial++) {
+      const rng = createRng(`limit-trial-${String(trial)}`)
+      const partyCount = rng.int(2, 12)
+      const heroes = draftPool(partyCount)
+      const parties = Array.from({ length: partyCount }, (_, p) => {
+        const favorite = rng.chance(0.5) ? 'Paladin' : rng.pick(HERO_CLASSES)
+        const shuffled = rng.shuffle(heroes)
+        return { id: `p${String(p)}`, ranking: [...shuffled.filter(hero => hero.heroClass === favorite), ...shuffled].map(hero => hero.id) }
+      })
+      const { picks } = runSnakeDraft(parties, heroes, rng, LINEUP)
+      for (const party of parties) {
+        expect(count(picks, party.id, heroes, 'Paladin')).toBeLessThanOrEqual(limit)
+        expect(picks.filter(pick => pick.partyId === party.id)).toHaveLength(LINEUP.rosterSize)
+      }
+    }
+  })
+
+  it('applies only to limited classes: others can still be stacked', () => {
+    const heroes = draftPool(2)
+    const mages = heroes.filter(hero => hero.heroClass === 'Mage').map(hero => hero.id)
+    const { picks } = runSnakeDraft([{ id: 'a', ranking: mages }, { id: 'b', ranking: [] }], heroes, createRng('mages'), LINEUP)
+    expect(count(picks, 'a', heroes, 'Mage')).toBeGreaterThan(limit)
+  })
+})
+
 describe.each(Object.entries(CONFIGS))('draft and lineups with %s', (_name, rules) => {
   it('always produces rosters that can field a full lineup (randomized, greedy rankings)', () => {
     for (let trial = 0; trial < 150; trial++) {

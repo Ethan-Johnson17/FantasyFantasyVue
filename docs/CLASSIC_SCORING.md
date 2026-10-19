@@ -200,6 +200,11 @@ their ranked heroes is still available and allowed, it takes the highest-Level a
 as the midpoint of its range). A pick is not allowed if it would leave the roster unable to fill its required slots, or
 if it would take the last hero of a class that another party still needs.
 
+**Class limits (decided 2026-10-19).** A party may hold at most **2 Paladins** (`classLimits` in the ruleset), so no one
+can corner the scarce team defenses: even a 12-party league drafts at most 24 of the 32. The draft skips a party's
+extra ranked Paladins, and a free-agent claim that would take a party past the limit is refused (swapping one Paladin
+for another is always allowed, including for parties drafted before the limit).
+
 **After the draft** the league becomes `active`. Each party's starting lineup is auto-filled with its highest-Level
 heroes (restrictive slots first, when a ruleset has any). Week 1 resolves one cadence after the draft time.
 

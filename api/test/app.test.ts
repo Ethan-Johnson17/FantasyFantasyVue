@@ -25,6 +25,7 @@ describe('app infrastructure', () => {
       rosterSize: RULESET_V1.lineup.rosterSize,
       starters: RULESET_V1.lineup.slots.length,
       autoSwapMultiplier: RULESET_V1.lineup.autoSwapMultiplier,
+      classLimits: { Paladin: 2 },
       strategy: RULESET_V1.strategy
     })
     // The rest of the API still needs a token.

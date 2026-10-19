@@ -12,7 +12,7 @@ import type { LineupRules, SlotRule } from '../scoring/rulesets.js'
  * from a pool far larger than demand, so they need no protection.
  */
 
-export type DraftRules = Pick<LineupRules, 'rosterSize' | 'slots'>
+export type DraftRules = Pick<LineupRules, 'rosterSize' | 'slots'> & Partial<Pick<LineupRules, 'classLimits'>>
 
 export interface DraftHero {
   id: string
@@ -90,6 +90,9 @@ function isAllowed(
 ): boolean {
   const picksLeftAfter = rules.rosterSize - roster.length - 1
   if (slotsStillNeeded([...roster, heroClass], rules.slots) > picksLeftAfter) return false
+  // Class limits: e.g. no party drafts a third Paladin. A ranking that lists more is skipped past.
+  const limit = rules.classLimits?.[heroClass]
+  if (limit !== undefined && roster.filter(owned => owned === heroClass).length >= limit) return false
 
   // Beyond its own dedicated slots, a party may only take this class if enough remain for others' dedicated slots.
   const dedicated = dedicatedSlots(heroClass, rules.slots)

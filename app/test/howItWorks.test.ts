@@ -9,6 +9,7 @@ const RULES = {
   rosterSize: 10,
   starters: 5,
   autoSwapMultiplier: 0.5,
+  classLimits: { Paladin: 2 },
   strategy: { championMultiplier: 1.25, mightyChampionMultiplier: 1.5, orderAndChaosBonus: 0.05, bulwarkFloor: 15 }
 }
 
@@ -23,6 +24,7 @@ describe('How it works', () => {
     expect(text).toContain('+5% party damage')
     expect(text).toContain('at least 15 damage')
     expect(text).toContain('steps in at 50% damage')
+    expect(text).toContain('A party can hold at most 2 Paladins')
     // The one screen that explains the real season, and credits the data.
     expect(text).toContain('real NFL player')
     expect(text).toContain('you never find out who is behind a hero')

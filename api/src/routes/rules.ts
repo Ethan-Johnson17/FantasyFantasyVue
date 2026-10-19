@@ -15,6 +15,7 @@ export const rulesRouter = Router().get('/', (_req, res) => {
     rosterSize: lineup.rosterSize,
     starters: lineup.slots.length,
     autoSwapMultiplier: lineup.autoSwapMultiplier,
+    classLimits: { ...lineup.classLimits },
     strategy: { ...strategy }
   })
 })
