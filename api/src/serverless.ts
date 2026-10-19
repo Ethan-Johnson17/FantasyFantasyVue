@@ -1,5 +1,5 @@
 import express, { type Express } from 'express'
-import { createApp, type AppDependencies } from './app.js'
+import { createApp, type AppDependencies } from './createApp.js'
 import { HttpError } from './lib/errors.js'
 import { errorHandler } from './middleware/errors.js'
 

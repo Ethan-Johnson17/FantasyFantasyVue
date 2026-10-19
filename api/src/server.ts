@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { createApp } from './app.js'
+import { createApp } from './createApp.js'
 import { loadEnv } from './config/env.js'
 import { configureMongoose } from './db/mongoose.js'
 import { createLogger } from './lib/logger.js'
