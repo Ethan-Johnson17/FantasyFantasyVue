@@ -3,7 +3,7 @@ import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { createLogger } from '../src/lib/logger.js'
 import { errorHandler } from '../src/middleware/errors.js'
-import { maskPins } from '../src/app.js'
+import { maskPins } from '../src/createApp.js'
 import { RULESET_V1 } from '../src/modules/scoring/rulesets.js'
 import { buildTestApp } from './helpers.js'
 

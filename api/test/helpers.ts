@@ -1,5 +1,5 @@
 import { SignJWT } from 'jose'
-import { createApp } from '../src/app.js'
+import { createApp } from '../src/createApp.js'
 import { createLogger } from '../src/lib/logger.js'
 import { jwtAuthenticator } from '../src/middleware/auth.js'
 
