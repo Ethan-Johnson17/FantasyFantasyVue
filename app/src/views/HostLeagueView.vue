@@ -17,7 +17,8 @@ const form = reactive<CreateLeagueInput>({
   maxParties: 6,
   party: { name: '', crest: { ...DEFAULT_CREST } }
 })
-const sizes = [2, 3, 4, 5, 6]
+// Matches the API's MIN_PARTIES..MAX_PARTIES (api/src/modules/leagues/league.model.ts)
+const sizes = Array.from({ length: 11 }, (_, i) => i + 2)
 const cadences: { value: Cadence; label: string; hint: string }[] = [
   { value: 'daily', label: 'Daily', hint: 'Season in two weeks' },
   { value: 'weekly', label: 'Weekly', hint: 'Like a real season' }
@@ -67,6 +68,7 @@ async function submit() {
             {{ size }}
           </label>
         </div>
+        <span class="muted hint">With an odd number of parties, one battles the dungeon monster each week.</span>
       </fieldset>
 
       <fieldset class="choice">
@@ -115,9 +117,10 @@ async function submit() {
 legend {
   margin-bottom: 6px;
 }
+/* 2 to 12 as two rows of six, so each size stays a full tap target on a phone. */
 .sizes {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
 }
 .size {

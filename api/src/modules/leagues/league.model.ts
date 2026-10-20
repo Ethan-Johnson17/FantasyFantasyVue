@@ -5,7 +5,7 @@ export const LEAGUE_STATUSES = ['forming', 'drafting', 'active', 'complete', 'ca
 export const LEAGUE_VISIBILITIES = ['private', 'public'] as const
 export const LEAGUE_CADENCES = ['daily', 'weekly'] as const
 export const MIN_PARTIES = 2
-export const MAX_PARTIES = 6
+export const MAX_PARTIES = 12
 export const LEAGUE_NAME_MAX = 50
 
 export type LeagueStatus = (typeof LEAGUE_STATUSES)[number]

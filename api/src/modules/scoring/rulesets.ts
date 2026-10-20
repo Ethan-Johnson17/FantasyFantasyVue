@@ -54,8 +54,10 @@ export interface LineupRules {
 }
 
 export interface PoolRules {
-  /** Hero pool size per party, by class */
+  /** Hero pool size per party, by class (capped at the candidates a season has, for big leagues) */
   perParty: Readonly<Record<HeroClass, number>>
+  /** The whole pool must offer at least this many heroes per party, so every party has real choices */
+  minPerParty: number
 }
 
 /** Weekly Champion and trait synergies. Rules: docs/CLASSIC_SCORING.md, "Strategy layer". */
@@ -137,7 +139,9 @@ export const RULESET_V1: Ruleset = {
   },
   pool: {
     // About 2.3x what a roster of 10 needs
-    perParty: { Mage: 4, Warrior: 6, Ranger: 6, Rogue: 4, Paladin: 3 }
+    perParty: { Mage: 4, Warrior: 6, Ranger: 6, Rogue: 4, Paladin: 3 },
+    // 1.5 heroes per roster spot. Big leagues stay well above it (12 parties: about 22 per party).
+    minPerParty: 15
   },
   // Calibrated on 2012-2025 (decided 2026-10-15): each trait plan beats Level-only drafting by
   // 3-6 points of win rate, combining them reaches ~57%, and no plan runs away.

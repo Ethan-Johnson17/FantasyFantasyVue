@@ -47,10 +47,19 @@ function playerWeeks(playerId: string, position: string, season: number, weeks: 
 /**
  * Two seasons of synthetic stats: veterans whose points per game fall with their index,
  * 2020 rookies with draft slots, team defenses, and a few players who must be excluded.
+ * `depth` adds that many lower-scoring veteran running backs and receivers, for big-league pools.
  */
-export async function seedStats(): Promise<void> {
+export async function seedStats({ depth = 0 }: { depth?: number } = {}): Promise<void> {
   const players: object[] = []
   const weeks: object[] = []
+  for (const position of ['RB', 'WR'] as const) {
+    for (let i = 0; i < depth; i++) {
+      const id = `${position}-depth-${String(i)}`
+      players.push({ _id: id, name: `Real ${id}`, position })
+      weeks.push(...playerWeeks(id, position, SEEDED_SEASON - 1, 10, 40 - (i % 30)))
+      weeks.push(...playerWeeks(id, position, SEEDED_SEASON, 14, 60))
+    }
+  }
   for (const position of POSITIONS) {
     for (let i = 0; i < VETERANS_PER_POSITION; i++) {
       const id = `${position}-${String(i)}`

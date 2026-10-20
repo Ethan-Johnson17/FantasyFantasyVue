@@ -70,7 +70,7 @@ describe('creating a league', () => {
 
   it.each([
     ['too few parties', { maxParties: 1 }],
-    ['too many parties', { maxParties: 7 }],
+    ['too many parties', { maxParties: 13 }],
     ['an unknown cadence', { cadence: 'hourly' }],
     ['an unknown crest emblem', { party: party('X', crest('unicorn')) }],
     ['an unknown banner color', { party: party('X', crest('crown', '#ff0000')) }],
