@@ -51,6 +51,8 @@ export interface LineupRules {
   classMultipliers: Readonly<Record<HeroClass, number>>
   /** Share of points a bench hero scores when auto-swapped in for a resting starter */
   autoSwapMultiplier: number
+  /** Most heroes of a class one party may hold, in the draft and through free agency */
+  classLimits: Readonly<Partial<Record<HeroClass, number>>>
 }
 
 export interface PoolRules {
@@ -135,7 +137,9 @@ export const RULESET_V1: Ruleset = {
     // (Level 6-8 heroes average ~17-18 damage per game in each). Rogues and Paladins stay swingier
     // week to week by design.
     classMultipliers: { Mage: 1, Warrior: 1.45, Ranger: 1.4, Rogue: 2.05, Paladin: 2.35 },
-    autoSwapMultiplier: 0.5
+    autoSwapMultiplier: 0.5,
+    // Team defenses are scarce (32 a season), so no party can corner them (decided 2026-10-19).
+    classLimits: { Paladin: 2 }
   },
   pool: {
     // About 2.3x what a roster of 10 needs

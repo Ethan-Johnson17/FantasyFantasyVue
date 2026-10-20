@@ -148,6 +148,8 @@ export interface GameRules {
   rosterSize: number
   starters: number
   autoSwapMultiplier: number
+  /** Most heroes of a class one party may hold */
+  classLimits: Partial<Record<HeroClass, number>>
   strategy: StrategyRules
 }
 

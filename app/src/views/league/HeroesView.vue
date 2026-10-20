@@ -202,7 +202,10 @@ async function save() {
 
     <!-- Before the draft: rank the pool -->
     <template v-if="drafting">
-      <p class="note">On your turn, the draft takes your highest-ranked hero still available. If none are left, it picks the best Level for you.</p>
+      <p class="note">
+        On your turn, the draft takes your highest-ranked hero still available. If none are left, it picks the best Level for you.
+        A party can hold at most 2 Paladins, so extra Paladins you rank are skipped.
+      </p>
       <p class="muted small traits-help">
         Look past Level: a Steadfast and a Wild hero fighting together deal bonus damage, Mighty heroes make the
         strongest Champions, and a Wild Champion guarded by a Steadfast ally never has a truly bad battle.

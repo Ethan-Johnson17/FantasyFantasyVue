@@ -151,6 +151,10 @@ function back() {
         parties: on your turn it takes your highest-ranked hero still available, or the best Level if none are left. It
         always leaves every party able to fill a lineup.
       </p>
+      <p>
+        A party can hold at most {{ rules?.classLimits.Paladin ?? 2 }} Paladins, so the scarce defenders are shared around;
+        the draft skips any extra Paladins you rank, and free agency follows the same limit.
+      </p>
       <p>Rank with traits in mind: a Steadfast and a Wild hero together, or a Mighty Champion, are worth more than Level alone.</p>
     </section>
 
