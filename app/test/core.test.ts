@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import type { RouteLocationNormalized } from 'vue-router'
-import { ApiError, createApiClient } from '../src/api/client'
+import { ApiError, createApiClient, SIGN_IN_EXPIRED_MESSAGE, UNREACHABLE, UNREACHABLE_MESSAGE } from '../src/api/client'
 import { loadConfig } from '../src/config'
 import { BANNERS, crestName, EMBLEMS } from '../src/crests'
 import { normalizePin } from '../src/pin'
@@ -50,6 +50,22 @@ describe('createApiClient', () => {
     expect(getToken).not.toHaveBeenCalled()
     const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit]
     expect(init.headers).not.toHaveProperty('Authorization')
+  })
+
+  it("reports an expired sign-in plainly when the token can't be renewed, without calling the API", async () => {
+    const fetchImpl = vi.fn()
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const api = createApiClient('http://api.test', () => Promise.reject(new Error('Missing Refresh Token')), fetchImpl)
+    const error = await api.listMyLeagues().catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ status: 401, message: SIGN_IN_EXPIRED_MESSAGE })
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('reports an unreachable server when the request gets no answer', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const api = createApiClient('http://api.test', () => Promise.resolve('tok'), vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    await expect(api.getAccount()).rejects.toMatchObject({ status: UNREACHABLE, message: UNREACHABLE_MESSAGE })
   })
 
   it('encodes path segments', async () => {

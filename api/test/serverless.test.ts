@@ -33,6 +33,15 @@ describe('serverless app', () => {
     expect(connect).toHaveBeenCalledTimes(2)
   })
 
+  it('sends CORS headers even when the database is unreachable, so the app can show the message', async () => {
+    const app = createServerlessApp(deps(vi.fn().mockRejectedValue(new Error('down'))))
+    const res = await request(app).get('/api/leagues/mine').set('Origin', 'http://localhost:8080')
+    expect(res.status).toBe(503)
+    expect(res.headers['access-control-allow-origin']).toBe('http://localhost:8080')
+    const other = await request(app).get('/api/leagues/mine').set('Origin', 'https://evil.example')
+    expect(other.headers['access-control-allow-origin']).toBeUndefined()
+  })
+
   it('keeps the API behaviour: JSON 404s and no X-Powered-By', async () => {
     const app = createServerlessApp(deps(vi.fn().mockResolvedValue(undefined)))
     const res = await request(app).get('/nope')

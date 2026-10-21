@@ -1,3 +1,4 @@
+import cors from 'cors'
 import express, { type Express } from 'express'
 import { createApp, type AppDependencies } from './createApp.js'
 import { HttpError } from './lib/errors.js'
@@ -27,6 +28,9 @@ export function createServerlessApp({ connect, ...app }: ServerlessDependencies)
   const server = express()
   server.disable('x-powered-by')
   server.set('trust proxy', app.env.TRUST_PROXY_HOPS)
+  // Before the database step, so even a 503 carries CORS headers the app can read (otherwise the
+  // browser blocks the response and the app can only say it couldn't reach the server).
+  server.use(cors({ origin: app.env.CORS_ORIGINS }))
   server.use((_req, _res, next) => {
     connectOnce().then(
       () => {

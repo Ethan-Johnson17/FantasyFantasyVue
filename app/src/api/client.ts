@@ -31,6 +31,11 @@ export class ApiError extends Error {
 }
 
 export type TokenProvider = () => Promise<string>
+
+/** Status for "the request never got an answer" (offline, blocked, or the server unreachable). */
+export const UNREACHABLE = 0
+export const SIGN_IN_EXPIRED_MESSAGE = 'Your sign-in has expired. Please sign in again.'
+export const UNREACHABLE_MESSAGE = 'We could not reach the game server. Check your connection and try again shortly.'
 type FetchLike = (input: string, init: RequestInit) => Promise<Response>
 
 export interface ApiClient {
@@ -69,14 +74,30 @@ export interface ApiClient {
 
 export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchImpl: FetchLike = fetch): ApiClient {
   async function request<T>(method: string, path: string, body?: unknown, signedIn = true): Promise<T> {
-    const response = await fetchImpl(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        ...(signedIn ? { Authorization: `Bearer ${await getToken()}` } : {}),
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) })
-    })
+    let token: string | undefined
+    if (signedIn) {
+      try {
+        token = await getToken()
+      } catch (caught) {
+        // The sign-in couldn't be renewed (expired session, revoked token, Auth0 settings): say so plainly.
+        console.warn('Could not get a sign-in token', caught)
+        throw new ApiError(401, SIGN_IN_EXPIRED_MESSAGE)
+      }
+    }
+    let response: Response
+    try {
+      response = await fetchImpl(`${baseUrl}${path}`, {
+        method,
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) })
+      })
+    } catch (caught) {
+      console.warn(`Request to ${path} failed`, caught)
+      throw new ApiError(UNREACHABLE, UNREACHABLE_MESSAGE)
+    }
     if (response.status === 204) return undefined as T
     const payload: unknown = await response.json().catch(() => null)
     if (!response.ok) throw toApiError(response.status, payload)
