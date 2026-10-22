@@ -134,7 +134,7 @@ describe('crits on screen', () => {
       hero: {
         id: 'h1', name: 'Beldon', heroClass: 'Warrior', race: 'Dwarf', gender: 'male', weapon: 'Axe', skill: 'Cleave',
         attack: 12, defense: 10, magic: 3, level: 9, levelRange: null, traits: [], partyId: 'a',
-        form: { average: 22, recent: 22, played: 3, playingLike: null }
+        form: { average: 22, recent: 22, played: 3, playingLike: null, projected: 21 }
       },
       history: [
         { week: 1, slot: 'slot1', damage: 48, resting: false, swappedInto: null, crit: 'success' },

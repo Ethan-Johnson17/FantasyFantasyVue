@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { HeroModel } from '../src/modules/heroes/hero.model.js'
 import { RULESET_V1 } from '../src/modules/scoring/rulesets.js'
-import { levelForDamage, PLAYING_LIKE_MIN_BATTLES } from '../src/modules/season/form.service.js'
+import { levelBaseline, levelForDamage, PLAYING_LIKE_MIN_BATTLES, PROJECTION_PRIOR_BATTLES, projectDamage } from '../src/modules/season/form.service.js'
 import { PlayerWeekStatModel } from '../src/modules/stats/stats.models.js'
 import { as, draftedLeague, makeWeeksDue } from './leagueHelpers.js'
 import { SEEDED_SEASON, seedStats } from './statsSeed.js'
@@ -12,7 +12,7 @@ interface ListedHero {
   id: string
   partyId: string | null
   heroClass: 'Mage' | 'Warrior' | 'Ranger' | 'Rogue' | 'Paladin'
-  form: { average: number | null; recent: number | null; played: number; playingLike: number | null }
+  form: { average: number | null; recent: number | null; played: number; playingLike: number | null; projected: number }
 }
 
 const heroesOf = async (id: string) => (await alice.get(`/api/leagues/${id}/heroes`)).body as ListedHero[]
@@ -39,7 +39,7 @@ beforeEach(async () => {
 describe('hero form', () => {
   it('is empty before any battle', async () => {
     const id = await draftedLeague([alice])
-    for (const hero of await heroesOf(id)) expect(hero.form).toEqual({ average: null, recent: null, played: 0, playingLike: null })
+    for (const hero of await heroesOf(id)) expect(hero.form).toMatchObject({ average: null, recent: null, played: 0, playingLike: null })
   })
 
   it('averages class damage over played weeks: the whole season and the latest three', async () => {
@@ -52,7 +52,7 @@ describe('hero form', () => {
 
     const listed = (await heroesOf(id)).find(entry => entry.id === hero._id.toString())!
     const m = RULESET_V1.lineup.classMultipliers[listed.heroClass]
-    expect(listed.form).toEqual({
+    expect(listed.form).toMatchObject({
       average: Math.round(((10 + 20 + 30 + 40) / 4) * m),
       recent: Math.round(((20 + 30 + 40) / 3) * m),
       played: 4,
@@ -73,7 +73,7 @@ describe('hero form', () => {
     const heroes = await heroesOf(id)
     const listed = heroes.find(entry => entry.id === free._id.toString())!
     expect(listed.partyId).toBeNull()
-    expect(listed.form).toEqual({ average: Math.round(25 * RULESET_V1.lineup.classMultipliers[listed.heroClass]), recent: Math.round(25 * RULESET_V1.lineup.classMultipliers[listed.heroClass]), played: 1, playingLike: null })
+    expect(listed.form).toMatchObject({ average: Math.round(25 * RULESET_V1.lineup.classMultipliers[listed.heroClass]), recent: Math.round(25 * RULESET_V1.lineup.classMultipliers[listed.heroClass]), played: 1, playingLike: null })
     expect(heroes.every(hero => Number.isInteger(hero.form.average ?? 0))).toBe(true)
     // Same guard as the draft's hidden-player test: no "season" or "source" key, and no season year.
     expect(JSON.stringify(heroes)).not.toMatch(new RegExp(`"season"|"source"|${String(SEEDED_SEASON)}`))
@@ -109,5 +109,38 @@ describe('rookies: playing like', () => {
 
     const detail = (await alice.get(`/api/leagues/${id}/heroes/${rookie._id.toString()}`)).body as { hero: { form: { playingLike: number | null } } }
     expect(detail.hero.form.playingLike).toBe(10)
+  })
+})
+
+describe('projections', () => {
+  const table = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28]
+
+  it("start from the Level's typical damage, with mystery midpoints between Levels", () => {
+    expect(levelBaseline({ level: 5, levelRange: null }, table)).toBe(18)
+    expect(levelBaseline({ level: null, levelRange: { min: 1, max: 7 } }, table)).toBe(16) // midpoint 4
+    expect(levelBaseline({ level: null, levelRange: { min: 1, max: 4 } }, table)).toBe(13) // midpoint 2.5
+    expect(levelBaseline({ level: null, levelRange: { min: 8, max: 10 } }, table)).toBe(26) // midpoint 9
+  })
+
+  it("move from the Level toward the hero's own results as battles pile up", () => {
+    expect(projectDamage([], 18)).toBe(18)
+    expect(PROJECTION_PRIOR_BATTLES).toBe(3)
+    expect(projectDamage([30], 18)).toBe(21) // (30 + 3x18) / 4
+    expect(projectDamage([30, 30, 30, 30, 30, 30], 18)).toBe(26) // (180 + 54) / 9
+  })
+
+  it('are served for every hero, before and after battles', async () => {
+    const id = await draftedLeague([alice])
+    const hero = await playerHero(id, true)
+    const listed = () => heroesOf(id).then(all => all.find(entry => entry.id === hero._id.toString())!)
+    const before = await listed()
+    const baseline = levelBaseline(hero, RULESET_V1.levelDamage[before.heroClass])
+    expect(before.form.projected).toBe(Math.round(baseline))
+
+    await setWeeks(hero.source.id, { 1: 300, 2: 300 })
+    await makeWeeksDue(id, 2)
+    await alice.get(`/api/leagues/${id}`)
+    const damage = 30 * RULESET_V1.lineup.classMultipliers[before.heroClass]
+    expect((await listed()).form.projected).toBe(Math.round(projectDamage([damage, damage], baseline)))
   })
 })

@@ -92,7 +92,9 @@ const chartLabel = computed(() =>
     <section class="history">
       <div class="row-heading">
         <h2 class="section-title">Damage this season</h2>
-        <span v-if="average !== null" class="muted small">Average {{ average }}</span>
+        <span class="muted small">
+          <template v-if="average !== null">Average {{ average }} · </template>Projected next battle {{ hero.form.projected }}
+        </span>
       </div>
       <div class="chart" role="img" :aria-label="chartLabel">
         <div

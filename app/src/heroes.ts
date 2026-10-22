@@ -97,6 +97,30 @@ export function activeSynergies(fighters: readonly Pick<Hero, 'id' | 'traits'>[]
   return active
 }
 
+/**
+ * A projected party total: starters who'll fight, with the Champion's multiplier, Bulwark's floor, and the
+ * Order & Chaos bonus. Mirrors the server's battle math (api/src/modules/season/strategy.ts) so the Party
+ * tab can update as the lineup changes; the server's projections in the matchup are the reference.
+ */
+export function projectedTotal(
+  fighters: readonly (Pick<Hero, 'id' | 'traits'> & { projected: number })[],
+  championId: string | null,
+  rules: StrategyRules
+): number {
+  const synergies = activeSynergies(fighters, championId)
+  let total = 0
+  for (const hero of fighters) {
+    if (hero.id !== championId) {
+      total += hero.projected
+      continue
+    }
+    const boosted = hero.projected * (synergies.includes('mightyChampion') ? rules.mightyChampionMultiplier : rules.championMultiplier)
+    total += synergies.includes('bulwark') ? Math.max(boosted, rules.bulwarkFloor) : boosted
+  }
+  if (synergies.includes('orderAndChaos')) total *= 1 + rules.orderAndChaosBonus
+  return Math.round(total)
+}
+
 /** Each class's name for a natural 20 and a natural 1. Flavor only. */
 export const CRIT_NAMES: Record<HeroClass, Record<Crit, string>> = {
   Mage: { success: 'Arcane Surge', fail: 'Spell Fizzles' },

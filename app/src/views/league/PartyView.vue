@@ -5,7 +5,7 @@ import type { Hero, Lineup } from '../../api/types'
 import ClassIcon from '../../components/ClassIcon.vue'
 import FormError from '../../components/FormError.vue'
 import TraitChips from '../../components/TraitChips.vue'
-import { activeSynergies, levelText, levelValue, SYNERGY_ORDER, synergyInfo } from '../../heroes'
+import { activeSynergies, levelText, levelValue, projectedTotal, SYNERGY_ORDER, synergyInfo } from '../../heroes'
 import { useLeague } from '../../league'
 import { timeUntil } from '../../time'
 
@@ -51,6 +51,12 @@ const synergies = computed(() => {
   return new Set(activeSynergies(fighters, champion.value))
 })
 const times = (value: number) => `${String(value)}×`
+/** The lineup on screen, projected: starters who'll fight, with the Champion and synergy bonuses. */
+const projected = computed(() => {
+  if (!data.value) return 0
+  const fighters = starters.value.flatMap(({ hero }) => (hero && !hero.restingNextWeek ? [hero] : []))
+  return projectedTotal(fighters, champion.value, data.value.strategy)
+})
 
 function selectSlot(key: string) {
   selectedSlot.value = selectedSlot.value === key ? null : key
@@ -145,7 +151,8 @@ async function toggleAutoSwap(event: Event) {
 
     <div class="row-heading">
       <h2 class="section-title">Starting party</h2>
-      <span class="muted small">{{ data.slots.length }} slots · any class</span>
+      <span v-if="data.nextWeek" class="projected-total" aria-label="Projected damage this battle">Projected {{ projected }}</span>
+      <span v-else class="muted small">{{ data.slots.length }} slots · any class</span>
     </div>
     <p v-if="selectedSlot" class="note small-note" role="status">
       Choose a bench hero to start in {{ selectedRule?.label }}, or tap the slot again to cancel.
@@ -169,7 +176,10 @@ async function toggleAutoSwap(event: Event) {
               <span v-else class="muted small">{{ hero.race }} {{ hero.heroClass }}</span>
               <TraitChips :traits="hero.traits" />
             </span>
-            <span class="level">{{ levelText(hero) }}</span>
+            <span class="numbers">
+              <span class="level">{{ levelText(hero) }}</span>
+              <span class="proj small">{{ hero.restingNextWeek ? 'Resting' : `Proj ${String(hero.projected)}` }}</span>
+            </span>
           </button>
           <button
             v-if="data.nextWeek"
@@ -220,7 +230,9 @@ async function toggleAutoSwap(event: Event) {
           @click="selectedSlot ? swapIn(hero) : undefined"
         >
           <span class="hero-name">{{ hero.name }}</span>
-          <span class="muted small">{{ hero.heroClass }} · {{ levelText(hero) }}{{ hero.restingNextWeek ? ' · resting' : '' }}</span>
+          <span class="muted small">
+            {{ hero.heroClass }} · {{ levelText(hero) }} · {{ hero.restingNextWeek ? 'resting' : `proj ${String(hero.projected)}` }}
+          </span>
           <TraitChips :traits="hero.traits" />
         </button>
         <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="details" :aria-label="`About ${hero.name}`">›</RouterLink>
@@ -298,6 +310,22 @@ async function toggleAutoSwap(event: Event) {
 .hero-row.selected {
   border-color: var(--gold);
   background: var(--surface-raised);
+}
+.numbers {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.proj {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.projected-total {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--gold);
 }
 .hero-row.champion {
   border-color: var(--gold);

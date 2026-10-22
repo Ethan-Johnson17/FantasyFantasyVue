@@ -71,13 +71,14 @@ const bySort = (a: Hero, b: Hero) =>
 const freeAgents = computed(() => heroes.value.filter(hero => hero.partyId === null && matches(hero)).sort(bySort))
 const drafted = computed(() => heroes.value.filter(hero => hero.partyId !== null && matches(hero)).sort(bySort))
 
-/** "Last 3: 22 · season 18" ("Avg 47 · 1 battle" early on), or why there's nothing to show yet. */
+/** "Proj 20 · Last 3: 22 · season 18" ("Proj 30 · Avg 47 · 1 battle" early on); just the projection before battles. */
 function formText(hero: Hero): string {
   const form = hero.form
-  if (!form || !battlesPlayed.value) return ''
-  if (!form.played) return 'No battles fought yet'
+  if (!form) return ''
+  if (!battlesPlayed.value) return league.value?.status === 'active' ? `Proj ${String(form.projected)}` : ''
+  if (!form.played) return `Proj ${String(form.projected)} · No battles fought yet`
   // Until there are more than three battles, recent form and the season average are the same.
-  const playing = form.playingLike ? `Playing like Lv ${String(form.playingLike)} · ` : ''
+  const playing = `Proj ${String(form.projected)} · ${form.playingLike ? `Playing like Lv ${String(form.playingLike)} · ` : ''}`
   if (form.played <= 3) return `${playing}Avg ${String(form.average ?? 0)} · ${String(form.played)} battle${form.played === 1 ? '' : 's'}`
   return `${playing}Last 3: ${String(form.recent ?? 0)} · season ${String(form.average ?? 0)}`
 }

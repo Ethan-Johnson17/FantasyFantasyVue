@@ -68,6 +68,20 @@ function championNote(side: ResultSide): string {
   return hero?.resting ? `${hero.name} was named Champion but was resting, so the bonus was lost.` : ''
 }
 
+/** Each side's bench heroes who didn't fight, best first: what they would have dealt. */
+const benches = computed(() => {
+  const value = featured.value
+  if (!value) return []
+  const bench = (side: ResultSide) =>
+    side.heroes.filter(hero => hero.slot === 'Bench' && !hero.swappedInto).sort((a, b) => b.damage - a.damage || a.name.localeCompare(b.name))
+  const mine = bench(value.us)
+  const theirs = value.them ? bench(value.them) : []
+  return Array.from({ length: Math.max(mine.length, theirs.length) }, (_, index) => ({
+    key: index,
+    cells: value.them ? [mine[index] ?? null, theirs[index] ?? null] : [mine[index] ?? null]
+  }))
+})
+
 const others = computed(() =>
   props.result.matchups.filter(m => m.home.partyId !== featured.value?.us.partyId && m.away?.partyId !== featured.value?.us.partyId)
 )
@@ -147,6 +161,27 @@ const others = computed(() =>
       </li>
     </ol>
     <p v-if="championNote(featured.us)" class="note">{{ championNote(featured.us) }}</p>
+
+    <template v-if="benches.length">
+      <div class="row-heading">
+        <h2 class="section-title">Bench</h2>
+        <span class="muted small">Didn't count toward the total</span>
+      </div>
+      <ol class="lineups bench" :class="{ solo: !featured.them }">
+        <li v-for="row in benches" :key="row.key" class="lineup-row">
+          <template v-for="(hero, index) in row.cells" :key="index">
+            <RouterLink v-if="hero" :to="`/leagues/${leagueId}/heroes/${hero.heroId}`" class="hero-cell bench-cell" :class="{ theirs: index === 1 }">
+              <span class="hero-top">
+                <span class="hero-name">{{ hero.name }}</span>
+                <span class="bench-damage">{{ hero.resting ? '–' : hero.damage }}</span>
+              </span>
+              <span class="muted small">{{ hero.heroClass }}{{ hero.resting ? ' · resting' : '' }}</span>
+            </RouterLink>
+            <span v-else class="hero-cell empty"></span>
+          </template>
+        </li>
+      </ol>
+    </template>
     <p v-if="!featured.them" class="note">{{ featured.opponentName }} fought as strong as the league's average party this week.</p>
 
     <template v-if="others.length">
@@ -235,6 +270,19 @@ const others = computed(() =>
 }
 .crit-name.fail {
   color: var(--danger);
+}
+.bench-cell {
+  opacity: 0.85;
+}
+.bench-cell .hero-top {
+  justify-content: space-between;
+}
+.bench-damage {
+  flex: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-muted);
 }
 .others-title {
   margin: 18px 0 8px;
