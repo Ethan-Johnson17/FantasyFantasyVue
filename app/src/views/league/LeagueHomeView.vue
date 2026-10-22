@@ -246,6 +246,9 @@ const isMine = (partyId: string) => partyId === myParty.value?.id
       </ul>
     </template>
 
+    <!-- Before the draft there are no tabs, so chat is linked here -->
+    <RouterLink v-if="league.status === 'forming'" :to="`/leagues/${league.id}/chat`" class="recap-link">League chat ›</RouterLink>
+
     <div class="danger-zone">
       <button v-if="isHost && ['forming', 'drafting', 'active'].includes(league.status)" type="button" class="link-button danger" :disabled="busy" @click="cancelLeague">
         Cancel league

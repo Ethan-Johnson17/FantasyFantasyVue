@@ -2,6 +2,7 @@ import mongoose, { type ClientSession } from 'mongoose'
 import { BadRequest, Conflict, NotFound } from '../../lib/errors.js'
 import { createRng } from '../../lib/random.js'
 import type { AccountDocument } from '../accounts/account.model.js'
+import { expireLeagueChat } from '../chat/chat.service.js'
 import { toHeroView, type HeroView } from '../draft/draft.service.js'
 import type { HeroClass } from '../heroes/classes.js'
 import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
@@ -56,12 +57,14 @@ async function resolveWeek(league: LeagueDocument, week: number): Promise<boolea
 
   return inTransaction(async session => {
     // Claim exactly this week; fails if another request already resolved it.
+    const endedAt = week === SEASON_WEEKS ? new Date() : null
     const claim = await LeagueModel.updateOne(
       { _id: league._id, status: 'active', resolvedWeeks: week - 1 },
-      { $set: { resolvedWeeks: week, ...(week === SEASON_WEEKS ? { status: 'complete' } : {}) } },
+      { $set: { resolvedWeeks: week, ...(endedAt ? { status: 'complete', endedAt } : {}) } },
       { session }
     )
     if (claim.modifiedCount === 0) return false
+    if (endedAt) await expireLeagueChat(league._id, endedAt, session)
 
     const [parties, heroes] = await Promise.all([
       PartyModel.find({ leagueId: league._id }).session(session),

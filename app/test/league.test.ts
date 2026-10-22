@@ -5,9 +5,11 @@ import type { Component } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { ApiError, type ApiClient } from '../src/api/client'
 import { apiKey } from '../src/api/inject'
-import type { Finale, Hero, LeagueDetail, Lineup, Matchup, MatchupSide, Party, Standing, WeekResult } from '../src/api/types'
+import type { ChatMessage, ChatPage, Finale, Hero, LeagueDetail, Lineup, Matchup, MatchupSide, Party, Standing, WeekResult } from '../src/api/types'
+import { CHAT_POLL_MS } from '../src/chat'
 import { projectedTotal } from '../src/heroes'
 import { provideLeagueForTest } from '../src/league'
+import ChatView from '../src/views/league/ChatView.vue'
 import DraftRecapView from '../src/views/league/DraftRecapView.vue'
 import FinaleView from '../src/views/league/FinaleView.vue'
 import HeroDetailView from '../src/views/league/HeroDetailView.vue'
@@ -649,7 +651,7 @@ describe('Matchup', () => {
 type ScheduleResult = { homeTotal: number; awayTotal: number; outcome: 'home' | 'away' | 'draw'; monster: string | null }
 
 describe('League navigation', () => {
-  it('has four tabs, one per row slot, each with an icon and a label', async () => {
+  it('has five tabs in one row, each with an icon and a label', async () => {
     setActivePinia(createPinia())
     const router = createRouter({
       history: createMemoryHistory(),
@@ -661,10 +663,11 @@ describe('League navigation', () => {
     const wrapper = mount({ template: '<RouterView />' }, { global: { plugins: [router], provide: { [apiKey as symbol]: api } } })
     await flushPromises()
     const tabs = wrapper.findAll('.tabs a')
-    // The bar is a four-column grid: a fifth tab would wrap onto a second row.
-    expect(tabs.map(tab => tab.text())).toEqual(['League', 'Party', 'Matchup', 'Heroes'])
+    expect(tabs.map(tab => tab.text())).toEqual(['League', 'Party', 'Matchup', 'Heroes', 'Chat'])
+    // One grid column per tab, so they never wrap onto a second row.
+    expect(wrapper.find('.tabs').attributes('style')).toContain('repeat(5, minmax(0, 1fr))')
     expect(tabs.every(tab => tab.find('svg').exists())).toBe(true)
-    expect(tabs.map(tab => tab.attributes('href'))).toEqual(['/leagues/l1', '/leagues/l1/party', '/leagues/l1/matchup', '/leagues/l1/heroes'])
+    expect(tabs.map(tab => tab.attributes('href'))).toEqual(['/leagues/l1', '/leagues/l1/party', '/leagues/l1/matchup', '/leagues/l1/heroes', '/leagues/l1/chat'])
   })
 })
 
@@ -771,5 +774,142 @@ describe('Hero detail', () => {
     const early = await mountLeague(HeroDetailView, fakeApi({ getHero: vi.fn().mockResolvedValue(rookie(null)) }), league, '/heroes/r1')
     expect(early.wrapper.find('.chip.playing').exists()).toBe(false)
     expect(early.wrapper.text()).toContain('After a few battles, they show what Level they are playing like.')
+  })
+})
+
+describe('League chat', () => {
+  const message = (id: string, overrides: Partial<ChatMessage> = {}): ChatMessage => ({
+    id,
+    body: `Message ${id}`,
+    at: new Date().toISOString(),
+    author: { partyId: 'b', name: 'Ember Wolves', crest },
+    mine: false,
+    reportedByMe: false,
+    reports: null,
+    ...overrides
+  })
+  const page = (messages: ChatMessage[], overrides: Partial<ChatPage> = {}): ChatPage => ({
+    messages,
+    hasMore: false,
+    canModerate: false,
+    readOnly: false,
+    ...overrides
+  })
+  const league = () => detail({ status: 'active', parties: [party('a', true), party('b')] })
+  const bodies = (wrapper: Awaited<ReturnType<typeof mountLeague>>['wrapper']) => wrapper.findAll('.message .body').map(b => b.text())
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('shows messages with their party, and lets members report others and remove their own', async () => {
+    const api = fakeApi({
+      getChat: vi.fn().mockResolvedValue(
+        page([
+          message('a1'),
+          message('a2', { mine: true, author: { partyId: 'a', name: 'Party a', crest } }),
+          message('a3', { author: null })
+        ])
+      )
+    })
+    const { wrapper } = await mountLeague(ChatView, api, league())
+    expect(api.getChat).toHaveBeenCalledWith('l1')
+    expect(wrapper.findAll('.author').map(a => a.text())).toEqual(['Ember Wolves', 'You', 'Former member'])
+    const [theirs, mine] = wrapper.findAll('.message')
+    expect(theirs!.findAll('button').map(b => b.text())).toEqual(['Report'])
+    expect(mine!.findAll('button').map(b => b.text())).toEqual(['Remove'])
+    expect(wrapper.find('.reports').exists()).toBe(false)
+  })
+
+  it('shows the host report counts and lets them remove any message', async () => {
+    const api = fakeApi({
+      getChat: vi.fn().mockResolvedValue(page([message('a1', { reports: 2 }), message('a2', { reports: 0 })], { canModerate: true })),
+      deleteChat: vi.fn().mockResolvedValue(undefined)
+    })
+    const { wrapper } = await mountLeague(ChatView, api, league())
+    expect(wrapper.findAll('.reports').map(r => r.text())).toEqual(['⚑ 2'])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await wrapper.find('button[aria-label="Remove message from Ember Wolves"]').trigger('click')
+    await flushPromises()
+    expect(api.deleteChat).toHaveBeenCalledWith('l1', 'a1')
+    expect(bodies(wrapper)).toEqual(['Message a2'])
+  })
+
+  it('reports after confirming', async () => {
+    const api = fakeApi({
+      getChat: vi.fn().mockResolvedValue(page([message('a1')])),
+      reportChat: vi.fn().mockResolvedValue(message('a1', { reportedByMe: true }))
+    })
+    const { wrapper } = await mountLeague(ChatView, api, league())
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await wrapper.find('button[aria-label="Report message from Ember Wolves"]').trigger('click')
+    expect(api.reportChat).not.toHaveBeenCalled()
+
+    confirm.mockReturnValue(true)
+    await wrapper.find('button[aria-label="Report message from Ember Wolves"]').trigger('click')
+    await flushPromises()
+    expect(api.reportChat).toHaveBeenCalledWith('l1', 'a1')
+    expect(wrapper.find('.actions').text()).toBe('Reported')
+  })
+
+  it('sends with Enter, keeps Shift+Enter for new lines, and shows the message', async () => {
+    const api = fakeApi({ postChat: vi.fn().mockResolvedValue(message('b1', { body: 'Hello all', mine: true })) })
+    const { wrapper } = await mountLeague(ChatView, api, league())
+    expect(wrapper.text()).toContain('No messages yet')
+    const box = wrapper.find('textarea')
+    await box.setValue('Hello all')
+    await box.trigger('keydown', { key: 'Enter', shiftKey: true })
+    expect(api.postChat).not.toHaveBeenCalled()
+    await box.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(api.postChat).toHaveBeenCalledWith('l1', 'Hello all')
+    expect(bodies(wrapper)).toEqual(['Hello all'])
+    expect((box.element as HTMLTextAreaElement).value).toBe('')
+  })
+
+  it('checks for new messages every few seconds while open, and stops when closed', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const getChat = vi.fn().mockResolvedValueOnce(page([message('a1')])).mockResolvedValue(page([message('a1'), message('a2')]))
+    const api = fakeApi({ getChat })
+    const { wrapper } = await mountLeague(ChatView, api, league())
+    expect(bodies(wrapper)).toEqual(['Message a1'])
+
+    vi.advanceTimersByTime(CHAT_POLL_MS)
+    await flushPromises()
+    expect(bodies(wrapper)).toEqual(['Message a1', 'Message a2'])
+
+    wrapper.unmount()
+    const calls = getChat.mock.calls.length
+    vi.advanceTimersByTime(CHAT_POLL_MS * 3)
+    await flushPromises()
+    expect(getChat.mock.calls.length).toBe(calls)
+  })
+
+  it('drops messages removed since the last check, and keeps older ones loaded above', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const getChat = vi
+      .fn()
+      .mockResolvedValueOnce(page([message('b1'), message('b2'), message('b3')], { hasMore: true }))
+      .mockResolvedValueOnce(page([message('a1')]))
+      .mockResolvedValue(page([message('b1'), message('b3')]))
+    const api = fakeApi({ getChat })
+    const { wrapper } = await mountLeague(ChatView, api, league())
+    await wrapper.findAll('button').find(b => b.text() === 'Show older messages')!.trigger('click')
+    await flushPromises()
+    expect(getChat).toHaveBeenLastCalledWith('l1', 'b1')
+    expect(bodies(wrapper)).toEqual(['Message a1', 'Message b1', 'Message b2', 'Message b3'])
+    expect(wrapper.text()).not.toContain('Show older messages')
+
+    vi.advanceTimersByTime(CHAT_POLL_MS)
+    await flushPromises()
+    expect(bodies(wrapper)).toEqual(['Message a1', 'Message b1', 'Message b3'])
+  })
+
+  it('is read-only once the league is canceled', async () => {
+    const api = fakeApi({ getChat: vi.fn().mockResolvedValue(page([message('a1')], { readOnly: true })) })
+    const { wrapper } = await mountLeague(ChatView, api, detail({ status: 'canceled', parties: [party('a', true), party('b')] }))
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(wrapper.text()).toContain('its chat is closed')
+    expect(wrapper.find('button[aria-label="Report message from Ember Wolves"]').exists()).toBe(false)
   })
 })

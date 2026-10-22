@@ -15,7 +15,8 @@ export function as(sub: string) {
     get: (url: string) => withAuth(request(app).get(url)),
     post: (url: string, body: object = {}) => withAuth(request(app).post(url).send(body)),
     put: (url: string, body: object) => withAuth(request(app).put(url).send(body)),
-    patch: (url: string, body: object) => withAuth(request(app).patch(url).send(body))
+    patch: (url: string, body: object) => withAuth(request(app).patch(url).send(body)),
+    delete: (url: string) => withAuth(request(app).delete(url))
   }
 }
 

@@ -2,6 +2,7 @@ import mongoose, { type ClientSession, type Types } from 'mongoose'
 import { isDuplicateKeyError } from '../../db/mongoose.js'
 import { Conflict, NotFound } from '../../lib/errors.js'
 import { AccountModel, type AccountDocument } from '../accounts/account.model.js'
+import { expireLeagueChat } from '../chat/chat.service.js'
 import { advanceLeague } from '../season/advance.js'
 import { partyOutlook, type PartyOutlook } from '../season/outlook.service.js'
 import { computeStandings } from '../season/season.service.js'
@@ -222,11 +223,13 @@ export async function updateLeague(
 
 export async function cancelLeague(viewer: AccountDocument, leagueId: string): Promise<LeagueDetailView> {
   await loadLeagueAsHost(viewer, leagueId)
+  const endedAt = new Date()
   const canceled = await LeagueModel.findOneAndUpdate(
     { _id: leagueId, status: trusted({ $in: ACTIVE_STATUSES }) },
-    { $set: { status: 'canceled' } }
+    { $set: { status: 'canceled', endedAt } }
   )
   if (!canceled) throw new Conflict('This league has already ended')
+  await expireLeagueChat(leagueId, endedAt)
   return getLeague(viewer, leagueId)
 }
 
