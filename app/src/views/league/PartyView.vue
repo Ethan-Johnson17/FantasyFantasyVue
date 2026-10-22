@@ -184,6 +184,7 @@ async function toggleAutoSwap(event: Event) {
           >
             ♛
           </button>
+          <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="details" :aria-label="`About ${hero.name}`">›</RouterLink>
         </template>
       </li>
     </ol>
@@ -226,7 +227,7 @@ async function toggleAutoSwap(event: Event) {
       </li>
     </ul>
 
-    <p class="muted small help">Tap a starter, then a bench hero, to swap them. If a starter rests and auto-swap is on, your best bench hero steps in at half damage. Benching your Champion withdraws them.</p>
+    <p class="muted small help">Tap a starter, then a bench hero, to swap them; tap › for a hero's stats. If a starter rests and auto-swap is on, your best bench hero steps in at half damage. Benching your Champion withdraws them.</p>
 
     <p v-if="notice" class="muted" role="status">{{ notice }}</p>
     <div v-if="changed" class="actions">
