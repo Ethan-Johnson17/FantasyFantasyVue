@@ -158,6 +158,17 @@ describe('Party tab', () => {
     expect(wrapper.text()).toContain('Lineup saved.')
   })
 
+  it('links every hero, starters and bench, to their stats page', async () => {
+    const api = fakeApi({ getLineup: vi.fn().mockResolvedValue(lineupData()) })
+    const { wrapper } = await mountLeague(PartyView, api, detail({ status: 'active', parties: [party('p1', true)] }))
+    const starterLinks = wrapper.findAll('.starters a.details').map(a => [a.attributes('aria-label'), a.attributes('href')])
+    expect(starterLinks).toEqual([
+      ['About Hero h1', '/leagues/l1/heroes/h1'],
+      ['About Hero h2', '/leagues/l1/heroes/h2']
+    ])
+    expect(wrapper.find('.bench a.details').attributes('href')).toBe('/leagues/l1/heroes/h3')
+  })
+
   it('toggles auto-swap for my party', async () => {
     const api = fakeApi({ getLineup: vi.fn().mockResolvedValue(lineupData()), updateParty: vi.fn().mockResolvedValue(party('p1', true)) })
     const { wrapper } = await mountLeague(PartyView, api, detail({ status: 'active', parties: [party('p1', true)] }))
