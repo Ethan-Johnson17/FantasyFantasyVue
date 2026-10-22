@@ -9,6 +9,7 @@ import { loadAccount } from './middleware/auth.js'
 import { MongoRateLimitStore } from './lib/rateLimitStore.js'
 import { errorHandler, notFound } from './middleware/errors.js'
 import { accountRouter } from './modules/accounts/account.routes.js'
+import { chatRouter } from './modules/chat/chat.routes.js'
 import { leagueRouter, partyRouter } from './modules/leagues/league.routes.js'
 import { healthRouter } from './routes/health.js'
 import { rulesRouter } from './routes/rules.js'
@@ -52,6 +53,8 @@ export function createApp({ env, logger, authenticate }: AppDependencies) {
   const api = express.Router()
   api.use(authenticate, loadAccount)
   api.use('/account', accountRouter)
+  // Ahead of the league router, whose /:id routes bring the league up to date first; chat polls too often for that.
+  api.use('/leagues/:id/chat', chatRouter())
   api.use('/leagues', leagueRouter())
   api.use('/parties', partyRouter)
   app.use('/api', api)

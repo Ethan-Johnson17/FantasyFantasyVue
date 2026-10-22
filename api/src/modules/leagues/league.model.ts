@@ -72,7 +72,9 @@ const leagueSchema = new Schema(
     weekOneAt: { type: Date },
     schedule: { type: [scheduledWeekSchema], default: undefined },
     // Game weeks resolved so far; also the optimistic-concurrency token for resolving the next one
-    resolvedWeeks: { type: Number, required: true, default: 0 }
+    resolvedWeeks: { type: Number, required: true, default: 0 },
+    // When the season finished or the league was canceled; starts the chat's retention clock
+    endedAt: { type: Date }
   },
   { timestamps: true }
 )

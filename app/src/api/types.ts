@@ -270,3 +270,26 @@ export interface HeroDetail {
   hero: Hero & { form: HeroForm }
   history: { week: number; slot: string; damage: number; resting: boolean; swappedInto: string | null; crit: Crit | null }[]
 }
+
+/** A league chat message. Bodies arrive already filtered for profanity. */
+export interface ChatMessage {
+  id: string
+  body: string
+  at: string
+  /** The author's party; null once they've left the league */
+  author: { partyId: string; name: string; crest: Crest } | null
+  mine: boolean
+  reportedByMe: boolean
+  /** How many members reported it: the host sees a count, everyone else null */
+  reports: number | null
+}
+
+export interface ChatPage {
+  /** Oldest first */
+  messages: ChatMessage[]
+  hasMore: boolean
+  /** The viewer hosts the league and can remove anyone's message */
+  canModerate: boolean
+  /** The league was canceled: messages can be read, not sent */
+  readOnly: boolean
+}

@@ -14,12 +14,13 @@ onMounted(reload)
 watch(() => route.params.id, reload)
 
 const base = computed(() => `/leagues/${leagueId()}`)
-// Icons on a 24x24 grid: castle, shield, crossed swords, star.
+// Icons on a 24x24 grid: castle, shield, crossed swords, star, speech bubble.
 const tabs = computed(() => [
   { to: base.value, label: 'League', exact: true, icon: 'M4 21V9l3 2V6l3 2V4h4v4l3-2v5l3-2v12zM10 21v-5h4v5' },
   { to: `${base.value}/party`, label: 'Party', exact: false, icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z' },
   { to: `${base.value}/matchup`, label: 'Matchup', exact: false, icon: 'M5 4l10 10M4 14l4 4 M19 4L9 14M20 14l-4 4M3 19l2 2M21 19l-2 2' },
-  { to: `${base.value}/heroes`, label: 'Heroes', exact: false, icon: 'M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z' }
+  { to: `${base.value}/heroes`, label: 'Heroes', exact: false, icon: 'M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z' },
+  { to: `${base.value}/chat`, label: 'Chat', exact: false, icon: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5' }
 ])
 // Tabs matter once the league has a hero pool; before that the League tab has everything.
 const showTabs = computed(() => !!league.value && league.value.status !== 'forming' && league.value.status !== 'canceled')
@@ -33,7 +34,7 @@ const showTabs = computed(() => !!league.value && league.value.status !== 'formi
       <RouterView v-if="league" />
     </main>
 
-    <nav v-if="showTabs" class="tabs" aria-label="League">
+    <nav v-if="showTabs" class="tabs" aria-label="League" :style="{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }">
       <RouterLink
         v-for="tab in tabs"
         :key="tab.to"
@@ -72,7 +73,6 @@ const showTabs = computed(() => !!league.value && league.value.status !== 'formi
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   max-width: 480px;
   margin: 0 auto;
   border-top: 1px solid var(--line);

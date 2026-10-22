@@ -28,7 +28,8 @@ export const routes: RouteRecordRaw[] = [
       { path: 'heroes', name: 'heroes', component: () => import('./views/league/HeroesView.vue') },
       { path: 'heroes/:heroId', name: 'hero', component: () => import('./views/league/HeroDetailView.vue') },
       { path: 'finale', name: 'finale', component: () => import('./views/league/FinaleView.vue') },
-      { path: 'draft', name: 'draft', component: () => import('./views/league/DraftRecapView.vue') }
+      { path: 'draft', name: 'draft', component: () => import('./views/league/DraftRecapView.vue') },
+      { path: 'chat', name: 'chat', component: () => import('./views/league/ChatView.vue') }
     ]
   },
   { path: '/:pathMatch(.*)*', redirect: '/leagues' }

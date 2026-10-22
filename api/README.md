@@ -59,9 +59,17 @@ Everything under `/api` requires an Auth0 access token (`Authorization: Bearer .
 | `GET /api/leagues/:id/schedule` | members; anyone if public | 14 weeks of matchups, resolve times, and results so far |
 | `GET /api/leagues/:id/results/:week` | members; anyone if public | A resolved week (per-hero damage rounded) |
 | `GET /api/leagues/:id/standings` | members; anyone if public | Wins, losses, draws, total damage |
+| `GET /api/leagues/:id/chat?before=` | members only, even if public | League chat: the latest 50 messages, oldest first, or the page before a message id |
+| `POST /api/leagues/:id/chat` | members only | Send a message (`{ body }`, up to 500 characters); profanity is masked before saving; 10 a minute |
+| `DELETE /api/leagues/:id/chat/:messageId` | the author or the host | Remove a message |
+| `POST /api/leagues/:id/chat/:messageId/report` | members, not the author | Report a message; the host sees how many members reported it |
 
 Leagues advance lazily: any request for `/api/leagues/:id/...` first runs a due draft and resolves due game weeks,
-so no background worker is needed.
+so no background worker is needed. Chat is the exception: the app polls it every few seconds while it's open, so
+it skips that step.
+
+Chat messages are kept while the league runs and deleted 30 days after the season ends or the league is canceled
+(a MongoDB TTL index on `expiresAt`). Only the filtered text is stored.
 
 ## Conventions
 

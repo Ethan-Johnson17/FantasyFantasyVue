@@ -1,5 +1,7 @@
 import type {
   Account,
+  ChatMessage,
+  ChatPage,
   CreateLeagueInput,
   Finale,
   GameRules,
@@ -70,6 +72,11 @@ export interface ApiClient {
   getWeekResult(leagueId: string, week: number): Promise<WeekResult>
   getStandings(leagueId: string): Promise<Standing[]>
   getFinale(leagueId: string): Promise<Finale>
+  /** The latest chat messages, or the page before a message id */
+  getChat(leagueId: string, before?: string): Promise<ChatPage>
+  postChat(leagueId: string, body: string): Promise<ChatMessage>
+  deleteChat(leagueId: string, messageId: string): Promise<void>
+  reportChat(leagueId: string, messageId: string): Promise<ChatMessage>
 }
 
 export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchImpl: FetchLike = fetch): ApiClient {
@@ -134,7 +141,11 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     getRules: () => request('GET', '/api/rules', undefined, false),
     getWeekResult: (id, week) => request('GET', `/api/leagues/${segment(id)}/results/${String(week)}`),
     getStandings: id => request('GET', `/api/leagues/${segment(id)}/standings`),
-    getFinale: id => request('GET', `/api/leagues/${segment(id)}/finale`)
+    getFinale: id => request('GET', `/api/leagues/${segment(id)}/finale`),
+    getChat: (id, before) => request('GET', `/api/leagues/${segment(id)}/chat${before ? `?before=${segment(before)}` : ''}`),
+    postChat: (id, body) => request('POST', `/api/leagues/${segment(id)}/chat`, { body }),
+    deleteChat: (id, messageId) => request('DELETE', `/api/leagues/${segment(id)}/chat/${segment(messageId)}`),
+    reportChat: (id, messageId) => request('POST', `/api/leagues/${segment(id)}/chat/${segment(messageId)}/report`)
   }
 }
 

@@ -37,6 +37,10 @@ export function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
     getWeekResult: vi.fn(),
     getStandings: vi.fn().mockResolvedValue([]),
     getFinale: vi.fn(),
+    getChat: vi.fn().mockResolvedValue({ messages: [], hasMore: false, canModerate: false, readOnly: false }),
+    postChat: vi.fn(),
+    deleteChat: vi.fn(),
+    reportChat: vi.fn(),
     ...overrides
   }
 }
