@@ -157,7 +157,7 @@ export async function listHeroes(viewer: AccountDocument, leagueId: string): Pro
   const classOrder = (hero: HeroDocument) => HERO_CLASSES.indexOf(hero.heroClass)
   return heroes
     .sort((a, b) => classOrder(a) - classOrder(b) || expectedLevel(b) - expectedLevel(a) || a.name.localeCompare(b.name))
-    .map(hero => ({ ...toHeroView(hero), form: form.get(hero.id) ?? { average: null, recent: null, played: 0 } }))
+    .map(hero => ({ ...toHeroView(hero), form: form.get(hero.id) ?? { average: null, recent: null, played: 0, playingLike: null } }))
 }
 
 export async function getRankings(member: AccountDocument, leagueId: string): Promise<{ heroIds: string[] }> {

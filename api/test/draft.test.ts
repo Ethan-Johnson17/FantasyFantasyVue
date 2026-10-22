@@ -113,7 +113,8 @@ describe('scheduling the draft', () => {
     // 20% of 8 rounds down to 1 mystery recruit: the earliest draft pick
     const recruits = mages.filter(hero => hero.level === null)
     expect(recruits.map(hero => hero.source.id)).toEqual(['QB-rookie-0'])
-    expect(recruits[0]?.levelRange).toEqual({ min: 1, max: 4 })
+    // The seed's first rookie per class is pick 5 of round 1: a top-10 pick.
+    expect(recruits[0]?.levelRange).toEqual(recruits[0]?.heroClass === 'Warrior' ? { min: 8, max: 10 } : { min: 1, max: 7 })
     // The rest are the best veterans by last season's points per game
     expect(
       mages

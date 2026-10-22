@@ -89,8 +89,9 @@ function back() {
         class. The top tenth of a class is Level 10.
       </p>
       <p>
-        <strong>Mystery recruits</strong> are newcomers with no record yet. They show a range instead, like Lv 1–4 for the
-        most promising, and reveal their strength once the battles begin.
+        <strong>Mystery recruits</strong> are newcomers with no record yet. They show a range instead, set by how promising
+        they were: the most sought-after Warriors show Lv 8–10, other top prospects Lv 1–7, and late finds Lv 1. After
+        three battles, a mystery recruit also shows what Level they are playing like.
       </p>
     </section>
 

@@ -116,6 +116,8 @@ export interface HeroForm {
   average: number | null
   recent: number | null
   played: number
+  /** Mystery recruits after 3 battles: the veteran Level their damage so far matches */
+  playingLike: number | null
 }
 
 export interface DraftResult {
@@ -261,6 +263,6 @@ export interface Standing extends PartyRef {
 }
 
 export interface HeroDetail {
-  hero: Hero
+  hero: Hero & { form: HeroForm }
   history: { week: number; slot: string; damage: number; resting: boolean; swappedInto: string | null; crit: Crit | null }[]
 }

@@ -83,7 +83,8 @@ describe('selectHeroPool', () => {
     // 12 Warriors: 2 recruits (20%, rounded down), 10 veterans
     const recruits = warriors.filter(entry => entry.level === null)
     expect(recruits.map(entry => entry.sourceId)).toEqual(['Warrior-rookie-0', 'Warrior-rookie-1'])
-    expect(recruits.map(entry => entry.levelRange)).toEqual([mysteryRange(1), mysteryRange(2)])
+    // Pick 10 in round 1 (a top-10 running back), then pick 42 in round 2.
+    expect(recruits.map(entry => entry.levelRange)).toEqual([{ min: 8, max: 10 }, { min: 1, max: 7 }])
     const veterans = warriors.filter(entry => entry.level !== null)
     expect(veterans.map(entry => entry.sourceId)).toEqual(Array.from({ length: 10 }, (_, i) => `Warrior-vet-0${String(i)}`))
   })
@@ -127,14 +128,22 @@ describe('selectHeroPool', () => {
     }
   })
 
-  it('maps draft rounds to the documented ranges', () => {
-    expect([1, 2, 3, 4, 7].map(mysteryRange)).toEqual([
-      { min: 1, max: 4 },
-      { min: 1, max: 2 },
-      { min: 1, max: 1 },
-      { min: 1, max: 1 },
-      { min: 1, max: 1 }
-    ])
+  it('maps draft slot and class to the documented ranges', () => {
+    const slot = (round: number, pick: number) => ({ round, pick })
+    // Running backs (Warriors) play right away
+    expect(mysteryRange(slot(1, 3), 'Warrior')).toEqual({ min: 8, max: 10 })
+    expect(mysteryRange(slot(1, 24), 'Warrior')).toEqual({ min: 1, max: 9 })
+    expect(mysteryRange(slot(2, 40), 'Warrior')).toEqual({ min: 1, max: 7 })
+    expect(mysteryRange(slot(3, 80), 'Warrior')).toEqual({ min: 1, max: 2 })
+    expect(mysteryRange(slot(5, 150), 'Warrior')).toEqual({ min: 1, max: 1 })
+    // Everyone else
+    expect(mysteryRange(slot(1, 1), 'Mage')).toEqual({ min: 1, max: 7 })
+    expect(mysteryRange(slot(1, 10), 'Ranger')).toEqual({ min: 1, max: 7 })
+    expect(mysteryRange(slot(1, 11), 'Ranger')).toEqual({ min: 1, max: 4 })
+    expect(mysteryRange(slot(2, 50), 'Rogue')).toEqual({ min: 1, max: 2 })
+    expect(mysteryRange(slot(3, 70), 'Mage')).toEqual({ min: 1, max: 1 })
+    // The midpoint is the rookie's value: a top-10 running back counts like a Level 9.
+    expect(expectedLevel({ level: null, levelRange: mysteryRange(slot(1, 3), 'Warrior') })).toBe(9)
     expect(expectedLevel({ level: null, levelRange: { min: 1, max: 4 } })).toBe(2.5)
   })
 })

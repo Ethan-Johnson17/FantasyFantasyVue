@@ -44,12 +44,17 @@ export interface PoolEntry {
 export const MYSTERY_SHARE = 0.2
 
 /**
- * Guidance shown for rookies, calibrated on 2012-2025 data: first-round rookies played like
- * Level 1-2 veterans on average (with upside), later rounds below Level 1.
+ * Guidance shown for rookies, by NFL draft slot and class (decided 2026-10-21). Calibrated on 2012-2025: each
+ * range is where the middle half of past rookies landed, measured as the veteran Level they played like in their
+ * first season. Running backs (Warriors) contribute at once; most others take time. The midpoint is the rookie's
+ * value for auto-picks and default lineups.
  */
-export function mysteryRange(draftRound: number): LevelRange {
-  if (draftRound <= 1) return { min: 1, max: 4 }
-  if (draftRound === 2) return { min: 1, max: 2 }
+export function mysteryRange(draft: { round: number; pick: number }, heroClass: HeroClass): LevelRange {
+  const warrior = heroClass === 'Warrior'
+  if (draft.round === 1 && draft.pick <= 10) return warrior ? { min: 8, max: 10 } : { min: 1, max: 7 }
+  if (draft.round === 1) return warrior ? { min: 1, max: 9 } : { min: 1, max: 4 }
+  if (draft.round === 2) return warrior ? { min: 1, max: 7 } : { min: 1, max: 2 }
+  if (draft.round === 3 && warrior) return { min: 1, max: 2 }
   return { min: 1, max: 1 }
 }
 
@@ -103,7 +108,7 @@ export function selectHeroPool(
         sourceId: candidate.sourceId,
         heroClass,
         level: null,
-        levelRange: mysteryRange(candidate.draft.round),
+        levelRange: mysteryRange(candidate.draft, heroClass),
         traits: [] as HeroTrait[]
       }))
     ]

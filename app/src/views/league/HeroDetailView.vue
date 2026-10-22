@@ -63,6 +63,7 @@ const chartLabel = computed(() =>
       <div class="muted">{{ hero.race }} {{ hero.heroClass }} · wields a {{ hero.weapon }}</div>
       <div class="chips">
         <span class="chip level">{{ isMystery(hero) ? `Mystery ${levelText(hero)}` : levelText(hero).replace('Lv', 'Level') }}</span>
+        <span v-if="hero.form.playingLike" class="chip playing">Playing like Lv {{ hero.form.playingLike }}</span>
         <span class="chip" :style="{ color: CLASS_COLOR[hero.heroClass], borderColor: CLASS_COLOR[hero.heroClass] }">
           {{ hero.heroClass }}
         </span>
@@ -75,7 +76,10 @@ const chartLabel = computed(() =>
       <h2 class="skill-name">{{ hero.skill }}</h2>
       <!-- A hero's own Steadfast or Wild trait outranks the class's usual temperament. -->
       <p v-if="!hero.traits.includes('steadfast') && !hero.traits.includes('wild')" class="muted">{{ CLASS_TEMPERAMENT[hero.heroClass].description }}</p>
-      <p v-if="isMystery(hero)" class="muted">A mystery recruit: their true strength shows once the battles begin.</p>
+      <p v-if="isMystery(hero)" class="muted">
+        A mystery recruit: their range comes from how promising they were as a newcomer.
+        {{ hero.form.playingLike ? `So far they're playing like a Level ${String(hero.form.playingLike)}.` : 'After a few battles, they show what Level they are playing like.' }}
+      </p>
     </section>
 
     <section v-if="hero.traits.length" class="card traits">
@@ -144,6 +148,10 @@ const chartLabel = computed(() =>
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   font-size: 15px;
+}
+.chip.playing {
+  border-color: var(--gold);
+  color: var(--gold);
 }
 .chip.level {
   border-color: var(--gold);
