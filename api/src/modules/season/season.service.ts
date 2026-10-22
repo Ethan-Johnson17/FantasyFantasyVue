@@ -18,6 +18,7 @@ import { decideBattle, decideMonsterBattle, monsterDamage, scoreParty, type Outc
 import { monsterName } from './monsters.js'
 import { SEASON_WEEKS } from './schedule.js'
 import { critOf, type Crit } from './crits.js'
+import { heroForm, type HeroForm } from './form.service.js'
 import { applyStrategy, type Synergy } from './strategy.js'
 import { WeekResultModel } from './weekResult.model.js'
 
@@ -432,7 +433,7 @@ function displayedDamage(line: StoredHeroLine, heroClass: HeroClass, multipliers
 }
 
 export interface HeroDetailView {
-  hero: HeroView
+  hero: HeroView & { form: HeroForm }
   history: { week: number; slot: string; damage: number; resting: boolean; swappedInto: string | null; crit: Crit | null }[]
 }
 
@@ -466,7 +467,8 @@ export async function getHeroDetail(viewer: AccountDocument, leagueId: string, h
   })
   const freeWeeks = results.map(result => result.week).filter(week => !history.some(entry => entry.week === week))
   const freeAgentHistory = freeWeeks.length ? await freeAgentWeeks(league, hero, freeWeeks) : []
-  return { hero: toHeroView(hero), history: [...history, ...freeAgentHistory].sort((a, b) => a.week - b.week) }
+  const form = (await heroForm(league, [hero])).get(hero.id) ?? { average: null, recent: null, played: 0, playingLike: null }
+  return { hero: { ...toHeroView(hero), form }, history: [...history, ...freeAgentHistory].sort((a, b) => a.week - b.week) }
 }
 
 /** What a hero would have dealt in weeks spent as a free agent. Rounded, like every hero-week. */

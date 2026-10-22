@@ -162,9 +162,23 @@ Only players with at least one game in weeks 1–14 of the hidden season are eli
 - **Veterans** (4 or more games in the previous season) are ranked by previous-season points per game under the
   league's ruleset. The best fill the pool.
 - **Mystery recruits** are rookies drafted in the hidden season's NFL draft, taking up to 20% of each class's pool
-  *(default)*, best draft picks first. Their exact Level is hidden; they show a **Level range** by draft round,
-  calibrated on 2012–2025 data (decided 2026-10-13): **round 1 → 1–4, round 2 → 1–2, round 3+ → 1**. First-round
-  rookies played like Level 1–2 veterans on average, with real upside; later rounds played below that.
+  *(default)*, best draft picks first. Their exact Level is hidden; they show a **Level range** by draft slot and
+  class (decided 2026-10-21, replacing round-only ranges of 1–4 / 1–2 / 1). Each range is where the middle half of
+  2012–2025 rookies landed, measured as the veteran Level their first-season damage per battle matched:
+
+  | NFL draft slot | Warriors (running backs) | Other classes |
+  | --- | --- | --- |
+  | Round 1, picks 1–10 | Lv 8–10 | Lv 1–7 |
+  | Round 1, picks 11–32 | Lv 1–9 | Lv 1–4 |
+  | Round 2 | Lv 1–7 | Lv 1–2 |
+  | Round 3 | Lv 1–2 | Lv 1 |
+  | Round 4+ | Lv 1 | Lv 1 |
+
+  Top-10 picks played like a median Level 7 (45% at Level 8+); first-round running backs a median Level 9. The range
+  midpoint is the rookie's value for auto-picks and default lineups.
+- **Playing like (in season):** after 3 battles, a mystery recruit also shows the veteran Level their damage so far
+  matches (`levelDamage` in the ruleset: smoothed average damage per battle at each Level, by class). It uses only
+  the rounded damage players can already see on the hero page, so it reveals nothing new.
 - Veterans with fewer than 4 games in the previous season are left out of the MVP pool *(default)*.
 - **Big leagues (decided 2026-10-19):** a season has only so many of some classes: exactly 32 team defenses
   (Paladins) and 41–56 eligible quarterbacks (Mages). When a league wants more of a class than the season has

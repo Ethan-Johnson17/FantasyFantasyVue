@@ -352,32 +352,34 @@ describe('Draft prep and form', () => {
   })
 
   it('shows recent form and sorts free agents by it once battles are played', async () => {
-    const form = (recent: number | null, average: number | null, played: number) => ({ recent, average, played })
+    const form = (recent: number | null, average: number | null, played: number, playingLike: number | null = null) => ({ recent, average, played, playingLike })
     const api = fakeApi({
       listHeroes: vi.fn().mockResolvedValue([
         hero('f1', { level: 9, form: form(12, 15, 4) }),
         hero('f2', { level: 3, form: form(27, 20, 4) }),
         hero('f3', { level: 5, form: form(null, null, 0) }),
-        hero('f4', { level: 2, form: form(9, 9, 1) })
+        hero('f4', { level: 2, form: form(9, 9, 1) }),
+        hero('r1', { level: null, levelRange: { min: 1, max: 7 }, form: form(14, 16, 5, 7) })
       ]),
       listMoves: vi.fn().mockResolvedValue([])
     })
     const { wrapper } = await mountLeague(HeroesView, api, detail({ status: 'active', resolvedWeeks: 4, parties: [party('p1', true)] }))
     const names = () => wrapper.findAll('.list')[0]!.findAll('.hero-name').map(n => n.text())
-    expect(names()).toEqual(['Hero f2', 'Hero f1', 'Hero f4', 'Hero f3'])
+    expect(names()).toEqual(['Hero f2', 'Hero r1', 'Hero f1', 'Hero f4', 'Hero f3'])
     expect(wrapper.findAll('.list')[0]!.findAll('.form').map(f => f.text())).toEqual([
       'Last 3: 27 · season 20',
+      'Playing like Lv 7 · Last 3: 14 · season 16',
       'Last 3: 12 · season 15',
       'Avg 9 · 1 battle',
       'No battles fought yet'
     ])
 
     await wrapper.findAll('.sort .chip').find(c => c.text() === 'Level')!.trigger('click')
-    expect(names()).toEqual(['Hero f1', 'Hero f3', 'Hero f2', 'Hero f4'])
+    expect(names()).toEqual(['Hero f1', 'Hero f3', 'Hero r1', 'Hero f2', 'Hero f4'])
   })
 
   it('has no form or sort before the first battle', async () => {
-    const api = fakeApi({ listHeroes: vi.fn().mockResolvedValue([hero('f1', { form: { recent: null, average: null, played: 0 } })]), listMoves: vi.fn().mockResolvedValue([]) })
+    const api = fakeApi({ listHeroes: vi.fn().mockResolvedValue([hero('f1', { form: { recent: null, average: null, played: 0, playingLike: null } })]), listMoves: vi.fn().mockResolvedValue([]) })
     const { wrapper } = await mountLeague(HeroesView, api, detail({ status: 'active', resolvedWeeks: 0, parties: [party('p1', true)] }))
     expect(wrapper.find('.sort').exists()).toBe(false)
     expect(wrapper.find('.form').exists()).toBe(false)
@@ -688,7 +690,7 @@ describe('Hero detail', () => {
   it('averages only the weeks the hero actually fought', async () => {
     const api = fakeApi({
       getHero: vi.fn().mockResolvedValue({
-        hero: hero('h1', { heroClass: 'Rogue', skill: 'Sneak', partyId: 'a', traits: ['wild', 'mighty'] }),
+        hero: { ...hero('h1', { heroClass: 'Rogue', skill: 'Sneak', partyId: 'a', traits: ['wild', 'mighty'] }), form: { average: 23, recent: 23, played: 2, playingLike: null } },
         history: [
           { week: 1, slot: 'slot1', damage: 14, resting: false, swappedInto: null },
           { week: 2, slot: 'slot1', damage: 0, resting: true, swappedInto: null },
@@ -704,5 +706,19 @@ describe('Hero detail', () => {
     // The hero's own Wild trait replaces the class's usual temperament text.
     expect(wrapper.text()).not.toContain('Rogues strike from the shadows')
     expect(wrapper.find('[role="img"]').attributes('aria-label')).toContain('week 2, resting')
+  })
+
+  it('shows what Level a mystery recruit is playing like', async () => {
+    const rookie = (playingLike: number | null) => ({
+      hero: { ...hero('r1', { level: null, levelRange: { min: 1, max: 7 }, partyId: 'a' }), form: { average: 19, recent: 19, played: 4, playingLike } },
+      history: []
+    })
+    const league = detail({ status: 'active', parties: [party('a', true)] })
+    const playing = await mountLeague(HeroDetailView, fakeApi({ getHero: vi.fn().mockResolvedValue(rookie(7)) }), league, '/heroes/r1')
+    expect(playing.wrapper.findAll('.chip').map(chip => chip.text()).slice(0, 2)).toEqual(['Mystery Lv 1–7', 'Playing like Lv 7'])
+    expect(playing.wrapper.text()).toContain("So far they're playing like a Level 7.")
+    const early = await mountLeague(HeroDetailView, fakeApi({ getHero: vi.fn().mockResolvedValue(rookie(null)) }), league, '/heroes/r1')
+    expect(early.wrapper.find('.chip.playing').exists()).toBe(false)
+    expect(early.wrapper.text()).toContain('After a few battles, they show what Level they are playing like.')
   })
 })

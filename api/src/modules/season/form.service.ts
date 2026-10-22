@@ -23,11 +23,25 @@ export interface HeroForm {
   recent: number | null
   /** Weeks the hero played (didn't rest) */
   played: number
+  /** Mystery recruits after a few battles: the veteran Level their damage so far matches */
+  playingLike: number | null
+}
+
+/** Battles a mystery recruit must have fought before "playing like" is shown. */
+export const PLAYING_LIKE_MIN_BATTLES = 3
+
+/** The highest Level whose typical damage this matches (Level 1 at least). */
+export function levelForDamage(damage: number, levelDamage: readonly number[]): number {
+  let level = 1
+  levelDamage.forEach((typical, index) => {
+    if (damage >= typical) level = index + 1
+  })
+  return level
 }
 
 /** Form for each hero over the league's resolved weeks; heroes need `source` selected. */
 export async function heroForm(league: LeagueDocument, heroes: readonly HeroDocument[]): Promise<Map<string, HeroForm>> {
-  const empty = new Map(heroes.map(hero => [hero.id, { average: null, recent: null, played: 0 }]))
+  const empty = new Map(heroes.map(hero => [hero.id, { average: null, recent: null, played: 0, playingLike: null }]))
   if (league.resolvedWeeks === 0) return empty
   const season = (await LeagueModel.findById(league._id).select('+season'))?.season
   if (season === undefined || season === null) return empty
@@ -51,7 +65,10 @@ export async function heroForm(league: LeagueDocument, heroes: readonly HeroDocu
       const multiplier = ruleset.lineup.classMultipliers[hero.heroClass]
       const played = [...(pointsBySource.get(`${hero.source.kind}|${hero.source.id}`) ?? [])].sort((a, b) => b.week - a.week)
       const damage = played.map(entry => entry.points * multiplier)
-      return [hero.id, { average: average(damage), recent: average(damage.slice(0, RECENT_WEEKS)), played: damage.length }]
+      const exact = damage.reduce((sum, value) => sum + value, 0) / Math.max(1, damage.length)
+      const playingLike =
+        hero.level === null && damage.length >= PLAYING_LIKE_MIN_BATTLES ? levelForDamage(exact, ruleset.levelDamage[hero.heroClass]) : null
+      return [hero.id, { average: average(damage), recent: average(damage.slice(0, RECENT_WEEKS)), played: damage.length, playingLike }]
     })
   )
 }

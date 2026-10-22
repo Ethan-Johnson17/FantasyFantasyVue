@@ -90,6 +90,11 @@ export interface Ruleset {
   readonly pool: Readonly<PoolRules>
   readonly strategy: Readonly<StrategyRules>
   readonly crits: Readonly<CritRules>
+  /**
+   * Average class damage per battle at Level 1..10, by class: what a Level is worth. Turns a mystery recruit's
+   * damage into a "playing like Lv X" estimate.
+   */
+  readonly levelDamage: Readonly<Record<HeroClass, readonly number[]>>
 }
 
 export const RULESET_V1: Ruleset = {
@@ -154,6 +159,14 @@ export const RULESET_V1: Ruleset = {
   crits: {
     success: { Mage: 31, Warrior: 39, Ranger: 37, Rogue: 42, Paladin: 45 },
     fail: { Mage: 3, Warrior: 2, Ranger: 2, Rogue: 0, Paladin: -2 }
+  },
+  // 6-party pools 2012-2025, veterans per played battle, smoothed so a higher Level never means less (2026-10-21)
+  levelDamage: {
+    Mage: [13.3, 14.7, 14.7, 16, 16.8, 16.8, 16.8, 18.7, 18.7, 20.3],
+    Warrior: [12.8, 13, 13.2, 14.3, 16.9, 17.2, 17.3, 18.6, 19.6, 23.7],
+    Ranger: [13, 14.3, 14.9, 15.1, 15.4, 16.7, 17, 18.3, 19.5, 20.1],
+    Rogue: [12.1, 12.1, 13.7, 13.7, 14.9, 16.2, 17.3, 17.3, 19.7, 25.9],
+    Paladin: [15, 15.4, 15.4, 16.4, 16.4, 17.8, 17.8, 17.8, 17.8, 18.9]
   }
 }
 
