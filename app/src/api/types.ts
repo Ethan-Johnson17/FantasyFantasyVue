@@ -118,6 +118,8 @@ export interface HeroForm {
   played: number
   /** Mystery recruits after 3 battles: the veteran Level their damage so far matches */
   playingLike: number | null
+  /** Projected damage for the next battle, before Champion or swap modifiers */
+  projected: number
 }
 
 export interface DraftResult {
@@ -138,7 +140,7 @@ export interface Lineup {
   /** The Champion named for the next battle */
   champion: string | null
   strategy: StrategyRules
-  roster: (Hero & { restingNextWeek: boolean })[]
+  roster: (Hero & { restingNextWeek: boolean; projected: number })[]
   nextWeek: number | null
   nextWeekAt: string | null
 }
@@ -164,8 +166,10 @@ export interface StrategyRules {
 
 export interface MatchupSide extends PartyRef {
   record: { wins: number; losses: number; draws: number }
-  starters: { slot: string; label: string; hero: (Hero & { restingNextWeek: boolean }) | null }[]
+  starters: { slot: string; label: string; hero: (Hero & { restingNextWeek: boolean; projected: number }) | null }[]
   champion: string | null
+  /** Projected party total: starters who'll fight, with Champion and synergy bonuses */
+  projectedTotal: number
   /** Synergies this lineup would trigger if the battle resolved now */
   synergies: Synergy[]
 }

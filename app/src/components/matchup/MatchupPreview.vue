@@ -47,6 +47,7 @@ const OUTCOME = { win: 'Victory', loss: 'Defeat', draw: 'Draw' } as const
         <CrestShield :crest="matchup.me.crest" :size="48" />
         <span class="side-name">{{ matchup.me.name }}</span>
         <span class="muted small">{{ recordText(matchup.me) }}</span>
+        <span class="projected">Proj {{ matchup.me.projectedTotal }}</span>
       </div>
       <span class="vs">vs</span>
       <div class="side">
@@ -54,6 +55,7 @@ const OUTCOME = { win: 'Victory', loss: 'Defeat', draw: 'Draw' } as const
           <CrestShield :crest="matchup.opponent.crest" :size="48" />
           <span class="side-name">{{ matchup.opponent.name }}</span>
           <span class="muted small">{{ recordText(matchup.opponent) }}</span>
+          <span class="projected">Proj {{ matchup.opponent.projectedTotal }}</span>
         </template>
         <template v-else>
           <span class="monster-mark" aria-hidden="true">☠</span>
@@ -101,7 +103,9 @@ const OUTCOME = { win: 'Victory', loss: 'Defeat', draw: 'Draw' } as const
             <span class="hero-name"><span v-if="cell.isChampion" class="crown" aria-label="Champion">♛ </span>{{ cell.hero.name }}</span>
           </span>
           <span class="muted small">
-            {{ cell.hero.heroClass }} · {{ levelText(cell.hero) }}<span v-if="cell.hero.restingNextWeek" class="resting-text"> · resting</span>
+            {{ cell.hero.heroClass }} · {{ levelText(cell.hero) }} ·
+            <span v-if="cell.hero.restingNextWeek" class="resting-text">resting</span>
+            <span v-else>proj {{ cell.hero.projected }}</span>
           </span>
           <TraitChips :traits="cell.hero.traits" />
         </RouterLink>
@@ -138,6 +142,12 @@ const OUTCOME = { win: 'Victory', loss: 'Defeat', draw: 'Draw' } as const
   border-radius: 999px;
   color: var(--gold);
   font-size: 14px;
+}
+.projected {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--gold);
 }
 .edit-link {
   font-size: 14px;

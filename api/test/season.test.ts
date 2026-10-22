@@ -168,6 +168,8 @@ describe('lineups', () => {
     const id = await draftedLeague()
     const view = await myLineup(id)
     expect(view.roster).toHaveLength(RULESET_V1.lineup.rosterSize)
+    // Every hero carries a projection for the next battle.
+    expect((view.roster as unknown as { projected: number }[]).every(hero => Number.isInteger(hero.projected) && hero.projected > 0)).toBe(true)
     expect(view.slots.map(slot => slot.key)).toEqual(RULESET_V1.lineup.slots.map(slot => slot.key))
     expect(Object.keys(view.lineup ?? {}).sort()).toEqual(view.slots.map(slot => slot.key).sort())
     expect(view.nextWeek).toBe(1)

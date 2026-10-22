@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import type { HeroDocument } from '../heroes/hero.model.js'
+import { expectedLevel } from '../heroes/pool.js'
 import { LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
 import { scoreDefense, scoreOffense } from '../scoring/scoring.js'
@@ -25,6 +26,31 @@ export interface HeroForm {
   played: number
   /** Mystery recruits after a few battles: the veteran Level their damage so far matches */
   playingLike: number | null
+  /** Projected class damage for the next battle (rounded), before Champion or swap modifiers */
+  projected: number
+}
+
+/**
+ * Projection: a hero's damage so far blended with what their Level typically deals, the Level counting
+ * as this many battles. Early on it leans on Level; after a few battles the hero's own results take
+ * over. Backtested on 2012-2025 (2026-10-22): mean error 8.6 damage a battle, against 8.8 for Level
+ * alone and 9.0 for the season average alone. Battles are noisy, so projections compare heroes rather
+ * than promise scores.
+ */
+export const PROJECTION_PRIOR_BATTLES = 3
+
+/** What a hero's Level typically deals; a mystery recruit's range midpoint falls between Levels. */
+export function levelBaseline(hero: Pick<HeroDocument, 'level' | 'levelRange'>, levelDamage: readonly number[]): number {
+  const level = Math.min(10, Math.max(1, expectedLevel(hero)))
+  const low = Math.floor(level)
+  const share = level - low
+  const at = (n: number) => levelDamage[n - 1] ?? 0
+  return at(low) * (1 - share) + at(Math.min(10, low + 1)) * share
+}
+
+/** The blended projection from exact past damage (played battles only). */
+export function projectDamage(past: readonly number[], baseline: number): number {
+  return (past.reduce((sum, value) => sum + value, 0) + PROJECTION_PRIOR_BATTLES * baseline) / (past.length + PROJECTION_PRIOR_BATTLES)
 }
 
 /** Battles a mystery recruit must have fought before "playing like" is shown. */
@@ -41,12 +67,17 @@ export function levelForDamage(damage: number, levelDamage: readonly number[]): 
 
 /** Form for each hero over the league's resolved weeks; heroes need `source` selected. */
 export async function heroForm(league: LeagueDocument, heroes: readonly HeroDocument[]): Promise<Map<string, HeroForm>> {
-  const empty = new Map(heroes.map(hero => [hero.id, { average: null, recent: null, played: 0, playingLike: null }]))
+  const ruleset = getRuleset(league.rulesetVersion)
+  const empty = new Map(
+    heroes.map(hero => [
+      hero.id,
+      { average: null, recent: null, played: 0, playingLike: null, projected: Math.round(levelBaseline(hero, ruleset.levelDamage[hero.heroClass])) }
+    ])
+  )
   if (league.resolvedWeeks === 0) return empty
   const season = (await LeagueModel.findById(league._id).select('+season'))?.season
   if (season === undefined || season === null) return empty
 
-  const ruleset = getRuleset(league.rulesetVersion)
   const weeks = { season, seasonType: 'REG' as const, week: trusted({ $lte: league.resolvedWeeks }) }
   const playerIds = heroes.filter(hero => hero.source.kind === 'player').map(hero => hero.source.id)
   const teams = heroes.filter(hero => hero.source.kind === 'defense').map(hero => hero.source.id)
@@ -68,7 +99,8 @@ export async function heroForm(league: LeagueDocument, heroes: readonly HeroDocu
       const exact = damage.reduce((sum, value) => sum + value, 0) / Math.max(1, damage.length)
       const playingLike =
         hero.level === null && damage.length >= PLAYING_LIKE_MIN_BATTLES ? levelForDamage(exact, ruleset.levelDamage[hero.heroClass]) : null
-      return [hero.id, { average: average(damage), recent: average(damage.slice(0, RECENT_WEEKS)), played: damage.length, playingLike }]
+      const projected = Math.round(projectDamage(damage, levelBaseline(hero, ruleset.levelDamage[hero.heroClass])))
+      return [hero.id, { average: average(damage), recent: average(damage.slice(0, RECENT_WEEKS)), played: damage.length, playingLike, projected }]
     })
   )
 }

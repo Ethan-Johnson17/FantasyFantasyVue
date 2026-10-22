@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { HeroModel } from '../src/modules/heroes/hero.model.js'
+import { RULESET_V1 } from '../src/modules/scoring/rulesets.js'
 import { LeagueModel } from '../src/modules/leagues/league.model.js'
 import { PartyModel } from '../src/modules/leagues/party.model.js'
 import { WeekResultModel } from '../src/modules/season/weekResult.model.js'
@@ -65,6 +66,24 @@ describe('GET /api/leagues/:id/matchup', () => {
     expect(mirrored.me.partyId).toBe(view.opponent?.partyId)
     // Hidden-player rule.
     expect(JSON.stringify(view)).not.toMatch(new RegExp(`source|season|${String(SEEDED_SEASON)}`))
+  })
+
+  it('projects each starter and the party total with the Champion bonus, leaving out resting starters', async () => {
+    const id = await draftedLeague([alice])
+    const starter = Object.values(((await alice.get(`/api/leagues/${id}/lineup`)).body as { lineup: Record<string, string> }).lineup)[0]!
+    await alice.put(`/api/leagues/${id}/champion`, { heroId: starter })
+    const view = (await alice.get(`/api/leagues/${id}/matchup`)).body as {
+      me: { projectedTotal: number; starters: { hero: { id: string; projected: number; restingNextWeek: boolean } | null }[] }
+    }
+    const heroes = view.me.starters.map(s => s.hero!)
+    expect(heroes.every(h => Number.isInteger(h.projected) && h.projected > 0)).toBe(true)
+    const champion = heroes.find(h => h.id === starter)!
+    const others = heroes.filter(h => h.id !== starter).reduce((sum, h) => sum + h.projected, 0)
+    expect(view.me.projectedTotal).toBe(Math.round(others + champion.projected * RULESET_V1.strategy.championMultiplier))
+
+    await rest(starter, 1)
+    const after = (await alice.get(`/api/leagues/${id}/matchup`)).body as typeof view
+    expect(after.me.projectedTotal).toBe(others)
   })
 
   it('marks resting starters and shows the synergies each lineup would trigger', async () => {

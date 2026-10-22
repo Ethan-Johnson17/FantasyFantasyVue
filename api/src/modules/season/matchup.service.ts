@@ -11,6 +11,7 @@ import { PartyModel, readLineup, type PartyDocument } from '../leagues/party.mod
 import { getRuleset, type Ruleset } from '../scoring/rulesets.js'
 import { monsterName } from './monsters.js'
 import { computeStandings, heroPoints, nextWeek, type StandingView } from './season.service.js'
+import { heroForm, type HeroForm } from './form.service.js'
 import { applyStrategy, type Synergy } from './strategy.js'
 import { WeekResultModel } from './weekResult.model.js'
 
@@ -28,8 +29,10 @@ export interface MatchupSideView {
   name: string
   crest: Crest
   record: { wins: number; losses: number; draws: number }
-  starters: { slot: string; label: string; hero: (HeroView & { restingNextWeek: boolean }) | null }[]
+  starters: { slot: string; label: string; hero: (HeroView & { restingNextWeek: boolean; projected: number }) | null }[]
   champion: string | null
+  /** Projected party total for this battle: starters who'll fight, with Champion and synergy bonuses */
+  projectedTotal: number
   /** Synergies this lineup would trigger if the battle resolved now */
   synergies: Synergy[]
 }
@@ -78,7 +81,8 @@ export async function getMatchup(member: AccountDocument, leagueId: string, requ
     const points = await heroPoints(heroes, season, next.week, ruleset)
     for (const [id, value] of points) if (value.resting) resting.add(id)
   }
-  const side = (subject: PartyDocument) => sideView(subject, heroes, resting, standings, ruleset)
+  const form = await heroForm(league, heroes)
+  const side = (subject: PartyDocument) => sideView(subject, heroes, resting, standings, ruleset, form)
 
   const meetings = opponent
     ? results.flatMap(result =>
@@ -110,19 +114,22 @@ function sideView(
   heroes: readonly HeroDocument[],
   resting: ReadonlySet<string>,
   standings: readonly StandingView[],
-  ruleset: Ruleset
+  ruleset: Ruleset,
+  form: ReadonlyMap<string, HeroForm>
 ): MatchupSideView {
   const lineup = readLineup(party.lineup) ?? {}
   const heroById = new Map(heroes.filter(hero => hero.partyId?.equals(party._id)).map(hero => [hero.id, hero]))
   const champion = party.champion?.toString() ?? null
   const starters = ruleset.lineup.slots.map(slot => {
     const hero = heroById.get(lineup[slot.key] ?? '')
-    return { slot: slot.key, label: slot.label, hero: hero ? { ...toHeroView(hero), restingNextWeek: resting.has(hero.id) } : null }
+    const projected = hero ? (form.get(hero.id)?.projected ?? 0) : 0
+    return { slot: slot.key, label: slot.label, hero: hero ? { ...toHeroView(hero), restingNextWeek: resting.has(hero.id), projected } : null }
   })
-  // Damage doesn't matter for which synergies trigger, only who fights and who is Champion.
+  // The same strategy math as the battle, on projected damage: synergies and the projected total.
   const fighters = starters.flatMap(({ hero }) =>
-    hero && !hero.restingNextWeek ? [{ heroId: hero.id, traits: hero.traits, damage: 0, isChampion: hero.id === champion }] : []
+    hero && !hero.restingNextWeek ? [{ heroId: hero.id, traits: hero.traits, damage: hero.projected, isChampion: hero.id === champion }] : []
   )
+  const outcome = applyStrategy(fighters, ruleset.strategy)
   const row = standings.find(standing => standing.partyId === party.id)
   return {
     partyId: party.id,
@@ -131,6 +138,7 @@ function sideView(
     record: { wins: row?.wins ?? 0, losses: row?.losses ?? 0, draws: row?.draws ?? 0 },
     starters,
     champion,
-    synergies: applyStrategy(fighters, ruleset.strategy).synergies
+    projectedTotal: Math.round(outcome.total),
+    synergies: outcome.synergies
   }
 }

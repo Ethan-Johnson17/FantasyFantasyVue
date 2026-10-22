@@ -6,6 +6,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { ApiError, type ApiClient } from '../src/api/client'
 import { apiKey } from '../src/api/inject'
 import type { Finale, Hero, LeagueDetail, Lineup, Matchup, MatchupSide, Party, Standing, WeekResult } from '../src/api/types'
+import { projectedTotal } from '../src/heroes'
 import { provideLeagueForTest } from '../src/league'
 import DraftRecapView from '../src/views/league/DraftRecapView.vue'
 import FinaleView from '../src/views/league/FinaleView.vue'
@@ -131,9 +132,9 @@ describe('Party tab', () => {
     lineup: { slot1: 'h1', slot2: 'h2' },
     autoSwap: true,
     roster: [
-      { ...hero('h1'), restingNextWeek: true },
-      { ...hero('h2', { heroClass: 'Rogue' }), restingNextWeek: false },
-      { ...hero('h3', { heroClass: 'Paladin', level: 7 }), restingNextWeek: false }
+      { ...hero('h1'), restingNextWeek: true, projected: 15 },
+      { ...hero('h2', { heroClass: 'Rogue' }), restingNextWeek: false, projected: 20 },
+      { ...hero('h3', { heroClass: 'Paladin', level: 7 }), restingNextWeek: false, projected: 25 }
     ],
     champion: null,
     strategy: { championMultiplier: 1.25, mightyChampionMultiplier: 1.5, orderAndChaosBonus: 0.05, bulwarkFloor: 15 },
@@ -209,9 +210,9 @@ describe('Party tab', () => {
   it('previews synergies from the lineup on screen, leaving out resting heroes', async () => {
     const data = lineupData()
     data.roster = [
-      { ...hero('h1', { traits: ['steadfast'] }), restingNextWeek: true },
-      { ...hero('h2', { heroClass: 'Rogue', traits: ['wild'] }), restingNextWeek: false },
-      { ...hero('h3', { heroClass: 'Paladin', level: 7, traits: ['steadfast'] }), restingNextWeek: false }
+      { ...hero('h1', { traits: ['steadfast'] }), restingNextWeek: true, projected: 15 },
+      { ...hero('h2', { heroClass: 'Rogue', traits: ['wild'] }), restingNextWeek: false, projected: 20 },
+      { ...hero('h3', { heroClass: 'Paladin', level: 7, traits: ['steadfast'] }), restingNextWeek: false, projected: 25 }
     ]
     const api = fakeApi({ getLineup: vi.fn().mockResolvedValue(data) })
     const { wrapper } = await mountLeague(PartyView, api, detail({ status: 'active', parties: [party('p1', true)] }))
@@ -224,6 +225,35 @@ describe('Party tab', () => {
     await wrapper.find('.bench-hero').trigger('click')
     expect(orderAndChaos().classes()).toContain('active')
     expect(wrapper.text()).toContain('Steadfast')
+  })
+
+  it('projects each hero and the lineup on screen, leaving out resting starters', async () => {
+    const api = fakeApi({ getLineup: vi.fn().mockResolvedValue(lineupData()) })
+    const { wrapper } = await mountLeague(PartyView, api, detail({ status: 'active', parties: [party('p1', true)] }))
+    expect(wrapper.find('.projected-total').text()).toBe('Projected 20')
+    expect(wrapper.findAll('.starters .proj').map(p => p.text())).toEqual(['Resting', 'Proj 20'])
+    expect(wrapper.find('.bench').text()).toContain('proj 25')
+
+    await wrapper.find('.starters .hero-row').trigger('click')
+    await wrapper.find('.bench-hero').trigger('click')
+    expect(wrapper.find('.projected-total').text()).toBe('Projected 45')
+  })
+
+  it('projects totals with the same Champion and synergy math as battles', () => {
+    const rules = lineupData().strategy
+    const fighters = [
+      { id: 'a', traits: [], projected: 20 },
+      { id: 'b', traits: [], projected: 10 }
+    ]
+    expect(projectedTotal(fighters, null, rules)).toBe(30)
+    expect(projectedTotal(fighters, 'a', rules)).toBe(35) // 20 x 1.25 + 10
+    expect(projectedTotal([{ ...fighters[0]!, traits: ['mighty'] }, fighters[1]!], 'a', rules)).toBe(40) // 20 x 1.5 + 10
+    // Bulwark lifts a Wild Champion to the floor (4 x 1.25 -> 15); Wild + Steadfast adds Order & Chaos.
+    const bulwark = [
+      { id: 'a', traits: ['wild' as const], projected: 4 },
+      { id: 'b', traits: ['steadfast' as const], projected: 10 }
+    ]
+    expect(projectedTotal(bulwark, 'a', rules)).toBe(26) // (15 + 10) x 1.05 = 26.25
   })
 })
 
@@ -244,7 +274,8 @@ describe('Battle result', () => {
             heroes: [
               { heroId: 'h1', name: 'Kael', heroClass: 'Rogue', slot: 'slot1', damage: 103, resting: false, swappedInto: null, crit: null },
               { heroId: 'h2', name: 'Lyra', heroClass: 'Ranger', slot: 'slot2', damage: 0, resting: true, swappedInto: null, crit: null },
-              { heroId: 'h3', name: 'Freya', heroClass: 'Warrior', slot: 'Bench', damage: 9, resting: false, swappedInto: 'slot2', crit: null }
+              { heroId: 'h3', name: 'Freya', heroClass: 'Warrior', slot: 'Bench', damage: 9, resting: false, swappedInto: 'slot2', crit: null },
+              { heroId: 'h4', name: 'Mira', heroClass: 'Mage', slot: 'Bench', damage: 14, resting: false, swappedInto: null, crit: null }
             ]
           },
           monster: null,
@@ -265,6 +296,11 @@ describe('Battle result', () => {
     expect(rows[1]!.text()).toContain('Freya')
     expect(rows[1]!.text()).toContain('↺ in for Lyra · half damage')
     expect(wrapper.find('.synergies').text()).toContain('Mighty Champion')
+    // The bench shows what didn't count: Mira sat out; Freya fought, so she's in the lineup instead.
+    const bench = wrapper.find('.lineups.bench')
+    expect(bench.text()).toMatch(/Mira\s*14/)
+    expect(bench.text()).not.toContain('Freya')
+    expect(wrapper.text()).toContain("Didn't count toward the total")
   })
 
   it('explains a missing or resting Champion', async () => {
@@ -363,7 +399,7 @@ describe('Draft prep and form', () => {
   })
 
   it('shows recent form and sorts free agents by it once battles are played', async () => {
-    const form = (recent: number | null, average: number | null, played: number, playingLike: number | null = null) => ({ recent, average, played, playingLike })
+    const form = (recent: number | null, average: number | null, played: number, playingLike: number | null = null) => ({ recent, average, played, playingLike, projected: average ?? 10 })
     const api = fakeApi({
       listHeroes: vi.fn().mockResolvedValue([
         hero('f1', { level: 9, form: form(12, 15, 4) }),
@@ -378,22 +414,22 @@ describe('Draft prep and form', () => {
     const names = () => wrapper.findAll('.list')[0]!.findAll('.hero-name').map(n => n.text())
     expect(names()).toEqual(['Hero f2', 'Hero r1', 'Hero f1', 'Hero f4', 'Hero f3'])
     expect(wrapper.findAll('.list')[0]!.findAll('.form').map(f => f.text())).toEqual([
-      'Last 3: 27 · season 20',
-      'Playing like Lv 7 · Last 3: 14 · season 16',
-      'Last 3: 12 · season 15',
-      'Avg 9 · 1 battle',
-      'No battles fought yet'
+      'Proj 20 · Last 3: 27 · season 20',
+      'Proj 16 · Playing like Lv 7 · Last 3: 14 · season 16',
+      'Proj 15 · Last 3: 12 · season 15',
+      'Proj 9 · Avg 9 · 1 battle',
+      'Proj 10 · No battles fought yet'
     ])
 
     await wrapper.findAll('.sort .chip').find(c => c.text() === 'Level')!.trigger('click')
     expect(names()).toEqual(['Hero f1', 'Hero f3', 'Hero r1', 'Hero f2', 'Hero f4'])
   })
 
-  it('has no form or sort before the first battle', async () => {
-    const api = fakeApi({ listHeroes: vi.fn().mockResolvedValue([hero('f1', { form: { recent: null, average: null, played: 0, playingLike: null } })]), listMoves: vi.fn().mockResolvedValue([]) })
+  it('has no form or sort before the first battle, only the projection', async () => {
+    const api = fakeApi({ listHeroes: vi.fn().mockResolvedValue([hero('f1', { form: { recent: null, average: null, played: 0, playingLike: null, projected: 18 } })]), listMoves: vi.fn().mockResolvedValue([]) })
     const { wrapper } = await mountLeague(HeroesView, api, detail({ status: 'active', resolvedWeeks: 0, parties: [party('p1', true)] }))
     expect(wrapper.find('.sort').exists()).toBe(false)
-    expect(wrapper.find('.form').exists()).toBe(false)
+    expect(wrapper.find('.form').text()).toBe('Proj 18')
   })
 })
 
@@ -405,8 +441,8 @@ describe('Free agency', () => {
     champion: 'h1',
     strategy: { championMultiplier: 1.25, mightyChampionMultiplier: 1.5, orderAndChaosBonus: 0.05, bulwarkFloor: 15 },
     roster: [
-      { ...hero('h1', { partyId: 'p1' }), restingNextWeek: false },
-      { ...hero('h2', { partyId: 'p1', heroClass: 'Rogue' }), restingNextWeek: false }
+      { ...hero('h1', { partyId: 'p1' }), restingNextWeek: false, projected: 15 },
+      { ...hero('h2', { partyId: 'p1', heroClass: 'Rogue' }), restingNextWeek: false, projected: 20 }
     ],
     nextWeek: 2,
     nextWeekAt: new Date(Date.now() + 3_600_000).toISOString()
@@ -488,8 +524,9 @@ describe('Matchup', () => {
     name,
     crest,
     record: { wins: 2, losses: 1, draws: 0 },
-    starters: heroes.map((h, index) => ({ slot: `slot${String(index + 1)}`, label: `Hero ${String(index + 1)}`, hero: { ...h, restingNextWeek: h.id === 'm2' } })),
+    starters: heroes.map((h, index) => ({ slot: `slot${String(index + 1)}`, label: `Hero ${String(index + 1)}`, hero: { ...h, restingNextWeek: h.id === 'm2', projected: 20 + index } })),
     champion,
+    projectedTotal: partyId === 'a' ? 30 : 41,
     synergies: champion ? ['mightyChampion'] : []
   })
   const base = (): Matchup => ({
@@ -518,6 +555,9 @@ describe('Matchup', () => {
     expect(rows[0]!.find('.hero-cell').classes()).toContain('champion')
     expect(rows[1]!.text()).toContain('Lyra')
     expect(rows[1]!.text()).toContain('resting')
+    expect(wrapper.find('.scoreboard').text()).toMatch(/Proj 30.*Proj 41/s)
+    expect(rows[0]!.text()).toMatch(/proj 20.*proj 20/s)
+    expect(rows[1]!.find('.hero-cell').text()).not.toContain('proj')
     expect(wrapper.find('.synergies').text()).toContain('Mighty Champion')
     const meetings = wrapper.findAll('.meeting')
     expect(meetings.map(m => m.text())).toEqual([expect.stringMatching(/Week 1\s*Victory\s*112–98/), expect.stringMatching(/Week 3\s*Defeat\s*90–101/)])

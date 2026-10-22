@@ -322,6 +322,18 @@ Champion was tested and rejected: plans came out about the same, but parties wit
 - A free agent's hero page shows what they would have dealt each resolved week (rounded, like all hero-weeks), so
   parties can compare them. It reveals nothing more than a drafted hero's page does.
 
+### Projections (decided 2026-10-22)
+
+Every hero shows a projected damage for the next battle: their class damage so far blended with what their
+Level typically deals (`levelDamage`; a mystery recruit uses their range midpoint), the Level counting as 3
+battles: `(damage so far + 3 x Level baseline) / (battles + 3)`. Backtested on 2012-2025: mean error 8.6
+damage a battle, against 8.8 for Level alone and 9.0 for the season average alone. Party and matchup totals
+apply the same Champion, Bulwark and Order & Chaos math as battles to projected damage, leaving out resting
+starters. Projections are for comparing heroes, not promises; they never reveal anything hidden.
+
+Battle results also list each side's bench heroes who didn't fight and the damage they dealt, which didn't
+count toward the total.
+
 ### Natural 20s and natural 1s (decided 2026-10-16)
 
 Flavor only: crits never change damage or outcomes.

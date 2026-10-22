@@ -64,6 +64,7 @@ function back() {
       <a href="#synergies">Synergies</a>
       <a href="#draft">The draft</a>
       <a href="#battles">Battles</a>
+      <a href="#projections">Projections</a>
       <a href="#crits">Natural 20s</a>
       <a href="#season">The season</a>
     </nav>
@@ -170,6 +171,15 @@ function back() {
         <li>The side with more damage wins. Ties go to the side whose best hero dealt more, then to the stronger bench.</li>
         <li>With an odd number of parties, one party each week battles a dungeon monster as strong as the league's average party.</li>
       </ul>
+    </section>
+
+    <section id="projections" class="section">
+      <h2 class="section-title">Projections</h2>
+      <p>
+        Each hero shows a projected damage for the next battle. It starts from what heroes of their Level and class
+        usually deal, and leans more on their own results with every battle they fight. Battles are unpredictable, so
+        expect real results to land several points either side; projections are best for comparing heroes.
+      </p>
     </section>
 
     <section id="crits" class="section">

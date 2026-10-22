@@ -197,7 +197,8 @@ export interface LineupView {
   champion: string | null
   /** The league's Champion and synergy values, for explaining them */
   strategy: StrategyRules
-  roster: (HeroView & { restingNextWeek: boolean })[]
+  /** Each hero's projected damage for the next battle is in `projected` */
+  roster: (HeroView & { restingNextWeek: boolean; projected: number })[]
   /** The next game week to resolve, or null if the season is over or hasn't started */
   nextWeek: number | null
   nextWeekAt: Date | null
@@ -209,13 +210,14 @@ export async function getLineup(member: AccountDocument, leagueId: string): Prom
   const next = nextWeek(league)
   const resting = next ? await restingHeroes(league, roster, next.week) : new Set<string>()
   const ruleset = getRuleset(league.rulesetVersion)
+  const form = await heroForm(league, roster)
   return {
     slots: ruleset.lineup.slots.map(slot => ({ ...slot, classes: [...slot.classes] })),
     lineup: readLineup(party.lineup),
     autoSwap: party.autoSwap,
     champion: party.champion?.toString() ?? null,
     strategy: { ...ruleset.strategy },
-    roster: roster.map(hero => ({ ...toHeroView(hero), restingNextWeek: resting.has(hero.id) })),
+    roster: roster.map(hero => ({ ...toHeroView(hero), restingNextWeek: resting.has(hero.id), projected: form.get(hero.id)?.projected ?? 0 })),
     nextWeek: next?.week ?? null,
     nextWeekAt: next?.at ?? null
   }
@@ -467,7 +469,7 @@ export async function getHeroDetail(viewer: AccountDocument, leagueId: string, h
   })
   const freeWeeks = results.map(result => result.week).filter(week => !history.some(entry => entry.week === week))
   const freeAgentHistory = freeWeeks.length ? await freeAgentWeeks(league, hero, freeWeeks) : []
-  const form = (await heroForm(league, [hero])).get(hero.id) ?? { average: null, recent: null, played: 0, playingLike: null }
+  const form = (await heroForm(league, [hero])).get(hero.id) ?? { average: null, recent: null, played: 0, playingLike: null, projected: 0 }
   return { hero: { ...toHeroView(hero), form }, history: [...history, ...freeAgentHistory].sort((a, b) => a.week - b.week) }
 }
 
