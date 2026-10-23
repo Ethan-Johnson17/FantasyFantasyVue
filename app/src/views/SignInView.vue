@@ -2,6 +2,7 @@
 import { useAuth0 } from '@auth0/auth0-vue'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { MINIMUM_AGE } from '../privacy'
 
 const { loginWithRedirect, error } = useAuth0()
 const route = useRoute()
@@ -41,6 +42,7 @@ function signIn() {
       <p v-if="signInError" class="error" role="alert">Sign-in didn't complete: {{ signInError }}</p>
       <button type="button" class="btn btn-primary" @click="signIn">Sign in or create an account</button>
       <p class="muted fine-print">Free to play. No wagering, ever. <RouterLink to="/how-it-works">How it works</RouterLink></p>
+      <p class="muted fine-print">You must be {{ MINIMUM_AGE }} or older to play. <RouterLink to="/privacy">Privacy policy</RouterLink></p>
     </div>
   </main>
 </template>

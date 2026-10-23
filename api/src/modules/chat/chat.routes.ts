@@ -31,6 +31,9 @@ export function chatRouter() {
       const { before } = ListQuerySchema.parse(req.query)
       res.json(await chat.listMessages(currentAccount(req), leagueId(req), before))
     })
+    .get('/unread', async (req, res) => {
+      res.json(await chat.getUnread(currentAccount(req), leagueId(req)))
+    })
     .post('/', limitPosting, async (req, res) => {
       const { body } = PostMessageSchema.parse(req.body)
       res.status(201).json(await chat.postMessage(currentAccount(req), leagueId(req), body))

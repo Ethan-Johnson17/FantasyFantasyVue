@@ -34,6 +34,7 @@ Everything under `/api` requires an Auth0 access token (`Authorization: Bearer .
 |---|---|---|
 | `GET /health` | anyone | Liveness and DB status |
 | `GET /api/account` / `PATCH /api/account` | self | Read or update display name / picture |
+| `DELETE /api/account` | self | Delete my account: removes my profile and chat messages; my parties leave forming leagues and stay as "Former adventurer" in drafted ones. Refused while I host a running league |
 | `POST /api/leagues` | anyone | Create a league along with the host's party |
 | `GET /api/leagues/mine` | self | Leagues I'm in, with my party |
 | `GET /api/leagues/public?page=` | anyone | Public leagues with open slots |
@@ -60,6 +61,7 @@ Everything under `/api` requires an Auth0 access token (`Authorization: Bearer .
 | `GET /api/leagues/:id/results/:week` | members; anyone if public | A resolved week (per-hero damage rounded) |
 | `GET /api/leagues/:id/standings` | members; anyone if public | Wins, losses, draws, total damage |
 | `GET /api/leagues/:id/chat?before=` | members only, even if public | League chat: the latest 50 messages, oldest first, or the page before a message id |
+| `GET /api/leagues/:id/chat/unread` | members only | Messages from others since I last opened chat (`{ unread }`, capped at 10); `GET /api/leagues/mine` includes it as `unreadChat` |
 | `POST /api/leagues/:id/chat` | members only | Send a message (`{ body }`, up to 500 characters); profanity is masked before saving; 10 a minute |
 | `DELETE /api/leagues/:id/chat/:messageId` | the author or the host | Remove a message |
 | `POST /api/leagues/:id/chat/:messageId/report` | members, not the author | Report a message; the host sees how many members reported it |

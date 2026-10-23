@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ApiError } from '../api/client'
 import { useApi } from '../api/inject'
 import type { MyLeague } from '../api/types'
+import { unreadText } from '../chat'
 import CrestShield from '../components/CrestShield.vue'
 import InstallCard from '../components/InstallCard.vue'
 import NamePrompt from '../components/NamePrompt.vue'
@@ -199,6 +200,9 @@ function signOut() {
           <RouterLink :to="cardLink(league)" class="card league" :class="{ highlight: league.status === 'active' }">
             <div class="league-top">
               <span class="league-name">{{ league.name }}</span>
+              <span v-if="league.unreadChat" class="unread" :aria-label="`${unreadText(league.unreadChat)} unread chat messages`">
+                {{ unreadText(league.unreadChat) }} new
+              </span>
               <span class="league-label">{{ statusLine(league).label }}</span>
             </div>
             <div class="league-party">
@@ -324,6 +328,16 @@ function signOut() {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 22px;
+}
+.unread {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 9px;
+  background: var(--gold);
+  color: var(--on-gold);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .league-label {
   font-size: 13px;

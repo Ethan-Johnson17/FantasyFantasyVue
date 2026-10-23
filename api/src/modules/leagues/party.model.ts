@@ -35,7 +35,9 @@ const partySchema = new Schema(
       default: undefined
     },
     // The Champion: stays named from week to week until changed, withdrawn, or benched
-    champion: { type: Schema.Types.ObjectId, ref: 'Hero', default: null }
+    champion: { type: Schema.Types.ObjectId, ref: 'Hero', default: null },
+    // The newest chat message this party has seen, for the unread badge
+    chatReadId: { type: Schema.Types.ObjectId, ref: 'ChatMessage', default: null }
   },
   { timestamps: true }
 )

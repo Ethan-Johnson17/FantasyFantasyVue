@@ -43,6 +43,8 @@ type FetchLike = (input: string, init: RequestInit) => Promise<Response>
 export interface ApiClient {
   getAccount(): Promise<Account>
   updateAccount(update: { displayName?: string; picture?: string }): Promise<Account>
+  /** Deletes the account and what it wrote; see the privacy policy */
+  deleteAccount(): Promise<void>
   listMyLeagues(): Promise<MyLeague[]>
   getLeague(id: string): Promise<LeagueDetail>
   createLeague(input: CreateLeagueInput): Promise<LeagueDetail>
@@ -77,6 +79,7 @@ export interface ApiClient {
   postChat(leagueId: string, body: string): Promise<ChatMessage>
   deleteChat(leagueId: string, messageId: string): Promise<void>
   reportChat(leagueId: string, messageId: string): Promise<ChatMessage>
+  getChatUnread(leagueId: string): Promise<{ unread: number }>
 }
 
 export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchImpl: FetchLike = fetch): ApiClient {
@@ -116,6 +119,7 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
   return {
     getAccount: () => request('GET', '/api/account'),
     updateAccount: update => request('PATCH', '/api/account', update),
+    deleteAccount: () => request('DELETE', '/api/account'),
     listMyLeagues: () => request('GET', '/api/leagues/mine'),
     getLeague: id => request('GET', `/api/leagues/${segment(id)}`),
     createLeague: input => request('POST', '/api/leagues', input),
@@ -145,7 +149,8 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     getChat: (id, before) => request('GET', `/api/leagues/${segment(id)}/chat${before ? `?before=${segment(before)}` : ''}`),
     postChat: (id, body) => request('POST', `/api/leagues/${segment(id)}/chat`, { body }),
     deleteChat: (id, messageId) => request('DELETE', `/api/leagues/${segment(id)}/chat/${segment(messageId)}`),
-    reportChat: (id, messageId) => request('POST', `/api/leagues/${segment(id)}/chat/${segment(messageId)}/report`)
+    reportChat: (id, messageId) => request('POST', `/api/leagues/${segment(id)}/chat/${segment(messageId)}/report`),
+    getChatUnread: id => request('GET', `/api/leagues/${segment(id)}/chat/unread`)
   }
 }
 

@@ -5,7 +5,7 @@ import { useApi } from '../api/inject'
 import FormError from '../components/FormError.vue'
 import { DEFAULT_DISPLAY_NAME, DISPLAY_NAME_MAX, useSessionStore } from '../stores/session'
 
-/* The signed-in player's account: the display name other players see, and signing out. */
+/* The signed-in player's account: the display name other players see, signing out, and deleting the account. */
 
 const api = useApi()
 const session = useSessionStore()
@@ -49,6 +49,26 @@ async function save() {
 function signOut() {
   void logout({ logoutParams: { returnTo: window.location.origin } })
 }
+
+const deleting = ref(false)
+const deleteError = ref<unknown>(null)
+
+async function deleteAccount() {
+  const confirmed = window.confirm(
+    'Delete your account? Your name and chat messages are removed, and you leave leagues that haven’t drafted. ' +
+      'In leagues already underway, your party keeps playing for the others as “Former adventurer”. This can’t be undone.'
+  )
+  if (!confirmed) return
+  deleting.value = true
+  deleteError.value = null
+  try {
+    await api.deleteAccount()
+    signOut()
+  } catch (caught) {
+    deleteError.value = caught
+    deleting.value = false
+  }
+}
 </script>
 
 <template>
@@ -88,6 +108,17 @@ function signOut() {
       </form>
 
       <button type="button" class="btn btn-secondary sign-out" @click="signOut">Sign out</button>
+
+      <section class="danger-zone">
+        <h2 class="danger-title">Delete account</h2>
+        <p class="muted small">
+          Removes your name and chat messages. Parties in leagues that haven't drafted leave them; in leagues already
+          underway, your party keeps playing for the others as “Former adventurer”. Host a running league? Cancel it first.
+        </p>
+        <FormError :error="deleteError" />
+        <button type="button" class="btn delete" :disabled="deleting" @click="deleteAccount">{{ deleting ? 'Deleting…' : 'Delete my account' }}</button>
+      </section>
+      <p class="muted small policy"><RouterLink to="/privacy">Privacy policy</RouterLink></p>
     </template>
   </main>
 </template>
@@ -146,5 +177,30 @@ function signOut() {
 .sign-out {
   width: 100%;
   margin-top: 20px;
+}
+.danger-zone {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.danger-title {
+  margin: 0;
+  font-size: 18px;
+}
+.danger-zone p {
+  margin: 0;
+  line-height: 1.45;
+}
+.delete {
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+.policy {
+  margin-top: 20px;
+  text-align: center;
 }
 </style>

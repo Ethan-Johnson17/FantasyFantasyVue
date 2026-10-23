@@ -3,7 +3,7 @@ import { BadRequest, Conflict, Forbidden, NotFound } from '../../lib/errors.js'
 import type { AccountDocument } from '../accounts/account.model.js'
 import { loadLeagueAsMember } from '../leagues/league.access.js'
 import type { LeagueDocument } from '../leagues/league.model.js'
-import { PartyModel } from '../leagues/party.model.js'
+import { PartyModel, type PartyDocument } from '../leagues/party.model.js'
 import { CHAT_RETENTION_MS, ChatMessageModel, type ChatMessageDocument } from './chatMessage.model.js'
 import { filterProfanity } from './profanity.js'
 
@@ -11,6 +11,8 @@ const { trusted } = mongoose
 
 /** Messages per page: the latest page is what the app polls while chat is open. */
 export const CHAT_PAGE_SIZE = 50
+/** Unread counts stop here; the app shows "9+" */
+export const UNREAD_CAP = 10
 
 export interface ChatMessageView {
   id: string
@@ -64,11 +66,14 @@ export function cleanMessage(text: string): string {
 }
 
 export async function listMessages(viewer: AccountDocument, leagueId: string, before?: string): Promise<ChatPageView> {
-  const { league } = await loadLeagueAsMember(viewer, leagueId)
+  const { league, party } = await loadLeagueAsMember(viewer, leagueId)
   const found = await ChatMessageModel.find({ leagueId: league._id, ...(before ? { _id: trusted({ $lt: before }) } : {}) })
     .sort({ _id: -1 })
     .limit(CHAT_PAGE_SIZE + 1)
   const page = found.slice(0, CHAT_PAGE_SIZE).reverse()
+  // Reading the latest page reads everything up to its newest message.
+  const newest = found[0]
+  if (!before && newest) await markRead(party, newest._id)
   const canModerate = league.hostId.equals(viewer._id)
   return {
     messages: await toViews(page, viewer, canModerate),
@@ -76,6 +81,37 @@ export async function listMessages(viewer: AccountDocument, leagueId: string, be
     canModerate,
     readOnly: league.status === 'canceled'
   }
+}
+
+/** Moves a party's read marker forward (never back, if requests arrive out of order). */
+async function markRead(party: PartyDocument, messageId: Types.ObjectId): Promise<void> {
+  await PartyModel.updateOne(
+    { _id: party._id, $or: [{ chatReadId: null }, { chatReadId: trusted({ $lt: messageId }) }] },
+    { $set: { chatReadId: messageId } }
+  )
+}
+
+/** Messages from others the party hasn't seen, up to UNREAD_CAP. */
+export async function unreadCount(party: Pick<PartyDocument, 'leagueId' | 'accountId' | 'chatReadId'>): Promise<number> {
+  return ChatMessageModel.countDocuments(
+    {
+      leagueId: party.leagueId,
+      accountId: trusted({ $ne: party.accountId }),
+      ...(party.chatReadId ? { _id: trusted({ $gt: party.chatReadId }) } : {})
+    },
+    { limit: UNREAD_CAP }
+  )
+}
+
+export async function getUnread(viewer: AccountDocument, leagueId: string): Promise<{ unread: number }> {
+  const { party } = await loadLeagueAsMember(viewer, leagueId)
+  return { unread: await unreadCount(party) }
+}
+
+/** Removes everything an account wrote or flagged in chat, for account deletion. */
+export async function forgetChatAuthor(accountId: Types.ObjectId): Promise<void> {
+  await ChatMessageModel.deleteMany({ accountId })
+  await ChatMessageModel.updateMany({ reportedBy: accountId }, { $pull: { reportedBy: accountId } })
 }
 
 export async function postMessage(viewer: AccountDocument, leagueId: string, text: string): Promise<ChatMessageView> {

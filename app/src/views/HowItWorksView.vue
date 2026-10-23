@@ -210,6 +210,7 @@ function back() {
     <section class="section fine">
       <p class="muted">Free to play. No wagering, ever.</p>
       <p class="muted">Stats data provided by nflverse.</p>
+      <p class="muted"><RouterLink to="/privacy">Privacy policy</RouterLink></p>
     </section>
   </main>
 </template>

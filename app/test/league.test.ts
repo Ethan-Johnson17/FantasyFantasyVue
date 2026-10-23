@@ -651,6 +651,45 @@ describe('Matchup', () => {
 type ScheduleResult = { homeTotal: number; awayTotal: number; outcome: 'home' | 'away' | 'draw'; monster: string | null }
 
 describe('League navigation', () => {
+  async function mountLayout(path: string, unread: number) {
+    setActivePinia(createPinia())
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/leagues/:id', component: LeagueLayout, children: [{ path: ':rest(.*)*', component: { template: '<div />' } }] }]
+    })
+    await router.push(path)
+    await router.isReady()
+    const api = fakeApi({
+      getLeague: vi.fn().mockResolvedValue(detail({ status: 'active', parties: [party('a', true)] })),
+      getChatUnread: vi.fn().mockResolvedValue({ unread })
+    })
+    const wrapper = mount({ template: '<RouterView />' }, { global: { plugins: [router], provide: { [apiKey as symbol]: api } } })
+    await flushPromises()
+    return { wrapper, router, api }
+  }
+  const chatTab = (wrapper: Awaited<ReturnType<typeof mountLayout>>['wrapper']) => wrapper.find('.tabs a[href="/leagues/l1/chat"]')
+
+  it('badges the Chat tab with unread messages, hiding it while in chat', async () => {
+    const { wrapper, router, api } = await mountLayout('/leagues/l1/party', 3)
+    expect(api.getChatUnread).toHaveBeenCalledWith('l1')
+    expect(chatTab(wrapper).find('.badge').text()).toBe('3')
+    expect(chatTab(wrapper).text()).toContain('3 unread')
+
+    await router.push('/leagues/l1/chat')
+    await flushPromises()
+    expect(chatTab(wrapper).find('.badge').exists()).toBe(false)
+  })
+
+  it('caps the badge at 9+', async () => {
+    const { wrapper } = await mountLayout('/leagues/l1', 10)
+    expect(chatTab(wrapper).find('.badge').text()).toBe('9+')
+  })
+
+  it("doesn't check unread while in chat", async () => {
+    const { api } = await mountLayout('/leagues/l1/chat', 4)
+    expect(api.getChatUnread).not.toHaveBeenCalled()
+  })
+
   it('has five tabs in one row, each with an icon and a label', async () => {
     setActivePinia(createPinia())
     const router = createRouter({

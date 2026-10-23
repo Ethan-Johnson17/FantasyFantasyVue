@@ -138,6 +138,19 @@ describe('LeaguesView', () => {
     expect(cards[2]!.findAll('.slot.filled')).toHaveLength(3)
   })
 
+  it('shows unread chat on each league, capped at 9+', async () => {
+    const api = fakeApi({
+      listMyLeagues: vi.fn().mockResolvedValue([
+        myLeague({ id: 'a', name: 'Quiet League', status: 'forming' }),
+        myLeague({ id: 'b', name: 'Chatty League', status: 'forming', unreadChat: 3 }),
+        myLeague({ id: 'c', name: 'Very Chatty League', status: 'forming', unreadChat: 10 })
+      ])
+    })
+    const { wrapper } = await mountView(LeaguesView, api)
+    await flushPromises()
+    expect(wrapper.findAll('.league').map(card => card.find('.unread').exists() ? card.find('.unread').text() : null)).toEqual([null, '3 new', '9+ new'])
+  })
+
   it('asks players without a real name to choose one, then hides the prompt', async () => {
     const api = fakeApi({ updateAccount: vi.fn().mockResolvedValue({ id: 'a1', displayName: 'Alaric' }) })
     const { wrapper } = await mountView(LeaguesView, api)
