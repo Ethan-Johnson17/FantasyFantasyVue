@@ -2,7 +2,7 @@ import mongoose, { type ClientSession, type Types } from 'mongoose'
 import { isDuplicateKeyError } from '../../db/mongoose.js'
 import { Conflict, NotFound } from '../../lib/errors.js'
 import { AccountModel, type AccountDocument } from '../accounts/account.model.js'
-import { expireLeagueChat } from '../chat/chat.service.js'
+import { expireLeagueChat, unreadCount } from '../chat/chat.service.js'
 import { advanceLeague } from '../season/advance.js'
 import { partyOutlook, type PartyOutlook } from '../season/outlook.service.js'
 import { computeStandings } from '../season/season.service.js'
@@ -82,6 +82,8 @@ export interface MyLeagueView extends LeagueSummaryView {
   standing: { rank: number; wins: number; losses: number; draws: number } | null
   /** Next battle, last result, and anything to fix before the lineup locks */
   outlook: PartyOutlook
+  /** Chat messages from others I haven't seen, capped (see UNREAD_CAP) */
+  unreadChat: number
 }
 
 // ---------------------------------------------------------------------------
@@ -125,7 +127,8 @@ export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueVi
         ...toSummary(league, viewer, profiles, true),
         myParty: { id: party.id, name: party.name, crest: crestOf(party) },
         standing: league.resolvedWeeks > 0 ? await standingOf(league, party.id) : null,
-        outlook: await partyOutlook(league, party)
+        outlook: await partyOutlook(league, party),
+        unreadChat: await unreadCount(party)
       }
     })
   )
@@ -274,7 +277,7 @@ export async function updateParty(owner: AccountDocument, partyId: string, input
 // ---------------------------------------------------------------------------
 // Helpers
 
-async function removePartyFromLeague(league: LeagueDocument, party: PartyDocument): Promise<void> {
+export async function removePartyFromLeague(league: LeagueDocument, party: PartyDocument): Promise<void> {
   await inTransaction(async session => {
     const released = await LeagueModel.updateOne(
       { _id: league._id, status: 'forming' },
@@ -317,8 +320,8 @@ async function loadProfiles(ids: readonly Types.ObjectId[]): Promise<Map<string,
 }
 
 function profileOf(profiles: ReadonlyMap<string, ProfileView>, id: Types.ObjectId): ProfileView {
-  // Accounts are never deleted today; this fallback keeps views valid if that changes.
-  return profiles.get(id.toString()) ?? { id: id.toString(), displayName: 'Unknown adventurer' }
+  // A deleted account (see accounts/deletion.service.ts): its party stays, with no name attached.
+  return profiles.get(id.toString()) ?? { id: id.toString(), displayName: 'Former adventurer' }
 }
 
 function toSummary(

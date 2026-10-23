@@ -11,6 +11,7 @@ export function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
   return {
     getAccount: vi.fn(),
     updateAccount: vi.fn(),
+    deleteAccount: vi.fn(),
     listMyLeagues: vi.fn().mockResolvedValue([]),
     getLeague: vi.fn(),
     createLeague: vi.fn(),
@@ -41,6 +42,7 @@ export function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
     postChat: vi.fn(),
     deleteChat: vi.fn(),
     reportChat: vi.fn(),
+    getChatUnread: vi.fn().mockResolvedValue({ unread: 0 }),
     ...overrides
   }
 }
@@ -85,6 +87,7 @@ export const myLeague = (overrides: Partial<MyLeague> = {}): MyLeague => ({
   myParty: { id: 'p1', name: 'Dragon Slayers', crest: { emblem: 'crown', banner: 'crimson' } },
   standing: null,
   outlook: { ranking: null, nextBattle: null, lastBattle: null },
+  unreadChat: 0,
   ...overrides
 })
 

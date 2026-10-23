@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CHAT_PAGE_SIZE, cleanMessage } from '../src/modules/chat/chat.service.js'
+import { CHAT_PAGE_SIZE, cleanMessage, UNREAD_CAP } from '../src/modules/chat/chat.service.js'
 import { CHAT_MESSAGES_PER_MINUTE } from '../src/modules/chat/chat.routes.js'
 import { CHAT_MESSAGE_MAX, CHAT_RETENTION_MS, ChatMessageModel } from '../src/modules/chat/chatMessage.model.js'
 import { filterProfanity } from '../src/modules/chat/profanity.js'
@@ -179,6 +179,38 @@ describe('league chat', () => {
     await LeagueModel.updateOne({ _id: id }, { $set: { draftAt: new Date(Date.now() - 1000) } })
     await pageOf(host, id)
     expect((await LeagueModel.findById(id))?.draftPicks).toBeUndefined()
+  })
+})
+
+describe('unread messages', () => {
+  const unread = async (player: typeof alice, id: string) => ((await player.get(`${chatUrl(id)}/unread`)).body as { unread: number }).unread
+  const myLeagueUnread = async (player: typeof alice) =>
+    ((await player.get('/api/leagues/mine')).body as { unreadChat: number }[]).map(league => league.unreadChat)
+
+  it('counts others’ messages since I last opened chat, not my own', async () => {
+    const id = await draftedLeague([alice])
+    await post(host, id, 'One')
+    await post(host, id, 'Two')
+    await post(alice, id, 'Mine')
+    expect(await unread(alice, id)).toBe(2)
+    expect(await myLeagueUnread(alice)).toEqual([2])
+    expect(await unread(host, id)).toBe(1)
+
+    await pageOf(alice, id)
+    expect(await unread(alice, id)).toBe(0)
+    await post(host, id, 'Three')
+    expect(await unread(alice, id)).toBe(1)
+    expect((await outsider.get(`${chatUrl(id)}/unread`)).status).toBe(404)
+  })
+
+  it('caps the count, and loading older pages doesn’t mark anything read', async () => {
+    const id = await draftedLeague([alice])
+    const first = await ChatMessageModel.findById((await post(host, id, 'Message 0')).id).lean()
+    const { _id, ...author } = first!
+    for (let n = 1; n <= UNREAD_CAP + 5; n++) await ChatMessageModel.create({ ...author, body: `Message ${String(n)}` })
+    expect(await unread(alice, id)).toBe(UNREAD_CAP)
+    await pageOf(alice, id, `?before=${_id.toString()}`)
+    expect(await unread(alice, id)).toBe(UNREAD_CAP)
   })
 })
 

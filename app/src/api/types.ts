@@ -53,6 +53,8 @@ export interface MyLeague extends LeagueSummary {
   myParty: { id: string; name: string; crest: Crest }
   standing: { rank: number; wins: number; losses: number; draws: number } | null
   outlook: PartyOutlook
+  /** Chat messages from others I haven't seen; stops counting at UNREAD_CAP */
+  unreadChat: number
 }
 
 /** Next battle, last result, and anything to fix before the lineup locks. */

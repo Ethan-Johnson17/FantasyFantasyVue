@@ -6,6 +6,7 @@ export const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/leagues' },
   // Public, so newcomers can read it before signing in
   { path: '/how-it-works', name: 'how-it-works', component: () => import('./views/HowItWorksView.vue') },
+  { path: '/privacy', name: 'privacy', component: () => import('./views/PrivacyView.vue') },
   { path: '/sign-in', name: 'sign-in', component: () => import('./views/SignInView.vue'), meta: { guestOnly: true } },
   { path: '/account', name: 'account', component: () => import('./views/AccountView.vue'), meta: { auth: true } },
   { path: '/leagues', name: 'leagues', component: () => import('./views/LeaguesView.vue'), meta: { auth: true } },

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useApi } from '../../api/inject'
 import FormError from '../../components/FormError.vue'
+import { UNREAD_POLL_MS, unreadText } from '../../chat'
 import { provideLeague } from '../../league'
 
 const api = useApi()
@@ -20,10 +21,30 @@ const tabs = computed(() => [
   { to: `${base.value}/party`, label: 'Party', exact: false, icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z' },
   { to: `${base.value}/matchup`, label: 'Matchup', exact: false, icon: 'M5 4l10 10M4 14l4 4 M19 4L9 14M20 14l-4 4M3 19l2 2M21 19l-2 2' },
   { to: `${base.value}/heroes`, label: 'Heroes', exact: false, icon: 'M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z' },
-  { to: `${base.value}/chat`, label: 'Chat', exact: false, icon: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5' }
+  { to: `${base.value}/chat`, label: 'Chat', exact: false, icon: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5', badge: onChat.value ? 0 : unread.value }
 ])
 // Tabs matter once the league has a hero pool; before that the League tab has everything.
 const showTabs = computed(() => !!league.value && league.value.status !== 'forming' && league.value.status !== 'canceled')
+
+// The Chat tab's unread badge: checked on opening the league, on leaving chat, and every so often.
+const unread = ref(0)
+const onChat = computed(() => route.path.endsWith('/chat'))
+async function checkUnread() {
+  if (!showTabs.value || onChat.value || document.visibilityState === 'hidden') return
+  try {
+    unread.value = (await api.getChatUnread(leagueId())).unread
+  } catch {
+    // A missed check only delays the badge.
+  }
+}
+watch([() => league.value?.id, onChat, showTabs], () => void checkUnread())
+let timer: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  timer = setInterval(() => void checkUnread(), UNREAD_POLL_MS)
+})
+onUnmounted(() => {
+  clearInterval(timer)
+})
 </script>
 
 <template>
@@ -43,10 +64,13 @@ const showTabs = computed(() => !!league.value && league.value.status !== 'formi
         :exact-active-class="tab.exact ? 'current' : ''"
         :active-class="tab.exact ? '' : 'current'"
       >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path :d="tab.icon" />
-        </svg>
-        <span class="tab-label">{{ tab.label }}</span>
+        <span class="tab-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path :d="tab.icon" />
+          </svg>
+          <span v-if="tab.badge" class="badge" aria-hidden="true">{{ unreadText(tab.badge) }}</span>
+        </span>
+        <span class="tab-label">{{ tab.label }}<span v-if="tab.badge" class="visually-hidden">, {{ unreadText(tab.badge) }} unread</span></span>
       </RouterLink>
     </nav>
   </div>
@@ -93,6 +117,25 @@ const showTabs = computed(() => !!league.value && league.value.status !== 'formi
 }
 .tab-label {
   white-space: nowrap;
+}
+.tab-icon {
+  position: relative;
+  display: flex;
+}
+.badge {
+  position: absolute;
+  top: -6px;
+  left: 14px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--gold);
+  color: var(--on-gold);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
 }
 .tab.current {
   color: var(--gold);

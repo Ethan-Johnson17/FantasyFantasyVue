@@ -73,3 +73,37 @@ describe('Account page', () => {
     expect(link.text()).toBe('A')
   })
 })
+
+describe('Deleting the account', () => {
+  it('asks first, then deletes and signs out', async () => {
+    const api = fakeApi({ deleteAccount: vi.fn().mockResolvedValue(undefined) })
+    const { wrapper } = await mountAccount('Alaric', api)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const button = () => wrapper.findAll('button').find(b => b.text() === 'Delete my account')!
+    await button().trigger('click')
+    expect(api.deleteAccount).not.toHaveBeenCalled()
+
+    confirm.mockReturnValue(true)
+    await button().trigger('click')
+    await flushPromises()
+    expect(api.deleteAccount).toHaveBeenCalledOnce()
+    expect(logout).toHaveBeenCalledOnce()
+    confirm.mockRestore()
+  })
+
+  it('explains why it could not delete, and stays signed in', async () => {
+    const api = fakeApi({ deleteAccount: vi.fn().mockRejectedValue(new ApiError(409, 'Cancel the leagues you host first: Saturday Crew')) })
+    const { wrapper } = await mountAccount('Alaric', api)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await wrapper.findAll('button').find(b => b.text() === 'Delete my account')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Cancel the leagues you host first: Saturday Crew')
+    expect(logout).not.toHaveBeenCalled()
+    confirm.mockRestore()
+  })
+
+  it('links the privacy policy', async () => {
+    const { wrapper } = await mountAccount('Alaric')
+    expect(wrapper.find('a[href="/privacy"]').exists()).toBe(true)
+  })
+})
