@@ -52,6 +52,7 @@ describe('creating a league', () => {
     expect(res.body).toMatchObject({
       name: 'Knights of the Gridiron',
       status: 'forming',
+      mode: 'classic',
       visibility: 'private',
       cadence: 'daily',
       maxParties: 6,
@@ -90,6 +91,29 @@ describe('creating a league', () => {
     })
     expect(res.status).toBe(400)
     expect(await LeagueModel.countDocuments()).toBe(0)
+  })
+})
+
+describe('league mode', () => {
+  it('is Classic, and Crossover leagues can’t be created until the mode is ready', async () => {
+    const { id } = await createLeague()
+    expect((await LeagueModel.findById(id))?.mode).toBe('classic')
+    const res = await host.post('/api/leagues', {
+      name: 'Too Early',
+      visibility: 'private',
+      cadence: 'weekly',
+      maxParties: 4,
+      mode: 'crossover',
+      party: party('The Host Party')
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('never changes after creation', async () => {
+    const { id } = await createLeague()
+    await LeagueModel.updateOne({ _id: id }, { $set: { mode: 'crossover' } })
+    // Mongoose drops updates to immutable fields.
+    expect((await LeagueModel.findById(id))?.mode).toBe('classic')
   })
 })
 

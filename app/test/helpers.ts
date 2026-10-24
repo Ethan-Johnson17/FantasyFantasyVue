@@ -68,6 +68,7 @@ export const summary = (overrides: Partial<LeagueSummary> = {}): LeagueSummary =
   id: 'l1',
   name: 'Knights of the Gridiron',
   status: 'forming',
+  mode: 'classic',
   visibility: 'private',
   cadence: 'daily',
   maxParties: 6,

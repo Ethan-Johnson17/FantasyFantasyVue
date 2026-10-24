@@ -1,0 +1,55 @@
+name: Import stats
+
+# Brings the NFL season in progress into the production database, so Crossover scores fill in as games
+# finish (docs/CROSSOVER_SPEC.md, "Data and scores"). nflverse updates nightly and at set points on game
+# days, so this runs nightly, and hourly through each week's games. Only during the season (September to
+# February). Times are UTC: Thursday 8 PM Eastern is Friday 00:00-01:00 UTC.
+on:
+  schedule:
+    - cron: '0 10 * 9-12,1-2 *' # nightly, 5-6 AM Eastern
+    - cron: '0 0-5 * 9-12,1-2 5' # Thursday night games
+    - cron: '0 * * 9-12,1-2 6,0,1' # Saturday (late season), Sunday and Monday games
+    - cron: '0 0-11 * 9-12,1-2 2' # Monday night games, until the week goes final Tuesday morning
+  # Run by hand from the Actions tab, e.g. to load the season the first time.
+  workflow_dispatch:
+
+# Least privilege: it only needs to read the code. The database address comes from a secret.
+permissions:
+  contents: read
+
+# One import at a time; a new run waits for the previous one instead of racing it.
+concurrency:
+  group: import-stats
+  cancel-in-progress: false
+
+jobs:
+  import:
+    # Forks don't have the secret and shouldn't run this.
+    if: github.repository == 'Ethan-Johnson17/FantasyFantasyVue'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      # Actions are pinned to full commit SHAs so a moved or compromised tag can't change what runs.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      # The test database isn't needed here, so skip its download.
+      - run: npm ci
+        env:
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+
+      - run: npm run import:stats:ci -- --seasons current
+        env:
+          NODE_ENV: production
+          LOG_LEVEL: info
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}

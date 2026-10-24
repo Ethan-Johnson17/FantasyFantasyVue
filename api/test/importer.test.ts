@@ -6,7 +6,7 @@ import { fixtureLoader } from './fixtures.js'
 describe('importSeasons', () => {
   it('stores players, weekly lines, and defenses', async () => {
     const [result] = await importSeasons([2023], fixtureLoader)
-    expect(result).toEqual({ season: 2023, players: 7, playerWeeks: 7, defenseWeeks: 18 })
+    expect(result).toEqual({ season: 2023, players: 7, playerWeeks: 7, defenseWeeks: 18, games: 9, finalGames: 9 })
 
     expect(await NflPlayerModel.countDocuments()).toBe(7)
     expect(await PlayerWeekStatModel.countDocuments()).toBe(7)
