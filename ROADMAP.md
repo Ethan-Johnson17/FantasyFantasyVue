@@ -26,7 +26,7 @@ These are recorded so they aren't lost. Some will use live NFL scores and show t
 
 | Mode | Format | Fantasy / Football | Description |
 |---|---|---|---|
-| Classic Crossover | Party-on-party, team-on-team | 55 / 45 | Choose fantasy players from the NFL and heroes are generated from and attached to your selected players. Your players' scores affect your heroes' stats. May the strongest party win in a 5-v-5 battle! |
+| Crossover (next, spec in [docs/CROSSOVER_SPEC.md](docs/CROSSOVER_SPEC.md)) | Party-on-party | 50 / 50 | Draft real, visible NFL players from the current season; each becomes a hero. Every week has two scoreboards: Gridiron (plain fantasy points) and Quest (D&D damage against a weekly encounter), and each board counts as a win. Game-day scores from nflverse. |
 | Co-op | Party-on-party, team-on-team | 40 / 60 | A shared quest runs throughout the season and parties work together to complete it while teams face off for bragging rights. |
 | Free-for-all | Party-on-party, team-on-team | 50 / 50 | A shared quest runs through the season and whoever accomplishes the goal first wins the league. |
 | Lone Wolf | Solo, team-on-team | 40 / 60 | An individual quest runs throughout the season and parties work separately to complete it while teams face off for bragging rights. |
