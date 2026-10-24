@@ -1,4 +1,5 @@
 import type { HeroClass } from '../heroes/classes.js'
+import type { LeagueMode } from '../leagues/league.model.js'
 
 /**
  * Game rulesets: scoring, lineup shape, and pool size. A league records the version it started with, so tuning a ruleset
@@ -84,6 +85,8 @@ export interface CritRules {
 
 export interface Ruleset {
   readonly version: number
+  /** The game mode this ruleset is for; a league's mode and ruleset always match */
+  readonly mode: LeagueMode
   readonly offense: Readonly<OffenseRules>
   readonly defense: Readonly<DefenseRules>
   readonly lineup: Readonly<LineupRules>
@@ -99,6 +102,7 @@ export interface Ruleset {
 
 export const RULESET_V1: Ruleset = {
   version: 1,
+  mode: 'classic',
   offense: {
     passingYard: 0.04,
     passingTd: 4,
@@ -170,9 +174,48 @@ export const RULESET_V1: Ruleset = {
   }
 }
 
-const RULESETS = new Map<number, Ruleset>([[RULESET_V1.version, RULESET_V1]])
+const ANY_SKILL_POSITION = ['Warrior', 'Ranger', 'Rogue'] as const
+
+/**
+ * Crossover (docs/CROSSOVER_SPEC.md): real, current players in football positions. Scoring and the Champion
+ * work as in Classic for now; encounters and the two scoreboards come in later build phases, so this version
+ * may still change until Crossover leagues can be created (CROSSOVER_ENABLED).
+ */
+export const CROSSOVER_V1: Ruleset = {
+  ...RULESET_V1,
+  version: 2,
+  mode: 'crossover',
+  lineup: {
+    ...RULESET_V1.lineup,
+    rosterSize: 14,
+    // QB, 2 RB, 2 WR, TE, FLEX, DEF (decided 2026-10-24). Classes follow positions: QB Mage, RB Warrior,
+    // WR Ranger, TE Rogue, DEF Paladin.
+    slots: [
+      { key: 'qb', label: 'QB', classes: ['Mage'] },
+      { key: 'rb1', label: 'RB', classes: ['Warrior'] },
+      { key: 'rb2', label: 'RB', classes: ['Warrior'] },
+      { key: 'wr1', label: 'WR', classes: ['Ranger'] },
+      { key: 'wr2', label: 'WR', classes: ['Ranger'] },
+      { key: 'te', label: 'TE', classes: ['Rogue'] },
+      { key: 'flex', label: 'FLEX', classes: ANY_SKILL_POSITION },
+      { key: 'def', label: 'DEF', classes: ['Paladin'] }
+    ],
+    // No auto-swap: each player locks at kickoff, so managers make their own swaps.
+    autoSwapMultiplier: 0
+  },
+  pool: {
+    // About 2.3x what a roster of 14 needs, weighted toward the positions a lineup uses most
+    perParty: { Mage: 5, Warrior: 9, Ranger: 10, Rogue: 5, Paladin: 3 },
+    // 1.5 heroes per roster spot, as in Classic
+    minPerParty: 21
+  }
+}
+
+const RULESETS = new Map<number, Ruleset>([RULESET_V1, CROSSOVER_V1].map(ruleset => [ruleset.version, ruleset]))
 
 export const CURRENT_RULESET_VERSION = RULESET_V1.version
+/** The ruleset new leagues of each mode start with */
+export const RULESET_FOR_MODE: Readonly<Record<LeagueMode, number>> = { classic: RULESET_V1.version, crossover: CROSSOVER_V1.version }
 
 export function getRuleset(version: number): Ruleset {
   const ruleset = RULESETS.get(version)

@@ -1,9 +1,11 @@
 import mongoose, { type ClientSession, type Types } from 'mongoose'
 import { isDuplicateKeyError } from '../../db/mongoose.js'
-import { Conflict, NotFound } from '../../lib/errors.js'
+import { BadRequest, Conflict, NotFound } from '../../lib/errors.js'
 import { AccountModel, type AccountDocument } from '../accounts/account.model.js'
 import { expireLeagueChat, unreadCount } from '../chat/chat.service.js'
+import { RULESET_FOR_MODE } from '../scoring/rulesets.js'
 import { advanceLeague } from '../season/advance.js'
+import { crossoverWindow } from '../season/nflWeeks.js'
 import { partyOutlook, type PartyOutlook } from '../season/outlook.service.js'
 import { computeStandings } from '../season/season.service.js'
 import { inTransaction, loadLeagueAsHost } from './league.access.js'
@@ -164,8 +166,21 @@ export async function previewLeagueByPin(viewer: AccountDocument, pin: string): 
 // ---------------------------------------------------------------------------
 // Commands
 
-export async function createLeague(host: AccountDocument, input: CreateLeagueInput): Promise<LeagueDetailView> {
-  const { party, ...settings } = input
+export interface CreateOptions {
+  /** Crossover leagues can be created only once the mode is finished (CROSSOVER_ENABLED) */
+  crossoverEnabled: boolean
+}
+
+export async function createLeague(host: AccountDocument, input: CreateLeagueInput, options: CreateOptions): Promise<LeagueDetailView> {
+  const { party, ...requested } = input
+  const crossover = requested.mode === 'crossover'
+  if (crossover) {
+    if (!options.crossoverEnabled) throw new Conflict('Crossover leagues aren’t available yet')
+    // Refuse up front when the NFL season is nearly over (or hasn't been scheduled), not only at the draft.
+    await crossoverWindow(new Date())
+  }
+  // Crossover follows the NFL's weeks, whatever cadence was sent.
+  const settings = { ...requested, ...(crossover ? { cadence: 'weekly' as const } : {}), rulesetVersion: RULESET_FOR_MODE[requested.mode] }
   for (let attempt = 1; ; attempt++) {
     try {
       const leagueId = await inTransaction(async session => {
@@ -210,7 +225,10 @@ export async function updateLeague(
   leagueId: string,
   input: UpdateLeagueInput
 ): Promise<LeagueDetailView> {
-  await loadLeagueAsHost(viewer, leagueId)
+  const league = await loadLeagueAsHost(viewer, leagueId)
+  if (league.mode === 'crossover' && input.cadence !== undefined && input.cadence !== 'weekly') {
+    throw new BadRequest('Crossover leagues follow the NFL’s weeks, so they’re always weekly')
+  }
   const capacityGuard = input.maxParties === undefined ? {} : { partyCount: trusted({ $lte: input.maxParties }) }
   const updated = await LeagueModel.findOneAndUpdate(
     { _id: leagueId, status: 'forming', ...capacityGuard },

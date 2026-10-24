@@ -6,6 +6,7 @@ import { timeUntil } from '../../time'
 import ClassIcon from '../ClassIcon.vue'
 import CrestShield from '../CrestShield.vue'
 import TraitChips from '../TraitChips.vue'
+import PlayerTag from '../PlayerTag.vue'
 
 /* An upcoming battle: both lineups as they stand now, Champions, synergies, and the series so far. */
 
@@ -101,6 +102,7 @@ const OUTCOME = { win: 'Victory', loss: 'Defeat', draw: 'Draw' } as const
           <span class="hero-top">
             <ClassIcon :hero-class="cell.hero.heroClass" :size="28" />
             <span class="hero-name"><span v-if="cell.isChampion" class="crown" aria-label="Champion">♛ </span>{{ cell.hero.name }}</span>
+            <PlayerTag :hero="cell.hero" />
           </span>
           <span class="muted small">
             {{ cell.hero.heroClass }} · {{ levelText(cell.hero) }} ·

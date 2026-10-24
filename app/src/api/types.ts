@@ -112,6 +112,8 @@ export interface Hero {
   levelRange: { min: number; max: number } | null
   traits: HeroTrait[]
   partyId: string | null
+  /** Crossover only: the real player. Classic heroes never have one. */
+  player?: { name: string; team: string; position: string }
   /** Recent form; included in the league's hero list */
   form?: HeroForm
 }

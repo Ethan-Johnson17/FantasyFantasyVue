@@ -15,7 +15,9 @@ const EnvSchema = z.object({
   AUTH0_AUDIENCE: z.string().min(1),
   CORS_ORIGINS: commaList.default([]),
   // Number of reverse proxies in front of the API (0 locally; usually 1 on a hosting platform).
-  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0)
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
+  // Crossover leagues can be created only when this is "true": off until every build phase is done.
+  CROSSOVER_ENABLED: z.stringbool().default(false)
 })
 
 export type Env = z.infer<typeof EnvSchema>

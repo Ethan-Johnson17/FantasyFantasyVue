@@ -15,7 +15,7 @@ import { healthRouter } from './routes/health.js'
 import { rulesRouter } from './routes/rules.js'
 
 export interface AppDependencies {
-  env: Pick<Env, 'CORS_ORIGINS' | 'TRUST_PROXY_HOPS'>
+  env: Pick<Env, 'CORS_ORIGINS' | 'TRUST_PROXY_HOPS'> & Partial<Pick<Env, 'CROSSOVER_ENABLED'>>
   logger: Logger
   /** Validates the bearer token and populates req.auth. Injected so tests can use a local signing key. */
   authenticate: RequestHandler
@@ -55,7 +55,7 @@ export function createApp({ env, logger, authenticate }: AppDependencies) {
   api.use('/account', accountRouter)
   // Ahead of the league router, whose /:id routes bring the league up to date first; chat polls too often for that.
   api.use('/leagues/:id/chat', chatRouter())
-  api.use('/leagues', leagueRouter())
+  api.use('/leagues', leagueRouter({ crossoverEnabled: env.CROSSOVER_ENABLED ?? false }))
   api.use('/parties', partyRouter)
   app.use('/api', api)
 
