@@ -87,6 +87,31 @@ const defenseWeekStatSchema = new Schema({
 })
 defenseWeekStatSchema.index({ team: 1, season: 1, seasonType: 1, week: 1 }, { unique: true })
 
+// Regular-season games: kickoff times lock Crossover lineups, and final scores mark a week done.
+const nflGameSchema = new Schema({
+  // nflverse game id, e.g. "2026_07_NE_CHI"
+  _id: { type: String, required: true },
+  season: { type: Number, required: true },
+  seasonType: { type: String, required: true, enum: SEASON_TYPES },
+  week: { type: Number, required: true },
+  kickoff: { type: Date, required: true },
+  homeTeam: { type: String, required: true },
+  awayTeam: { type: String, required: true },
+  homeScore: { type: Number, default: null },
+  awayScore: { type: Number, default: null }
+})
+nflGameSchema.index({ season: 1, seasonType: 1, week: 1 })
+
+// One per season: when it was last imported, so a week can wait for fresh data before going final.
+const statsImportSchema = new Schema({
+  _id: { type: Number, required: true },
+  importedAt: { type: Date, required: true },
+  playerWeeks: { type: Number, required: true },
+  defenseWeeks: { type: Number, required: true },
+  games: { type: Number, required: true },
+  finalGames: { type: Number, required: true }
+})
+
 export type NflPlayer = InferSchemaType<typeof nflPlayerSchema>
 export type PlayerWeekStat = InferSchemaType<typeof playerWeekStatSchema>
 export type DefenseWeekStat = InferSchemaType<typeof defenseWeekStatSchema>
@@ -94,3 +119,5 @@ export type DefenseWeekStat = InferSchemaType<typeof defenseWeekStatSchema>
 export const NflPlayerModel = model('NflPlayer', nflPlayerSchema)
 export const PlayerWeekStatModel = model('PlayerWeekStat', playerWeekStatSchema)
 export const DefenseWeekStatModel = model('DefenseWeekStat', defenseWeekStatSchema)
+export const NflGameModel = model('NflGame', nflGameSchema)
+export const StatsImportModel = model('StatsImport', statsImportSchema)

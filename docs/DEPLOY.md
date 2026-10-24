@@ -106,4 +106,20 @@ players' data. To test a branch end to end later, give previews their own databa
 - Vercel → each project → **Usage** shows how much of the free allowance is used. Over a limit, Vercel pauses that
   feature (no bill).
 
+## 8. Keep the current season up to date (scheduled import)
+
+Crossover leagues follow the NFL season being played. A GitHub Actions workflow
+(`.github/workflows/import-stats.yml`) re-imports that season nightly, and hourly from Thursday night to Tuesday
+morning, from September to February. The repository is public, so its runs are free. It needs the production
+database address as a secret:
+
+1. On GitHub: the repository → **Settings → Secrets and variables → Actions → New repository secret**.
+2. Name: `MONGODB_URI`. Value: the production connection string from step 1. GitHub hides it in logs and never shows
+   it again; forks and pull requests from forks can't read it.
+3. **Actions → Import stats → Run workflow** once to load the season so far. Each run's log ends with the season's
+   counts (weeks and games imported). The Atlas network rule from step 1 (`0.0.0.0/0`) already lets it connect.
+
+GitHub pauses scheduled workflows in a repository with no activity for 60 days; a push, or re-enabling the
+workflow on the Actions tab, starts it again.
+
 Remaining launch items (Google sign-in keys, and so on) are in `ROADMAP.md` under "Before public launch".

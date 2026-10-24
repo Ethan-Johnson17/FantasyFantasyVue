@@ -3,6 +3,9 @@ import { CURRENT_RULESET_VERSION } from '../scoring/rulesets.js'
 
 export const LEAGUE_STATUSES = ['forming', 'drafting', 'active', 'complete', 'canceled'] as const
 export const LEAGUE_VISIBILITIES = ['private', 'public'] as const
+/** Classic hides each hero's player; Crossover (docs/CROSSOVER_SPEC.md, in progress) shows real, current players. */
+export const LEAGUE_MODES = ['classic', 'crossover'] as const
+export type LeagueMode = (typeof LEAGUE_MODES)[number]
 export const LEAGUE_CADENCES = ['daily', 'weekly'] as const
 export const MIN_PARTIES = 2
 export const MAX_PARTIES = 12
@@ -52,6 +55,8 @@ const leagueSchema = new Schema(
     name: { type: String, required: true, trim: true, maxlength: LEAGUE_NAME_MAX },
     hostId: { type: Schema.Types.ObjectId, ref: 'Account', required: true, immutable: true },
     status: { type: String, required: true, enum: LEAGUE_STATUSES, default: 'forming' },
+    // Chosen at creation and never changed: the two modes play by different rules.
+    mode: { type: String, required: true, enum: LEAGUE_MODES, default: 'classic', immutable: true },
     visibility: { type: String, required: true, enum: LEAGUE_VISIBILITIES },
     cadence: { type: String, required: true, enum: LEAGUE_CADENCES },
     maxParties: { type: Number, required: true, min: MIN_PARTIES, max: MAX_PARTIES },

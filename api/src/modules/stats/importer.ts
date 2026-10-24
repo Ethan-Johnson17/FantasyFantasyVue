@@ -6,15 +6,20 @@ import {
   toDraftSlots,
   toGameScores,
   toPlayerWeekDocs,
+  toScheduleDocs,
   type CsvRow,
   type DefenseWeekDoc,
   type DraftSlot,
+  type NflGameDoc,
   type PlayerWeekDoc
 } from './nflverse.js'
+import { currentNflSeason } from './seasons.js'
 import {
   DefenseWeekStatModel,
+  NflGameModel,
   NflPlayerModel,
   PlayerWeekStatModel,
+  StatsImportModel,
   type DefenseWeekStat,
   type NflPlayer,
   type PlayerWeekStat
@@ -25,8 +30,12 @@ export type CsvLoader = (url: string) => Promise<CsvRow[]>
 
 const BATCH_SIZE = 1000
 
+/** nflverse hasn't published this file (yet): a season's stats appear once its first games are played. */
+export class CsvNotFound extends Error {}
+
 export const fetchCsv: CsvLoader = async url => {
   const response = await fetch(url, { signal: AbortSignal.timeout(60_000) })
+  if (response.status === 404) throw new CsvNotFound(`Not published yet: ${url}`)
   if (!response.ok) throw new Error(`Download failed (${String(response.status)}): ${url}`)
   return parse<CsvRow>(await response.text(), { columns: true, skip_empty_lines: true })
 }
@@ -36,32 +45,60 @@ export interface SeasonImportResult {
   players: number
   playerWeeks: number
   defenseWeeks: number
+  /** Regular-season games on the schedule, and how many are final */
+  games: number
+  finalGames: number
+}
+
+export interface ImportOptions {
+  /** The current time, which decides whether a season is still in progress. Injected for tests. */
+  now?: Date
 }
 
 /**
  * Imports regular-season stats for the given seasons. Safe to re-run: every write is an upsert
  * keyed on natural identifiers, so repeated imports update rows instead of duplicating them.
  * Seasons should be imported in ascending order so player names and positions end up current.
+ *
+ * The season in progress (see currentNflSeason) is imported as far as it has been played: stats files
+ * nflverse hasn't published yet count as empty, and a defense line whose game has no final score yet is
+ * left for the next import. Re-importing it during game days brings in each game as it finishes.
  */
-export async function importSeasons(seasons: readonly number[], loadCsv: CsvLoader = fetchCsv) {
-  const [games, draftSlots] = await Promise.all([
-    loadCsv(nflverseUrls.games()).then(toGameScores),
-    loadCsv(nflverseUrls.draftPicks()).then(toDraftSlots)
-  ])
+export async function importSeasons(seasons: readonly number[], loadCsv: CsvLoader = fetchCsv, { now = new Date() }: ImportOptions = {}) {
+  const sorted = [...seasons].sort((a, b) => a - b)
+  const [gameRows, draftSlots] = await Promise.all([loadCsv(nflverseUrls.games()), loadCsv(nflverseUrls.draftPicks()).then(toDraftSlots)])
+  const games = toGameScores(gameRows)
+  const schedule = toScheduleDocs(gameRows, new Set(sorted))
   const results: SeasonImportResult[] = []
-  for (const season of [...seasons].sort((a, b) => a - b)) {
-    const [playerRows, teamRows] = await Promise.all([
-      loadCsv(nflverseUrls.playerWeeks(season)),
-      loadCsv(nflverseUrls.teamWeeks(season))
-    ])
+  for (const season of sorted) {
+    const inProgress = season >= currentNflSeason(now)
+    const load = (url: string) => (inProgress ? loadCsv(url).catch(emptyIfUnpublished) : loadCsv(url))
+    const [playerRows, teamRows] = await Promise.all([load(nflverseUrls.playerWeeks(season)), load(nflverseUrls.teamWeeks(season))])
     const playerWeeks = toPlayerWeekDocs(playerRows)
-    const defenseWeeks = toDefenseWeekDocs(teamRows, playerRows, games)
+    const defenseWeeks = toDefenseWeekDocs(teamRows, playerRows, games, inProgress)
+    const seasonGames = schedule.filter(game => game.season === season)
     const players = await savePlayers(playerWeeks, draftSlots)
     await bulkWriteInBatches(PlayerWeekStatModel, playerWeeks.map(upsertPlayerWeek))
     await bulkWriteInBatches(DefenseWeekStatModel, defenseWeeks.map(upsertDefenseWeek))
-    results.push({ season, players, playerWeeks: playerWeeks.length, defenseWeeks: defenseWeeks.length })
+    await bulkWriteInBatches(NflGameModel, seasonGames.map(upsertGame))
+    const result = {
+      season,
+      players,
+      playerWeeks: playerWeeks.length,
+      defenseWeeks: defenseWeeks.length,
+      games: seasonGames.length,
+      finalGames: seasonGames.filter(game => game.homeScore !== null).length
+    }
+    const { season: _id, players: _players, ...counts } = result
+    await StatsImportModel.updateOne({ _id }, { $set: { importedAt: new Date(), ...counts } }, { upsert: true })
+    results.push(result)
   }
   return results
+}
+
+function emptyIfUnpublished(error: unknown): CsvRow[] {
+  if (error instanceof CsvNotFound) return []
+  throw error
 }
 
 async function savePlayers(
@@ -97,6 +134,10 @@ function upsertPlayerWeek({ playerName: _name, ...line }: PlayerWeekDoc): AnyBul
 function upsertDefenseWeek(line: DefenseWeekDoc): AnyBulkWriteOperation<DefenseWeekStat> {
   const { team, season, seasonType, week } = line
   return { replaceOne: { filter: { team, season, seasonType, week }, replacement: line, upsert: true } }
+}
+
+function upsertGame(game: NflGameDoc): AnyBulkWriteOperation<NflGameDoc> {
+  return { replaceOne: { filter: { _id: game._id }, replacement: game, upsert: true } }
 }
 
 async function bulkWriteInBatches<T extends mongo.Document>(

@@ -1,5 +1,13 @@
 import { FIRST_AVAILABLE_SEASON } from './nflverse.js'
 
+/**
+ * The NFL season being played (or next up) at a given time. A season runs September to February, so
+ * from March on the calendar year's season is the current one.
+ */
+export function currentNflSeason(now: Date = new Date()): number {
+  return now.getUTCMonth() >= 2 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
+}
+
 /** Parses "2023" or "2011-2025" into a list of seasons, rejecting seasons nflverse doesn't have. */
 export function parseSeasonRange(input: string, latestSeason = new Date().getFullYear()): number[] {
   const match = /^(\d{4})(?:-(\d{4}))?$/.exec(input.trim())

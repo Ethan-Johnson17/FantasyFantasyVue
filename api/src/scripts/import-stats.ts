@@ -3,20 +3,21 @@
  *
  *   npm run import:stats -- --seasons 2011-2025
  *   npm run import:stats -- --seasons 2023
+ *   npm run import:stats -- --seasons current   (the season in progress; what the scheduled workflow runs)
  */
 import { parseArgs } from 'node:util'
 import mongoose from 'mongoose'
-import { loadEnv } from '../config/env.js'
+import { loadScriptEnv } from '../config/env.js'
 import { configureMongoose } from '../db/mongoose.js'
 import { createLogger } from '../lib/logger.js'
 import { importSeasons } from '../modules/stats/importer.js'
-import { parseSeasonRange } from '../modules/stats/seasons.js'
+import { currentNflSeason, parseSeasonRange } from '../modules/stats/seasons.js'
 
 const { values } = parseArgs({ options: { seasons: { type: 'string' } } })
-if (!values.seasons) throw new Error('Missing --seasons (e.g. --seasons 2011-2025)')
-const seasons = parseSeasonRange(values.seasons)
+if (!values.seasons) throw new Error('Missing --seasons (e.g. --seasons 2011-2025, or current)')
+const seasons = values.seasons === 'current' ? [currentNflSeason()] : parseSeasonRange(values.seasons)
 
-const env = loadEnv()
+const env = loadScriptEnv()
 const logger = createLogger(env)
 configureMongoose()
 await mongoose.connect(env.MONGODB_URI)

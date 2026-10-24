@@ -4,6 +4,8 @@ import type { Crest } from '../crests'
 export type LeagueStatus = 'forming' | 'drafting' | 'active' | 'complete' | 'canceled'
 export type Visibility = 'private' | 'public'
 export type Cadence = 'daily' | 'weekly'
+/** Classic hides each hero's player; Crossover (docs/CROSSOVER_SPEC.md) shows real, current players */
+export type LeagueMode = 'classic' | 'crossover'
 
 export interface Account {
   id: string
@@ -30,6 +32,7 @@ export interface LeagueSummary {
   id: string
   name: string
   status: LeagueStatus
+  mode: LeagueMode
   visibility: Visibility
   cadence: Cadence
   maxParties: number

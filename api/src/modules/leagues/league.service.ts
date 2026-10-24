@@ -46,6 +46,7 @@ export interface LeagueSummaryView {
   id: string
   name: string
   status: string
+  mode: string
   visibility: string
   cadence: string
   maxParties: number
@@ -335,6 +336,7 @@ function toSummary(
     id: league.id,
     name: league.name,
     status: league.status,
+    mode: league.mode,
     visibility: league.visibility,
     cadence: league.cadence,
     maxParties: league.maxParties,

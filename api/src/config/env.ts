@@ -20,12 +20,25 @@ const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>
 
+// Command-line scripts (e.g. the stats import on a schedule) only talk to the database.
+const ScriptEnvSchema = EnvSchema.pick({ NODE_ENV: true, LOG_LEVEL: true, MONGODB_URI: true })
+export type ScriptEnv = z.infer<typeof ScriptEnvSchema>
+
 /**
  * Validates environment variables once at startup so misconfiguration fails fast
  * instead of surfacing as confusing runtime errors.
  */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const result = EnvSchema.safeParse(source)
+  return parseEnv(EnvSchema, source)
+}
+
+/** The smaller configuration command-line scripts need. */
+export function loadScriptEnv(source: NodeJS.ProcessEnv = process.env): ScriptEnv {
+  return parseEnv(ScriptEnvSchema, source)
+}
+
+function parseEnv<T extends z.ZodType>(schema: T, source: NodeJS.ProcessEnv): z.infer<T> {
+  const result = schema.safeParse(source)
   if (!result.success) {
     // Only report which variables are invalid; never echo their values.
     const problems = result.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`)

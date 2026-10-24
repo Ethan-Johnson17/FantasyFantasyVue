@@ -104,6 +104,95 @@ const GameRow = z.object({
   away_score: z.string().optional()
 })
 
+/*
+ * The schedule's columns we read. games.csv also carries betting lines (spreads, moneylines, totals);
+ * they are never read or stored: FantasyFantasy has no wagering, ever.
+ */
+const ScheduleRow = z.object({
+  game_id: requiredText,
+  season: integer,
+  game_type: requiredText,
+  week: integer,
+  // Kickoff date and Eastern time, e.g. "2026-10-25" and "13:00"
+  gameday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  // Blank while the NFL hasn't set a kickoff (late-season flex games): 1 PM until a later import updates it
+  gametime: z
+    .string()
+    .regex(/^(\d{1,2}:\d{2})?$/)
+    .optional()
+    .transform(time => time || '13:00'),
+  home_team: requiredText,
+  away_team: requiredText,
+  home_score: z.string().optional(),
+  away_score: z.string().optional()
+})
+
+export interface NflGameDoc {
+  _id: string
+  season: number
+  seasonType: 'REG'
+  week: number
+  kickoff: Date
+  homeTeam: string
+  awayTeam: string
+  /** Null until the game is final */
+  homeScore: number | null
+  awayScore: number | null
+}
+
+/** Regular-season games for the given seasons, with kickoff converted from Eastern time to UTC. */
+export function toScheduleDocs(rows: readonly CsvRow[], seasons: ReadonlySet<number>): NflGameDoc[] {
+  const skip = (row: CsvRow) => !seasons.has(Number(row.season)) || row.game_type !== 'REG'
+  return parseRows(ScheduleRow, rows, 'schedule', skip).map(game => {
+    const homeScore = finalScore(game.home_score)
+    const awayScore = finalScore(game.away_score)
+    const final = homeScore !== null && awayScore !== null
+    return {
+      _id: game.game_id,
+      season: game.season,
+      seasonType: 'REG' as const,
+      week: game.week,
+      kickoff: easternTimeToUtc(game.gameday, game.gametime),
+      homeTeam: toFranchiseCode(game.home_team),
+      awayTeam: toFranchiseCode(game.away_team),
+      homeScore: final ? homeScore : null,
+      awayScore: final ? awayScore : null
+    }
+  })
+}
+
+function finalScore(value: string | undefined): number | null {
+  if (!value) return null
+  const score = Number(value)
+  return Number.isInteger(score) ? score : null
+}
+
+const EASTERN = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit'
+})
+
+/** The UTC instant of a wall-clock time in New York (nflverse lists kickoffs in Eastern time). */
+export function easternTimeToUtc(date: string, time: string): Date {
+  const [year, month, day] = date.split('-').map(Number) as [number, number, number]
+  const [hour, minute] = time.split(':').map(Number) as [number, number]
+  const wallClock = Date.UTC(year, month - 1, day, hour, minute)
+  // Eastern is UTC-4 or UTC-5: guess, then correct by how far New York's clock is off at that instant.
+  let instant = wallClock + 5 * 3_600_000
+  for (let pass = 0; pass < 2; pass++) instant += wallClock - easternWallClock(new Date(instant))
+  return new Date(instant)
+}
+
+function easternWallClock(at: Date): number {
+  const parts = Object.fromEntries(EASTERN.formatToParts(at).map(part => [part.type, part.value]))
+  return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute))
+}
+
 export interface PlayerWeekDoc {
   playerId: string
   playerName: string
@@ -255,7 +344,9 @@ export function toGameScores(rows: readonly CsvRow[]): Map<string, GameScore> {
 export function toDefenseWeekDocs(
   teamRows: readonly CsvRow[],
   playerRows: readonly CsvRow[],
-  games: ReadonlyMap<string, GameScore>
+  games: ReadonlyMap<string, GameScore>,
+  /** For a season in progress: skip lines whose game has no final score yet instead of failing */
+  skipUnscored = false
 ): DefenseWeekDoc[] {
   const offensiveRecoveryTds = new Map<string, number>()
   for (const row of parsePlayerRows(playerRows)) {
@@ -265,7 +356,7 @@ export function toDefenseWeekDocs(
   }
 
   return parseRows(TeamWeekRow, teamRows, 'team stats')
-    .filter(row => row.season_type === 'REG')
+    .filter(row => row.season_type === 'REG' && !(skipUnscored && !games.has(row.game_id)))
     .map(row => {
       const game = games.get(row.game_id)
       if (!game) throw new Error(`team stats: no final score for game ${row.game_id}`)
