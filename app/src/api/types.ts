@@ -178,8 +178,13 @@ export interface MatchupSide extends PartyRef {
   champion: string | null
   /** Projected party total: starters who'll fight, with Champion and synergy bonuses */
   projectedTotal: number
-  /** Crossover game days: real damage for final games, projections for the rest; null otherwise */
+  /** Crossover game days: real Quest damage for final games, projections for the rest; null otherwise */
   liveTotal?: number | null
+  /** Crossover only: the heroes fighting the encounter (the Quest board) */
+  questParty?: (Hero & { restingNextWeek: boolean; projected: number; game?: LiveGame | null })[] | null
+  /** Crossover only: projected and game-day Gridiron points */
+  projectedGridiron?: number | null
+  liveGridiron?: number | null
   /** Synergies this lineup would trigger if the battle resolved now */
   synergies: Synergy[]
 }
@@ -197,6 +202,15 @@ export interface Matchup {
   meetings: { week: number; myTotal: number; theirTotal: number; outcome: 'win' | 'loss' | 'draw' }[]
   /** Crossover game days: how many of the NFL week's games are final; null otherwise */
   games?: { final: number; total: number } | null
+  /** Crossover only: the week's encounter, known ahead */
+  encounter?: Encounter | null
+}
+
+/** A Crossover encounter: weak to two classes, resists one. */
+export interface Encounter {
+  name: string
+  weak: HeroClass[]
+  resists: HeroClass
 }
 
 type AwardParty = PartyRef

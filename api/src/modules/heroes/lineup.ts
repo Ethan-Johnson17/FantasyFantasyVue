@@ -71,6 +71,13 @@ export function autoLineup(heroes: readonly LineupHero[], slots: readonly SlotRu
   return lineup
 }
 
+/** A Quest party: the most valuable heroes of any class. */
+export function autoQuestParty(heroes: readonly LineupHero[], size: number): string[] {
+  return byValue(heroes)
+    .slice(0, size)
+    .map(hero => hero.id)
+}
+
 /** The best eligible hero for one slot, or null: e.g. to refill a slot without moving anyone else. */
 export function bestForSlot(heroes: readonly LineupHero[], slot: SlotRule): LineupHero | null {
   return byValue(heroes).find(hero => accepts(slot, hero.heroClass)) ?? null

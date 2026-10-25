@@ -83,6 +83,23 @@ export interface CritRules {
   fail: Readonly<Record<HeroClass, number>>
 }
 
+/**
+ * Crossover's Quest board (docs/CROSSOVER_SPEC.md): class damage against the week's encounter, where natural
+ * 20s and natural 1s count. Classic has no Quest: its crits are flavor only.
+ */
+export interface QuestRules {
+  /** Heroes in the Quest party, any class, picked from the whole roster (football starters included) */
+  partySize: number
+  /** Damage multiplier for a class the encounter is weak to */
+  weakMultiplier: number
+  /** Damage multiplier for the class the encounter resists */
+  resistMultiplier: number
+  /** A natural 20's damage multiplier */
+  natural20Multiplier: number
+  /** A natural 1's damage multiplier */
+  natural1Multiplier: number
+}
+
 export interface Ruleset {
   readonly version: number
   /** The game mode this ruleset is for; a league's mode and ruleset always match */
@@ -93,6 +110,8 @@ export interface Ruleset {
   readonly pool: Readonly<PoolRules>
   readonly strategy: Readonly<StrategyRules>
   readonly crits: Readonly<CritRules>
+  /** Crossover only: the Quest board. Its presence means two scoreboards. */
+  readonly quest?: Readonly<QuestRules>
   /**
    * Average class damage per battle at Level 1..10, by class: what a Level is worth. Turns a mystery recruit's
    * damage into a "playing like Lv X" estimate.
@@ -208,7 +227,11 @@ export const CROSSOVER_V1: Ruleset = {
     perParty: { Mage: 5, Warrior: 9, Ranger: 10, Rogue: 5, Paladin: 3 },
     // 1.5 heroes per roster spot, as in Classic
     minPerParty: 21
-  }
+  },
+  // Spec defaults; balanced by simulation before Crossover launches (docs/CROSSOVER_SPEC.md, "Quest").
+  // Balanced on 2013-2025 (decided 2026-10-24): with a separate Quest party the boards split in 29% of matchups,
+  // encounter-aware parties win 55% of Quests, and never naming a Champion drops to 41%.
+  quest: { partySize: 5, weakMultiplier: 1.25, resistMultiplier: 0.75, natural20Multiplier: 1.25, natural1Multiplier: 0 }
 }
 
 const RULESETS = new Map<number, Ruleset>([RULESET_V1, CROSSOVER_V1].map(ruleset => [ruleset.version, ruleset]))

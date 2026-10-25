@@ -36,6 +36,8 @@ const partySchema = new Schema(
     },
     // The Champion: stays named from week to week until changed, withdrawn, or benched
     champion: { type: Schema.Types.ObjectId, ref: 'Hero', default: null },
+    // Crossover only: the heroes who fight the week's encounter (the Quest board), any class, from the whole roster
+    questParty: { type: [{ type: Schema.Types.ObjectId, ref: 'Hero' }], default: undefined },
     // The newest chat message this party has seen, for the unread badge
     chatReadId: { type: Schema.Types.ObjectId, ref: 'ChatMessage', default: null }
   },

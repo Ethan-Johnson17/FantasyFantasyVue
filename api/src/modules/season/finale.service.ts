@@ -5,7 +5,7 @@ import { getRuleset } from '../scoring/rulesets.js'
 import { critOf } from './crits.js'
 import { loadVisibleLeague } from '../leagues/league.access.js'
 import { PartyModel } from '../leagues/party.model.js'
-import { computeStandings, type StandingView } from './season.service.js'
+import { computeStandings, foughtLine, type StandingView } from './season.service.js'
 import { WeekResultModel } from './weekResult.model.js'
 
 /*
@@ -81,7 +81,7 @@ export async function getFinale(viewer: AccountDocument, leagueId: string): Prom
         faced.set(side.partyId.toString(), (faced.get(side.partyId.toString()) ?? 0) + against)
         for (const line of side.heroes) {
           const id = line.heroId.toString()
-          const crit = critOf(line, heroById.get(id)?.heroClass ?? 'Mage', ruleset)
+          const crit = critOf(foughtLine(line, !!ruleset.quest), heroById.get(id)?.heroClass ?? 'Mage', ruleset)
           if (crit) crits[crit].set(side.partyId.toString(), (crits[crit].get(side.partyId.toString()) ?? 0) + 1)
           if (line.counted <= 0) continue
           const byParty = heroDamage.get(id) ?? new Map<string, number>()

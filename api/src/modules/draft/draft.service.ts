@@ -5,7 +5,7 @@ import type { AccountDocument } from '../accounts/account.model.js'
 import { HERO_CLASSES } from '../heroes/classes.js'
 import { generateAppearances } from '../heroes/generator.js'
 import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
-import { autoLineup } from '../heroes/lineup.js'
+import { autoLineup, autoQuestParty } from '../heroes/lineup.js'
 import { expectedLevel, selectHeroPool, type HeroTrait, type LevelRange } from '../heroes/pool.js'
 import { inTransaction, loadLeagueAsHost, loadLeagueAsMember, loadVisibleLeague } from '../leagues/league.access.js'
 import { CADENCE_MS, LeagueModel } from '../leagues/league.model.js'
@@ -137,8 +137,11 @@ export async function runDueDraft(leagueId: string): Promise<void> {
             const hero = heroById.get(pick.heroId)
             return hero ? [{ id: hero.id, heroClass: hero.heroClass, value: expectedLevel(hero) }] : []
           })
-        const lineup = storedLineup(autoLineup(roster, getRuleset(league.rulesetVersion).lineup.slots))
-        return { updateOne: { filter: { _id: party._id }, update: { $set: { lineup } } } }
+        const ruleset = getRuleset(league.rulesetVersion)
+        const lineup = storedLineup(autoLineup(roster, ruleset.lineup.slots))
+        // Crossover: the highest-Level heroes form the first Quest party.
+        const questParty = ruleset.quest ? autoQuestParty(roster, ruleset.quest.partySize) : undefined
+        return { updateOne: { filter: { _id: party._id }, update: { $set: { lineup, ...(questParty ? { questParty } : {}) } } } }
       }),
       { session }
     )
