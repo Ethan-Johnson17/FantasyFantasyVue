@@ -71,6 +71,11 @@ export function autoLineup(heroes: readonly LineupHero[], slots: readonly SlotRu
   return lineup
 }
 
+/** The best eligible hero for one slot, or null: e.g. to refill a slot without moving anyone else. */
+export function bestForSlot(heroes: readonly LineupHero[], slot: SlotRule): LineupHero | null {
+  return byValue(heroes).find(hero => accepts(slot, hero.heroClass)) ?? null
+}
+
 /** Checks a submitted lineup: exactly the ruleset's slots, distinct heroes, each eligible for its slot. */
 export function validateLineup(
   lineup: Lineup,

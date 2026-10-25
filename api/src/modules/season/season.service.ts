@@ -9,7 +9,7 @@ import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
 import { planAutoSwaps, validateLineup, type Lineup } from '../heroes/lineup.js'
 import { expectedLevel } from '../heroes/pool.js'
 import { inTransaction, loadLeagueAsMember, loadVisibleLeague } from '../leagues/league.access.js'
-import { CADENCE_MS, LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
+import { LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
 import { DEFAULT_CREST, type Crest } from '../leagues/crests.js'
 import { PartyModel, readLineup, storedLineup, type PartyDocument } from '../leagues/party.model.js'
 import { getRuleset, type Ruleset, type SlotRule, type StrategyRules } from '../scoring/rulesets.js'
@@ -17,7 +17,8 @@ import { scoreDefense, scoreOffense } from '../scoring/scoring.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models.js'
 import { decideBattle, decideMonsterBattle, monsterDamage, scoreParty, type Outcome } from './battle.js'
 import { monsterName } from './monsters.js'
-import { SEASON_WEEKS } from './schedule.js'
+import { nflWeekOf, resolvesAt, seasonLength, weeksDueByTime, weeksReady } from './calendar.js'
+import { heroGames, lockedHeroes, type HeroGame } from './nflWeeks.js'
 import { critOf, type Crit } from './crits.js'
 import { heroForm, type HeroForm } from './form.service.js'
 import { applyStrategy, type Synergy } from './strategy.js'
@@ -33,18 +34,24 @@ const { trusted } = mongoose
 // ---------------------------------------------------------------------------
 // Weekly resolution
 
-/** How many game weeks should have resolved by now (0 before week 1). */
-export function dueWeekCount(league: Pick<LeagueDocument, 'weekOneAt' | 'cadence'>, now = Date.now()): number {
-  if (!league.weekOneAt) return 0
-  const due = Math.floor((now - league.weekOneAt.getTime()) / CADENCE_MS[league.cadence]) + 1
-  return Math.max(0, Math.min(SEASON_WEEKS, due))
+/** How many game weeks should have resolved by now by the clock (0 before week 1). See calendar.ts. */
+export function dueWeekCount(league: Parameters<typeof weeksDueByTime>[0], now = Date.now()): number {
+  return weeksDueByTime(league, now)
+}
+
+/** How many game weeks can resolve now: due, and for Crossover with the NFL week's data in. */
+export async function readyWeekCount(league: LeagueDocument): Promise<number> {
+  if (league.status !== 'active' || !league.weekOneAt) return league.resolvedWeeks
+  const season = (await LeagueModel.findById(league._id).select('+season'))?.season
+  if (season === undefined || season === null) return league.resolvedWeeks
+  return weeksReady(league, season)
 }
 
 /** Resolves every game week that is due, in order. Safe to call often and concurrently. */
 export async function resolveDueWeeks(leagueId: string): Promise<void> {
   const league = await LeagueModel.findById(leagueId).select('+season +seed')
   if (league?.status !== 'active' || !league.weekOneAt) return
-  const due = dueWeekCount(league)
+  const due = await readyWeekCount(league)
   for (let week = league.resolvedWeeks + 1; week <= due; week++) {
     if (!(await resolveWeek(league, week))) return // another request is resolving
   }
@@ -57,7 +64,7 @@ async function resolveWeek(league: LeagueDocument, week: number): Promise<boolea
 
   return inTransaction(async session => {
     // Claim exactly this week; fails if another request already resolved it.
-    const endedAt = week === SEASON_WEEKS ? new Date() : null
+    const endedAt = week === seasonLength(league) ? new Date() : null
     const claim = await LeagueModel.updateOne(
       { _id: league._id, status: 'active', resolvedWeeks: week - 1 },
       { $set: { resolvedWeeks: week, ...(endedAt ? { status: 'complete', endedAt } : {}) } },
@@ -73,7 +80,7 @@ async function resolveWeek(league: LeagueDocument, week: number): Promise<boolea
         .session(session)
     ])
     const ruleset = getRuleset(league.rulesetVersion)
-    const points = await heroPoints(heroes, season, week, ruleset, session)
+    const points = await heroPoints(heroes, season, nflWeekOf(league, week), ruleset, session)
     const sides = new Map(parties.map(party => [party.id, buildSide(party, heroes, points, ruleset)]))
     const monsterTotal = monsterDamage([...sides.values()].map(side => side.total))
 
@@ -137,7 +144,8 @@ function buildSide(
   const roster = heroes.filter(hero => hero.partyId?.equals(party._id))
   const pointsOf = (id: string) => points.get(id) ?? { points: 0, resting: true }
 
-  const swaps = party.autoSwap
+  // Rulesets without auto-swap (Crossover: managers swap before kickoff) set the multiplier to 0.
+  const swaps = party.autoSwap && autoSwapMultiplier > 0
     ? planAutoSwaps(
         lineup,
         slots,
@@ -200,8 +208,11 @@ export interface LineupView {
   champion: string | null
   /** The league's Champion and synergy values, for explaining them */
   strategy: StrategyRules
-  /** Each hero's projected damage for the next battle is in `projected` */
-  roster: (HeroView & { restingNextWeek: boolean; projected: number })[]
+  /**
+   * Each hero's projected damage for the next battle is in `projected`. Crossover: `kickoff` is the hero's game
+   * that week (null on a bye), and `locked` once it has started, so they can't move in or out of the lineup.
+   */
+  roster: (HeroView & { restingNextWeek: boolean; projected: number; kickoff: Date | null; locked: boolean })[]
   /** The next game week to resolve, or null if the season is over or hasn't started */
   nextWeek: number | null
   nextWeekAt: Date | null
@@ -212,6 +223,8 @@ export async function getLineup(member: AccountDocument, leagueId: string): Prom
   const roster = await HeroModel.find({ leagueId: league._id, partyId: party._id }).select('+source')
   const next = nextWeek(league)
   const resting = next ? await restingHeroes(league, roster, next.week) : new Set<string>()
+  const games = next ? await weekGames(league, roster, next.week) : new Map<string, HeroGame | null>()
+  const locked = lockedHeroes(games)
   const ruleset = getRuleset(league.rulesetVersion)
   const form = await heroForm(league, roster)
   return {
@@ -220,7 +233,13 @@ export async function getLineup(member: AccountDocument, leagueId: string): Prom
     autoSwap: party.autoSwap,
     champion: party.champion?.toString() ?? null,
     strategy: { ...ruleset.strategy },
-    roster: roster.map(hero => ({ ...toHeroView(hero), restingNextWeek: resting.has(hero.id), projected: form.get(hero.id)?.projected ?? 0 })),
+    roster: roster.map(hero => ({
+      ...toHeroView(hero),
+      restingNextWeek: resting.has(hero.id),
+      projected: form.get(hero.id)?.projected ?? 0,
+      kickoff: games.get(hero.id)?.kickoff ?? null,
+      locked: locked.has(hero.id)
+    })),
     nextWeek: next?.week ?? null,
     nextWeekAt: next?.at ?? null
   }
@@ -230,9 +249,18 @@ export async function setLineup(member: AccountDocument, leagueId: string, lineu
   const { league, party } = await loadLeagueAsMember(member, leagueId)
   if (league.status !== 'active') throw new Conflict('Lineups can be set after the draft and until the season ends')
 
-  const roster = new Map((await HeroModel.find({ leagueId: league._id, partyId: party._id })).map(hero => [hero.id, hero]))
+  const heroes = await HeroModel.find({ leagueId: league._id, partyId: party._id }).select('+source')
+  const roster = new Map(heroes.map(hero => [hero.id, hero]))
   const problem = validateLineup(lineup, getRuleset(league.rulesetVersion).lineup.slots, id => roster.get(id)?.heroClass)
   if (problem) throw new BadRequest(problem)
+  // Crossover: a player whose game has kicked off stays where they are until the week ends.
+  const locked = await lockedThisWeek(league, heroes)
+  const current = readLineup(party.lineup) ?? {}
+  for (const slot of new Set([...Object.keys(current), ...Object.keys(lineup)])) {
+    if (current[slot] === lineup[slot]) continue
+    const moved = [current[slot], lineup[slot]].find(id => id !== undefined && locked.has(id))
+    if (moved) throw new Conflict(`${roster.get(moved)?.name ?? 'That hero'} is locked: their game has kicked off`)
+  }
   // Benching the Champion withdraws them: a Champion must start.
   const championBenched = party.champion && !Object.values(lineup).includes(party.champion.toString())
   await PartyModel.updateOne(
@@ -249,6 +277,13 @@ export async function setChampion(member: AccountDocument, leagueId: string, her
   if (heroId !== null && !Object.values(readLineup(party.lineup) ?? {}).includes(heroId)) {
     throw new BadRequest('Your Champion must be in your starting lineup')
   }
+  const current = party.champion?.toString() ?? null
+  if (current !== heroId) {
+    const heroes = await HeroModel.find({ leagueId: league._id, partyId: party._id }).select('+source')
+    const locked = await lockedThisWeek(league, heroes)
+    const moved = [current, heroId].find(id => id !== null && locked.has(id))
+    if (moved) throw new Conflict(`${heroes.find(hero => hero.id === moved)?.name ?? 'That hero'} is locked: their game has kicked off`)
+  }
   await PartyModel.updateOne(
     { _id: party._id },
     { $set: { champion: heroId } }
@@ -259,16 +294,41 @@ export async function setChampion(member: AccountDocument, leagueId: string, her
 export function nextWeek(league: LeagueDocument): { week: number; at: Date } | null {
   if (league.status !== 'active' || !league.weekOneAt) return null
   const week = league.resolvedWeeks + 1
-  return { week, at: new Date(league.weekOneAt.getTime() + (week - 1) * CADENCE_MS[league.cadence]) }
+  const at = resolvesAt(league, week)
+  return at && week <= seasonLength(league) ? { week, at } : null
 }
 
-async function restingHeroes(league: LeagueDocument, roster: readonly HeroDocument[], week: number): Promise<Set<string>> {
-  const withSeason = await LeagueModel.findById(league._id).select('+season')
-  const season = withSeason?.season
-  if (season === undefined || season === null) return new Set()
+async function seasonOf(league: LeagueDocument): Promise<number | null> {
+  return (await LeagueModel.findById(league._id).select('+season'))?.season ?? null
+}
+
+/**
+ * Heroes who won't play a game week. Classic knows from the hidden season (no stats that week); Crossover can
+ * only know byes ahead of time (no game that NFL week).
+ */
+export async function restingHeroes(league: LeagueDocument, roster: readonly HeroDocument[], week: number): Promise<Set<string>> {
+  if (league.mode === 'crossover') {
+    const games = await weekGames(league, roster, week)
+    return new Set([...games].filter(([, game]) => game === null).map(([id]) => id))
+  }
+  const season = await seasonOf(league)
+  if (season === null) return new Set()
   const ruleset = getRuleset(league.rulesetVersion)
-  const points = await heroPoints(roster, season, week, ruleset)
+  const points = await heroPoints(roster, season, nflWeekOf(league, week), ruleset)
   return new Set([...points].filter(([, value]) => value.resting).map(([id]) => id))
+}
+
+/** Crossover: each hero's NFL game in a game week (empty for Classic, which has no real kickoffs). */
+export async function weekGames(league: LeagueDocument, heroes: readonly HeroDocument[], week: number): Promise<Map<string, HeroGame | null>> {
+  if (league.mode !== 'crossover' || !league.nflWeeks?.length) return new Map()
+  const season = await seasonOf(league)
+  return season === null ? new Map() : heroGames(heroes, season, nflWeekOf(league, week))
+}
+
+/** Crossover: heroes locked for the next game week (their game has kicked off). Empty for Classic. */
+export async function lockedThisWeek(league: LeagueDocument, heroes: readonly HeroDocument[]): Promise<Set<string>> {
+  const next = nextWeek(league)
+  return next ? lockedHeroes(await weekGames(league, heroes, next.week)) : new Set()
 }
 
 // ---------------------------------------------------------------------------
@@ -302,9 +362,7 @@ export async function getSchedule(viewer: AccountDocument, leagueId: string): Pr
     const result = resultByWeek.get(scheduled.week)
     return {
       week: scheduled.week,
-      resolvesAt: league.weekOneAt
-        ? new Date(league.weekOneAt.getTime() + (scheduled.week - 1) * CADENCE_MS[league.cadence])
-        : null,
+      resolvesAt: resolvesAt(league, scheduled.week),
       matchups: scheduled.matchups.map(matchup => {
         const played = result?.matchups.find(m => m.home.partyId.equals(matchup.home))
         return {
@@ -481,14 +539,14 @@ async function freeAgentWeeks(league: LeagueDocument, hero: HeroDocument, weeks:
   const season = (await LeagueModel.findById(league._id).select('+season'))?.season
   if (season === undefined || season === null) return []
   const ruleset = getRuleset(league.rulesetVersion)
-  const filter = { season, seasonType: 'REG' as const, week: trusted({ $in: [...weeks] }) }
+  const filter = { season, seasonType: 'REG' as const, week: trusted({ $in: weeks.map(week => nflWeekOf(league, week)) }) }
   const scored =
     hero.source.kind === 'player'
       ? (await PlayerWeekStatModel.find({ ...filter, playerId: hero.source.id })).map(line => ({ week: line.week, points: scoreOffense(line.stats, ruleset) }))
       : (await DefenseWeekStatModel.find({ ...filter, team: hero.source.id })).map(line => ({ week: line.week, points: scoreDefense(line.stats, ruleset) }))
-  const byWeek = new Map(scored.map(entry => [entry.week, entry.points]))
+  const byNflWeek = new Map(scored.map(entry => [entry.week, entry.points]))
   return weeks.map(week => {
-    const points = byWeek.get(week)
+    const points = byNflWeek.get(nflWeekOf(league, week))
     return {
       week,
       slot: 'Free agent',

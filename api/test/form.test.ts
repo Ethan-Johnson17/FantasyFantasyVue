@@ -53,8 +53,9 @@ describe('hero form', () => {
     const listed = (await heroesOf(id)).find(entry => entry.id === hero._id.toString())!
     const m = RULESET_V1.lineup.classMultipliers[listed.heroClass]
     expect(listed.form).toMatchObject({
-      average: Math.round(((10 + 20 + 30 + 40) / 4) * m),
-      recent: Math.round(((20 + 30 + 40) / 3) * m),
+      // Averaged the way form is: each week's class damage, then the mean (rounding can differ otherwise).
+      average: Math.round((10 * m + 20 * m + 30 * m + 40 * m) / 4),
+      recent: Math.round((20 * m + 30 * m + 40 * m) / 3),
       played: 4,
       playingLike: null // veterans have a Level
     })

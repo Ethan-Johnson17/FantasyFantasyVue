@@ -176,9 +176,9 @@ describe('the Crossover hero pool', () => {
     await runDraft(id)
     const league = await LeagueModel.findById(id)
     expect(league?.status).toBe('active')
-    // The NFL calendar comes in a later build phase; no Classic schedule is made.
-    expect(league?.weekOneAt).toBeUndefined()
-    expect(league?.schedule).toBeUndefined()
+    // Real NFL weeks: the first starting after the draft (week 8 in the seed) through week 17.
+    expect(league?.nflWeeks?.map(week => week.nflWeek)).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
+    expect(league?.schedule).toHaveLength(10)
 
     const heroById = new Map((await HeroModel.find({ leagueId: id })).map(hero => [hero.id, hero]))
     for (const party of await PartyModel.find({ leagueId: id })) {

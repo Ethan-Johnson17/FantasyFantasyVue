@@ -3,6 +3,7 @@ import type { HeroDocument } from '../heroes/hero.model.js'
 import { expectedLevel } from '../heroes/pool.js'
 import { LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
+import { nflWeekOf } from './calendar.js'
 import { scoreDefense, scoreOffense } from '../scoring/scoring.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models.js'
 
@@ -39,6 +40,15 @@ export interface HeroForm {
  */
 export const PROJECTION_PRIOR_BATTLES = 3
 
+/**
+ * The last NFL week form covers. Classic: the weeks its battles have used. Crossover's players are real, so
+ * their whole season counts: every week before the next battle, or before the draft, every game so far.
+ */
+export function formThroughWeek(league: LeagueDocument): number {
+  if (league.mode !== 'crossover') return league.resolvedWeeks
+  return league.nflWeeks?.length ? nflWeekOf(league, league.resolvedWeeks) : Number.MAX_SAFE_INTEGER
+}
+
 /** What a hero's Level typically deals; a mystery recruit's range midpoint falls between Levels. */
 export function levelBaseline(hero: Pick<HeroDocument, 'level' | 'levelRange'>, levelDamage: readonly number[]): number {
   const level = Math.min(10, Math.max(1, expectedLevel(hero)))
@@ -74,11 +84,12 @@ export async function heroForm(league: LeagueDocument, heroes: readonly HeroDocu
       { average: null, recent: null, played: 0, playingLike: null, projected: Math.round(levelBaseline(hero, ruleset.levelDamage[hero.heroClass])) }
     ])
   )
-  if (league.resolvedWeeks === 0) return empty
+  const throughWeek = formThroughWeek(league)
+  if (throughWeek === 0) return empty
   const season = (await LeagueModel.findById(league._id).select('+season'))?.season
   if (season === undefined || season === null) return empty
 
-  const weeks = { season, seasonType: 'REG' as const, week: trusted({ $lte: league.resolvedWeeks }) }
+  const weeks = { season, seasonType: 'REG' as const, week: trusted({ $lte: throughWeek }) }
   const playerIds = heroes.filter(hero => hero.source.kind === 'player').map(hero => hero.source.id)
   const teams = heroes.filter(hero => hero.source.kind === 'defense').map(hero => hero.source.id)
   const [playerLines, defenseLines] = await Promise.all([

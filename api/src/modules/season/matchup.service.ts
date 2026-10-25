@@ -6,11 +6,14 @@ import { toHeroView, type HeroView } from '../draft/draft.service.js'
 import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
 import { loadLeagueAsMember } from '../leagues/league.access.js'
 import type { Crest } from '../leagues/crests.js'
-import { CADENCE_MS, LeagueModel } from '../leagues/league.model.js'
+import { LeagueModel } from '../leagues/league.model.js'
 import { PartyModel, readLineup, type PartyDocument } from '../leagues/party.model.js'
 import { getRuleset, type Ruleset } from '../scoring/rulesets.js'
 import { monsterName } from './monsters.js'
-import { computeStandings, heroPoints, nextWeek, type StandingView } from './season.service.js'
+import { NflGameModel } from '../stats/stats.models.js'
+import { nflWeekOf, resolvesAt } from './calendar.js'
+import type { HeroGame } from './nflWeeks.js'
+import { computeStandings, heroPoints, nextWeek, restingHeroes, weekGames, type StandingView } from './season.service.js'
 import { heroForm, type HeroForm } from './form.service.js'
 import { applyStrategy, type Synergy } from './strategy.js'
 import { WeekResultModel } from './weekResult.model.js'
@@ -24,15 +27,35 @@ const { trusted } = mongoose
  * the players behind heroes. Played weeks are results (GET /results/:week), not previews.
  */
 
+/** Crossover, next battle only: a starter's real game this week. */
+export interface LiveGameView {
+  kickoff: Date
+  /** The game has kicked off, so the player can't move */
+  locked: boolean
+  /** The game is over and imported: `points` won't change */
+  final: boolean
+  /** Fantasy points once final; null until then (the projection stands in) */
+  points: number | null
+}
+
 export interface MatchupSideView {
   partyId: string
   name: string
   crest: Crest
   record: { wins: number; losses: number; draws: number }
-  starters: { slot: string; label: string; hero: (HeroView & { restingNextWeek: boolean; projected: number }) | null }[]
+  starters: {
+    slot: string
+    label: string
+    hero: (HeroView & { restingNextWeek: boolean; projected: number; game?: LiveGameView | null }) | null
+  }[]
   champion: string | null
   /** Projected party total for this battle: starters who'll fight, with Champion and synergy bonuses */
   projectedTotal: number
+  /**
+   * Crossover, next battle only: the game-day total so far. Final games count their real damage, the rest
+   * their projection, with the same Champion and synergy math. Null otherwise.
+   */
+  liveTotal: number | null
   /** Synergies this lineup would trigger if the battle resolved now */
   synergies: Synergy[]
 }
@@ -48,6 +71,14 @@ export interface MatchupView {
   monster: { name: string } | null
   /** Earlier battles between the two parties, oldest first */
   meetings: { week: number; myTotal: number; theirTotal: number; outcome: 'win' | 'loss' | 'draw' }[]
+  /** Crossover, next battle only: how many of the NFL week's games are final ("4 of 7 games final") */
+  games: { final: number; total: number } | null
+}
+
+interface LiveWeek {
+  games: ReadonlyMap<string, HeroGame | null>
+  /** Real points for heroes whose game is final */
+  points: ReadonlyMap<string, number>
 }
 
 /** A preview of an upcoming battle: the next one by default, or a later week. */
@@ -58,7 +89,9 @@ export async function getMatchup(member: AccountDocument, leagueId: string, requ
   const week = requestedWeek ?? upcoming.week
   if (week < upcoming.week) throw new BadRequest('That battle has been played; see its result')
   const isNext = week === upcoming.week
-  const next = { week, at: new Date(upcoming.at.getTime() + (week - upcoming.week) * CADENCE_MS[league.cadence]) }
+  const at = resolvesAt(league, week)
+  if (!at) throw new NotFound('There is no battle that week')
+  const next = { week, at }
   const scheduled = league.schedule?.find(entry => entry.week === week)
   const matchup = scheduled?.matchups.find(m => m.home.equals(party._id) || m.away?.equals(party._id))
   if (!matchup) throw new NotFound('There is no battle that week')
@@ -76,13 +109,24 @@ export async function getMatchup(member: AccountDocument, leagueId: string, requ
   const sides = opponent ? [party, opponent] : [party]
   const heroes = await HeroModel.find({ leagueId: league._id, partyId: trusted({ $in: sides.map(side => side._id) }) }).select('+source')
   const ruleset = getRuleset(league.rulesetVersion)
-  const resting = new Set<string>()
-  if (isNext) {
-    const points = await heroPoints(heroes, season, next.week, ruleset)
-    for (const [id, value] of points) if (value.resting) resting.add(id)
-  }
+  const resting = isNext ? await restingHeroes(league, heroes, next.week) : new Set<string>()
   const form = await heroForm(league, heroes)
-  const side = (subject: PartyDocument) => sideView(subject, heroes, resting, standings, ruleset, form)
+  // Crossover's game days: final games count for real; the rest show their kickoff and projection.
+  let live: LiveWeek | null = null
+  let games: MatchupView['games'] = null
+  if (league.mode === 'crossover' && isNext) {
+    const nflWeek = nflWeekOf(league, next.week)
+    const heroGamesThisWeek = await weekGames(league, heroes, next.week)
+    const finished = heroes.filter(hero => heroGamesThisWeek.get(hero.id)?.final)
+    const scored = await heroPoints(finished, season, nflWeek, ruleset)
+    live = { games: heroGamesThisWeek, points: new Map([...scored].map(([id, value]) => [id, value.points])) }
+    const [final, total] = await Promise.all([
+      NflGameModel.countDocuments({ season, seasonType: 'REG', week: nflWeek, homeScore: trusted({ $ne: null }) }),
+      NflGameModel.countDocuments({ season, seasonType: 'REG', week: nflWeek })
+    ])
+    games = { final, total }
+  }
+  const side = (subject: PartyDocument) => sideView(subject, heroes, resting, standings, ruleset, form, live)
 
   const meetings = opponent
     ? results.flatMap(result =>
@@ -105,7 +149,8 @@ export async function getMatchup(member: AccountDocument, leagueId: string, requ
     opponent: opponent ? side(opponent) : null,
     // The same name the battle will use: derived from the league seed and the week.
     monster: opponent ? null : { name: monsterName(createRng(hidden.seed, `monster-${String(next.week)}`)) },
-    meetings
+    meetings,
+    games
   }
 }
 
@@ -115,21 +160,45 @@ function sideView(
   resting: ReadonlySet<string>,
   standings: readonly StandingView[],
   ruleset: Ruleset,
-  form: ReadonlyMap<string, HeroForm>
+  form: ReadonlyMap<string, HeroForm>,
+  live: LiveWeek | null = null
 ): MatchupSideView {
   const lineup = readLineup(party.lineup) ?? {}
   const heroById = new Map(heroes.filter(hero => hero.partyId?.equals(party._id)).map(hero => [hero.id, hero]))
   const champion = party.champion?.toString() ?? null
-  const starters = ruleset.lineup.slots.map(slot => {
+  const starters: MatchupSideView['starters'] = ruleset.lineup.slots.map(slot => {
     const hero = heroById.get(lineup[slot.key] ?? '')
     const projected = hero ? (form.get(hero.id)?.projected ?? 0) : 0
-    return { slot: slot.key, label: slot.label, hero: hero ? { ...toHeroView(hero), restingNextWeek: resting.has(hero.id), projected } : null }
+    if (!hero) return { slot: slot.key, label: slot.label, hero: null }
+    const view = { ...toHeroView(hero), restingNextWeek: resting.has(hero.id), projected }
+    if (!live) return { slot: slot.key, label: slot.label, hero: view }
+    const game = live.games.get(hero.id) ?? null
+    const liveGame = game && {
+      kickoff: game.kickoff,
+      locked: game.kickoff.getTime() <= Date.now(),
+      final: game.final,
+      // A final game with no stat line: the player sat out, so 0.
+      points: game.final ? Math.round((live.points.get(hero.id) ?? 0) * 100) / 100 : null
+    }
+    return { slot: slot.key, label: slot.label, hero: { ...view, game: liveGame } }
   })
   // The same strategy math as the battle, on projected damage: synergies and the projected total.
   const fighters = starters.flatMap(({ hero }) =>
     hero && !hero.restingNextWeek ? [{ heroId: hero.id, traits: hero.traits, damage: hero.projected, isChampion: hero.id === champion }] : []
   )
   const outcome = applyStrategy(fighters, ruleset.strategy)
+  const liveTotal = live
+    ? applyStrategy(
+        starters.flatMap(({ hero }) => {
+          if (!hero || hero.restingNextWeek) return []
+          const points = hero.game?.points
+          const heroClass = heroById.get(hero.id)?.heroClass
+          const damage = points === null || points === undefined || !heroClass ? hero.projected : points * ruleset.lineup.classMultipliers[heroClass]
+          return [{ heroId: hero.id, traits: hero.traits, damage, isChampion: hero.id === champion }]
+        }),
+        ruleset.strategy
+      ).total
+    : null
   const row = standings.find(standing => standing.partyId === party.id)
   return {
     partyId: party.id,
@@ -139,6 +208,7 @@ function sideView(
     starters,
     champion,
     projectedTotal: Math.round(outcome.total),
+    liveTotal: liveTotal === null ? null : Math.round(liveTotal),
     synergies: outcome.synergies
   }
 }
