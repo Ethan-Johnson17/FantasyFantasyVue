@@ -5,6 +5,7 @@ import type { Hero } from '../../api/types'
 import FormError from '../../components/FormError.vue'
 import { CLASS_COLOR, HERO_CLASSES, isMystery, levelText } from '../../heroes'
 import { useLeague } from '../../league'
+import PlayerTag from '../../components/PlayerTag.vue'
 
 const api = useApi()
 const { league, myParty } = useLeague()
@@ -65,6 +66,7 @@ const ordinal = (n: number) => `${String(n)}${n === 1 ? 'st' : n === 2 ? 'nd' : 
         <span class="muted small">R{{ pick.round }} · {{ pick.overall }}</span>
         <RouterLink :to="`/leagues/${league?.id}/heroes/${pick.hero.id}`" class="pick-name">
           <strong>{{ pick.hero.name }}</strong>
+          <PlayerTag :hero="pick.hero" />
           <span :style="{ color: CLASS_COLOR[pick.hero.heroClass] }"> {{ pick.hero.heroClass }}</span>
           <span v-if="pick.auto" class="auto-tag"> auto</span>
         </RouterLink>

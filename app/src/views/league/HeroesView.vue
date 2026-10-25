@@ -9,6 +9,7 @@ import TraitChips from '../../components/TraitChips.vue'
 import { CLASS_COLOR, HERO_CLASSES, isMystery, levelText, levelValue } from '../../heroes'
 import { useLeague } from '../../league'
 import { timeUntil } from '../../time'
+import PlayerTag from '../../components/PlayerTag.vue'
 
 const api = useApi()
 const { league, myParty } = useLeague()
@@ -224,6 +225,7 @@ async function save() {
           <span class="rank">{{ rank }}</span>
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
+            <PlayerTag :hero="hero" />
             <span class="small" :style="{ color: CLASS_COLOR[hero.heroClass] }">
               {{ hero.race }} {{ hero.heroClass }}{{ isMystery(hero) ? ' · mystery recruit' : '' }}
             </span>
@@ -250,6 +252,7 @@ async function save() {
           <ClassIcon :hero-class="hero.heroClass" :size="36" />
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
+            <PlayerTag :hero="hero" />
             <span class="muted small">{{ hero.race }} {{ hero.heroClass }}{{ isMystery(hero) ? ' · mystery recruit' : '' }}</span>
             <TraitChips :traits="hero.traits" />
           </RouterLink>
@@ -284,6 +287,7 @@ async function save() {
           <ClassIcon :hero-class="hero.heroClass" :size="36" />
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
+            <PlayerTag :hero="hero" />
             <span class="muted small">{{ hero.race }} {{ hero.heroClass }}{{ isMystery(hero) ? ' · mystery recruit' : '' }}</span>
             <span v-if="formText(hero)" class="form small">{{ formText(hero) }}</span>
             <TraitChips :traits="hero.traits" />
@@ -299,6 +303,7 @@ async function save() {
           <ClassIcon :hero-class="hero.heroClass" :size="36" />
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
+            <PlayerTag :hero="hero" />
             <span class="muted small">{{ hero.heroClass }} · {{ partyName(hero.partyId) }}</span>
             <span v-if="formText(hero)" class="form small">{{ formText(hero) }}</span>
             <TraitChips :traits="hero.traits" />

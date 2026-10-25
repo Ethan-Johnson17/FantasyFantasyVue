@@ -8,6 +8,7 @@ import TraitChips from '../../components/TraitChips.vue'
 import { activeSynergies, levelText, levelValue, projectedTotal, SYNERGY_ORDER, synergyInfo } from '../../heroes'
 import { useLeague } from '../../league'
 import { timeUntil } from '../../time'
+import PlayerTag from '../../components/PlayerTag.vue'
 
 const api = useApi()
 const { league, myParty } = useLeague()
@@ -170,6 +171,7 @@ async function toggleAutoSwap(event: Event) {
             <ClassIcon :hero-class="hero.heroClass" />
             <span class="hero-text">
               <span class="hero-name">{{ hero.name }}</span>
+              <PlayerTag :hero="hero" />
               <span v-if="hero.restingNextWeek" class="resting-text">
                 Resting this week{{ data.autoSwap ? ' · auto-swap ready' : '' }}
               </span>
@@ -230,6 +232,7 @@ async function toggleAutoSwap(event: Event) {
           @click="selectedSlot ? swapIn(hero) : undefined"
         >
           <span class="hero-name">{{ hero.name }}</span>
+          <PlayerTag :hero="hero" />
           <span class="muted small">
             {{ hero.heroClass }} · {{ levelText(hero) }} · {{ hero.restingNextWeek ? 'resting' : `proj ${String(hero.projected)}` }}
           </span>

@@ -11,7 +11,7 @@ export interface PoolCandidate {
   /** NFL player id, or team code for defenses */
   sourceId: string
   heroClass: HeroClass
-  /** Previous-season points per game; null for mystery recruits (rookies) */
+  /** Points per game used for Level (Classic: previous season); null for mystery recruits (rookies) */
   ppg: number | null
   /** NFL draft slot; required for mystery recruits */
   draft?: { round: number; pick: number }
@@ -123,8 +123,10 @@ export function selectHeroPool(
  * Traits by thirds within one class's veterans: the steadiest third are Steadfast, the swingiest
  * third Wild, and the top third by best single week Mighty. Ties break by id, so results are stable.
  */
-export function assignTraits(veterans: readonly PoolCandidate[]): Map<string, HeroTrait[]> {
-  const result = new Map<string, HeroTrait[]>(veterans.map(candidate => [candidate.sourceId, []]))
+export function assignTraits(candidates: readonly PoolCandidate[]): Map<string, HeroTrait[]> {
+  const result = new Map<string, HeroTrait[]>(candidates.map(candidate => [candidate.sourceId, []]))
+  // Traits need a previous season's weeks (Crossover rookies have none): rank only those who have one.
+  const veterans = candidates.filter(candidate => candidate.volatility !== undefined && candidate.ceiling !== undefined)
   const third = Math.floor(veterans.length / 3)
   if (third === 0) return result
   const add = (id: string, trait: HeroTrait) => result.get(id)?.push(trait)

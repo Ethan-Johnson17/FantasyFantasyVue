@@ -329,6 +329,19 @@ describe('Battle result', () => {
 })
 
 describe('Heroes tab', () => {
+  it('shows the real player behind Crossover heroes, and nothing for Classic heroes', async () => {
+    const api = fakeApi({
+      listHeroes: vi.fn().mockResolvedValue([
+        hero('x1', { player: { name: 'Josh Allen', team: 'BUF', position: 'QB' } }),
+        hero('x2', { heroClass: 'Paladin', player: { name: 'Minnesota Vikings', team: 'MIN', position: 'DEF' } }),
+        hero('c1')
+      ]),
+      listMoves: vi.fn().mockResolvedValue([])
+    })
+    const { wrapper } = await mountLeague(HeroesView, api, detail({ status: 'active', parties: [party('p1', true)] }))
+    expect(wrapper.findAll('.player-tag').map(tag => tag.text())).toEqual(['Josh Allen · BUF QB', 'Minnesota Vikings defense'])
+  })
+
   it('builds and saves a ranking before the draft', async () => {
     const api = fakeApi({
       listHeroes: vi.fn().mockResolvedValue([hero('h1', { level: 9 }), hero('h2', { level: 3 }), hero('h3', { level: null, levelRange: { min: 1, max: 4 } })]),

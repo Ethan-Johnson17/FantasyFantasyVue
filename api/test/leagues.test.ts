@@ -95,18 +95,10 @@ describe('creating a league', () => {
 })
 
 describe('league mode', () => {
-  it('is Classic, and Crossover leagues can’t be created until the mode is ready', async () => {
+  it('is Classic unless Crossover is asked for (Crossover rules: crossoverPool.test.ts)', async () => {
     const { id } = await createLeague()
     expect((await LeagueModel.findById(id))?.mode).toBe('classic')
-    const res = await host.post('/api/leagues', {
-      name: 'Too Early',
-      visibility: 'private',
-      cadence: 'weekly',
-      maxParties: 4,
-      mode: 'crossover',
-      party: party('The Host Party')
-    })
-    expect(res.status).toBe(400)
+    expect((await host.post('/api/leagues', { name: 'Odd', visibility: 'private', cadence: 'weekly', maxParties: 4, mode: 'arena', party: party('P') })).status).toBe(400)
   })
 
   it('never changes after creation', async () => {

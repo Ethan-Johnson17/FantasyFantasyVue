@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { NotFound } from '../../lib/errors.js'
 import {
   LEAGUE_CADENCES,
+  LEAGUE_MODES,
   LEAGUE_NAME_MAX,
   LEAGUE_VISIBILITIES,
   MAX_PARTIES,
@@ -30,11 +31,13 @@ export const CreateLeagueSchema = z
     visibility: z.enum(LEAGUE_VISIBILITIES),
     cadence: z.enum(LEAGUE_CADENCES),
     maxParties: z.number().int().min(MIN_PARTIES).max(MAX_PARTIES),
+    // Crossover follows the NFL's weeks, so its cadence is always weekly.
+    mode: z.enum(LEAGUE_MODES).default('classic'),
     party: PartyInputSchema
   })
   .strict()
 
-export const UpdateLeagueSchema = CreateLeagueSchema.omit({ party: true })
+export const UpdateLeagueSchema = CreateLeagueSchema.omit({ party: true, mode: true })
   .partial()
   .strict()
   .refine(update => Object.keys(update).length > 0, 'provide at least one field to change')

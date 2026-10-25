@@ -56,9 +56,14 @@ identity is only ever serialized for Crossover leagues, with tests on both sides
 
 ## Pool and draft
 
-- **Pool:** current-season QB, RB, WR, TE and team defenses who have played this season, ranked by points per game so
-  far (last season's for players with fewer than 2 games this season *(default)*). Sized like Classic, about 2.3×
-  demand, scaled to 14-hero rosters.
+- **Pool:** current-season QB, RB, WR, TE and team defenses who have played this season. Sized like Classic,
+  about 2.3× demand, scaled to 14-hero rosters: per party 5 QB, 9 RB, 10 WR, 5 TE and 3 DEF, and at least 21 heroes
+  per party overall. Real 2026 data fills every league size (12 parties: 376 heroes for 252 needed).
+- **Ranking (changed 2026-10-24 after a real-data check):** this season's points blended with a prior worth 3 games,
+  the same blend as projections: last season's points per game if they played 4+ games, otherwise what a Level 1
+  hero of their class scores. The first proposal (this season's average after 2 games) let one-game flukes reach
+  Level 10, e.g. a backup tight end with a single 14.5-point game; with the blend he's a Level 6, and the top of each
+  position matches real fantasy rankings (Allen, Gibbs, Bijan, Smith-Njigba, Nacua, Bowers, McBride).
 - **Heroes:** each player becomes a hero with a generated hero name, class (QB Mage, RB Warrior, WR Ranger, TE Rogue,
   DEF Paladin), race and look, shown with the player's name, team and position. Level 1–10 is the player's decile
   within the pool, by the same ranking. Traits (Steadfast, Wild, Mighty) come from the previous season's weekly
@@ -122,6 +127,10 @@ single plan (stacking one class, ignoring encounters, never naming a Champion) d
 
 Crossover gets its own ruleset version (lineup slots, roster size, encounter values, natural-20 effects, season
 weeks), so later tuning never changes running leagues.
+
+**Launch switch:** Crossover leagues can be created only when the API's `CROSSOVER_ENABLED` setting is `true`. It
+stays off in production until every build phase is done, so the ruleset (version 2) can still change before any real
+league uses it.
 
 ## Build phases
 

@@ -12,8 +12,10 @@ import { CADENCE_MS, LeagueModel } from '../leagues/league.model.js'
 import { PartyModel, storedLineup } from '../leagues/party.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
 import { heroForm, type HeroForm } from '../season/form.service.js'
+import { crossoverWindow } from '../season/nflWeeks.js'
 import { roundRobin } from '../season/schedule.js'
 import { loadPoolCandidates, pickSeason } from './candidates.js'
+import { loadCrossoverCandidates, type PlayerCard } from './crossoverCandidates.js'
 import { DraftRankingModel } from './ranking.model.js'
 import { runSnakeDraft } from './snakeDraft.js'
 
@@ -45,6 +47,8 @@ export interface HeroView {
   traits: HeroTrait[]
   /** The party that drafted the hero, if any */
   partyId: string | null
+  /** Crossover only: the real player. Never present in Classic, whose players stay hidden. */
+  player?: PlayerCard
 }
 
 export async function scheduleDraft(host: AccountDocument, leagueId: string, draftAt: Date): Promise<void> {
@@ -53,6 +57,9 @@ export async function scheduleDraft(host: AccountDocument, leagueId: string, dra
   if (draftAt.getTime() < now + MIN_DRAFT_LEAD_MS || draftAt.getTime() > now + MAX_DRAFT_LEAD_MS) {
     throw new BadRequest('The draft must be between 10 minutes and 14 days from now')
   }
+
+  // Crossover drafts need enough of the real NFL season left after them.
+  const window = league.mode === 'crossover' ? await crossoverWindow(draftAt) : null
 
   if (league.status === 'drafting') {
     const rescheduled = await LeagueModel.updateOne(
@@ -67,9 +74,12 @@ export async function scheduleDraft(host: AccountDocument, leagueId: string, dra
 
   // Build the pool outside the transaction (read-heavy), then claim the league and save it atomically.
   const seed = newSeed()
-  const season = await pickSeason(createRng(seed, 'season'))
   const ruleset = getRuleset(league.rulesetVersion)
-  const candidates = await loadPoolCandidates(season, ruleset)
+  // Classic: a hidden past season and its unnamed players. Crossover: the season being played, shown openly.
+  const season = window ? window.season : await pickSeason(createRng(seed, 'season'))
+  const { candidates, cards } = window
+    ? await loadCrossoverCandidates(season, ruleset)
+    : { candidates: await loadPoolCandidates(season, ruleset), cards: new Map<string, PlayerCard>() }
   const pool = generateAppearances(selectHeroPool(candidates, league.partyCount, ruleset.pool), createRng(seed, 'pool'))
 
   await inTransaction(async session => {
@@ -84,7 +94,8 @@ export async function scheduleDraft(host: AccountDocument, leagueId: string, dra
       pool.map(({ sourceKind, sourceId, ...hero }) => ({
         ...hero,
         leagueId: league._id,
-        source: { kind: sourceKind, id: sourceId }
+        source: { kind: sourceKind, id: sourceId },
+        player: cards.get(sourceId) ?? null
       })),
       { session }
     )
@@ -131,6 +142,11 @@ export async function runDueDraft(leagueId: string): Promise<void> {
       }),
       { session }
     )
+    // Crossover's calendar follows the NFL's weeks; it's set up in a later build phase (docs/CROSSOVER_SPEC.md).
+    if (league.mode === 'crossover') {
+      await LeagueModel.updateOne({ _id: league._id }, { $set: { draftOrder: order, draftPicks: picks } }, { session })
+      return
+    }
     await LeagueModel.updateOne(
       { _id: league._id },
       {
@@ -199,6 +215,7 @@ export function toHeroView(hero: HeroDocument): HeroView {
     level: hero.level ?? null,
     levelRange: hero.levelRange ? { min: hero.levelRange.min, max: hero.levelRange.max } : null,
     traits: [...hero.traits],
-    partyId: hero.partyId?.toString() ?? null
+    partyId: hero.partyId?.toString() ?? null,
+    ...(hero.player ? { player: { name: hero.player.name, team: hero.player.team, position: hero.player.position } } : {})
   }
 }

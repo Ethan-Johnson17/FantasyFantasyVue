@@ -8,6 +8,7 @@ import FormError from '../../components/FormError.vue'
 import { CLASS_COLOR, CLASS_TEMPERAMENT, CRIT_NAMES, isMystery, levelText, TRAITS } from '../../heroes'
 import { useLeague } from '../../league'
 import { SEASON_WEEKS } from '../../time'
+import PlayerTag from '../../components/PlayerTag.vue'
 
 const api = useApi()
 const route = useRoute()
@@ -60,6 +61,7 @@ const chartLabel = computed(() =>
     <section class="hero-header">
       <ClassIcon :hero-class="hero.heroClass" :size="112" />
       <h1 class="name">{{ hero.name }}</h1>
+      <PlayerTag :hero="hero" class="detail-player" />
       <div class="muted">{{ hero.race }} {{ hero.heroClass }} · wields a {{ hero.weapon }}</div>
       <div class="chips">
         <span class="chip level">{{ isMystery(hero) ? `Mystery ${levelText(hero)}` : levelText(hero).replace('Lv', 'Level') }}</span>

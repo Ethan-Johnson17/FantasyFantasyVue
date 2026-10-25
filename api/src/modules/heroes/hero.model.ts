@@ -24,6 +24,14 @@ const heroSchema = new Schema(
     },
     // Derived from the previous season; empty for mystery recruits
     traits: { type: [{ type: String, enum: HERO_TRAITS }], default: [] },
+    // Crossover only: the real player shown with the hero. Always null in Classic, whose players stay hidden.
+    player: {
+      type: new Schema(
+        { name: { type: String, required: true }, team: { type: String, required: true }, position: { type: String, required: true } },
+        { _id: false }
+      ),
+      default: null
+    },
     // Hidden-player rule: the real NFL player or team behind the hero. Never selected by default.
     source: {
       type: new Schema(

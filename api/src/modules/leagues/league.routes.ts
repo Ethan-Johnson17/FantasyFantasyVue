@@ -40,7 +40,7 @@ const pinLimiter = () =>
     message: { error: { status: 429, message: 'Too many attempts, try again in a minute' } }
   })
 
-export function leagueRouter() {
+export function leagueRouter({ crossoverEnabled }: { crossoverEnabled: boolean }) {
   const limitPinAttempts = pinLimiter()
   return Router()
     // Every /:id route first brings the league up to date (runs a due draft, resolves due weeks).
@@ -50,7 +50,7 @@ export function leagueRouter() {
       }, next)
     })
     .post('/', async (req, res) => {
-      res.status(201).json(await leagues.createLeague(currentAccount(req), CreateLeagueSchema.parse(req.body)))
+      res.status(201).json(await leagues.createLeague(currentAccount(req), CreateLeagueSchema.parse(req.body), { crossoverEnabled }))
     })
     .get('/mine', async (req, res) => {
       res.json(await leagues.listMyLeagues(currentAccount(req)))
