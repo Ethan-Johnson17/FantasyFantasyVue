@@ -73,7 +73,12 @@ export const ClaimSchema = z
 
 export const ChampionSchema = z.object({ heroId: ObjectIdSchema.transform(id => id.toLowerCase()).nullable() }).strict()
 
-export const WeekParamSchema = z.coerce.number().int().min(1).max(14)
+// Classic plays 14 weeks; Crossover up to 17 (NFL weeks 1-17).
+export const WeekParamSchema = z.coerce.number().int().min(1).max(17)
+
+export const QuestPartySchema = z
+  .object({ heroIds: z.array(ObjectIdSchema.transform(id => id.toLowerCase())).min(1).max(10) })
+  .strict()
 
 export const MatchupQuerySchema = z.object({ week: WeekParamSchema.optional() }).strict()
 

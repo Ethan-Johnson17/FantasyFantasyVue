@@ -11,7 +11,9 @@ import { PartyModel, readLineup, type PartyDocument } from '../leagues/party.mod
 import { getRuleset, type Ruleset } from '../scoring/rulesets.js'
 import { monsterName } from './monsters.js'
 import { NflGameModel } from '../stats/stats.models.js'
-import { nflWeekOf, resolvesAt } from './calendar.js'
+import { nflWeekOf, resolvesAt, seasonLength } from './calendar.js'
+import { critOf } from './crits.js'
+import { encounterFor, encounterMultiplier, type Encounter } from './encounters.js'
 import type { HeroGame } from './nflWeeks.js'
 import { computeStandings, heroPoints, nextWeek, restingHeroes, weekGames, type StandingView } from './season.service.js'
 import { heroForm, type HeroForm } from './form.service.js'
@@ -38,24 +40,31 @@ export interface LiveGameView {
   points: number | null
 }
 
+export type MatchupHeroView = HeroView & { restingNextWeek: boolean; projected: number; game?: LiveGameView | null }
+
 export interface MatchupSideView {
   partyId: string
   name: string
   crest: Crest
   record: { wins: number; losses: number; draws: number }
-  starters: {
-    slot: string
-    label: string
-    hero: (HeroView & { restingNextWeek: boolean; projected: number; game?: LiveGameView | null }) | null
-  }[]
+  starters: { slot: string; label: string; hero: MatchupHeroView | null }[]
+  /** Crossover only: the heroes fighting the encounter (the Quest board); null in Classic */
+  questParty: MatchupHeroView[] | null
   champion: string | null
-  /** Projected party total for this battle: starters who'll fight, with Champion and synergy bonuses */
-  projectedTotal: number
   /**
-   * Crossover, next battle only: the game-day total so far. Final games count their real damage, the rest
-   * their projection, with the same Champion and synergy math. Null otherwise.
+   * Projected party total for this battle: starters who'll fight, with Champion and synergy bonuses. In Crossover
+   * this is the Quest board, including the encounter's weaknesses and resistance.
+   */
+  projectedTotal: number
+  /** Crossover only: projected Gridiron points (plain fantasy points); null in Classic */
+  projectedGridiron: number | null
+  /**
+   * Crossover, next battle only: the game-day Quest total so far. Final games count their real damage (natural
+   * 20s and 1s included), the rest their projection, with the same Champion and synergy math. Null otherwise.
    */
   liveTotal: number | null
+  /** Crossover, next battle only: the game-day Gridiron total so far, on the same basis */
+  liveGridiron: number | null
   /** Synergies this lineup would trigger if the battle resolved now */
   synergies: Synergy[]
 }
@@ -73,6 +82,8 @@ export interface MatchupView {
   meetings: { week: number; myTotal: number; theirTotal: number; outcome: 'win' | 'loss' | 'draw' }[]
   /** Crossover, next battle only: how many of the NFL week's games are final ("4 of 7 games final") */
   games: { final: number; total: number } | null
+  /** Crossover only: the week's encounter, known ahead so parties can plan for it */
+  encounter: { name: string; weak: string[]; resists: string } | null
 }
 
 interface LiveWeek {
@@ -88,6 +99,7 @@ export async function getMatchup(member: AccountDocument, leagueId: string, requ
   if (!upcoming) throw new NotFound('There is no upcoming battle')
   const week = requestedWeek ?? upcoming.week
   if (week < upcoming.week) throw new BadRequest('That battle has been played; see its result')
+  if (week > seasonLength(league)) throw new BadRequest('That week is after the end of the season')
   const isNext = week === upcoming.week
   const at = resolvesAt(league, week)
   if (!at) throw new NotFound('There is no battle that week')
@@ -126,7 +138,8 @@ export async function getMatchup(member: AccountDocument, leagueId: string, requ
     ])
     games = { final, total }
   }
-  const side = (subject: PartyDocument) => sideView(subject, heroes, resting, standings, ruleset, form, live)
+  const encounter = ruleset.quest ? encounterFor(hidden.seed, next.week) : null
+  const side = (subject: PartyDocument) => sideView(subject, heroes, resting, standings, ruleset, form, live, encounter)
 
   const meetings = opponent
     ? results.flatMap(result =>
@@ -148,9 +161,10 @@ export async function getMatchup(member: AccountDocument, leagueId: string, requ
     me: side(party),
     opponent: opponent ? side(opponent) : null,
     // The same name the battle will use: derived from the league seed and the week.
-    monster: opponent ? null : { name: monsterName(createRng(hidden.seed, `monster-${String(next.week)}`)) },
+    monster: opponent ? null : { name: encounter?.name ?? monsterName(createRng(hidden.seed, `monster-${String(next.week)}`)) },
     meetings,
-    games
+    games,
+    encounter: encounter ? { name: encounter.name, weak: [...encounter.weak], resists: encounter.resists } : null
   }
 }
 
@@ -161,17 +175,15 @@ function sideView(
   standings: readonly StandingView[],
   ruleset: Ruleset,
   form: ReadonlyMap<string, HeroForm>,
-  live: LiveWeek | null = null
+  live: LiveWeek | null = null,
+  encounter: Encounter | null = null
 ): MatchupSideView {
   const lineup = readLineup(party.lineup) ?? {}
   const heroById = new Map(heroes.filter(hero => hero.partyId?.equals(party._id)).map(hero => [hero.id, hero]))
   const champion = party.champion?.toString() ?? null
-  const starters: MatchupSideView['starters'] = ruleset.lineup.slots.map(slot => {
-    const hero = heroById.get(lineup[slot.key] ?? '')
-    const projected = hero ? (form.get(hero.id)?.projected ?? 0) : 0
-    if (!hero) return { slot: slot.key, label: slot.label, hero: null }
-    const view = { ...toHeroView(hero), restingNextWeek: resting.has(hero.id), projected }
-    if (!live) return { slot: slot.key, label: slot.label, hero: view }
+  const viewOf = (hero: HeroDocument): MatchupHeroView => {
+    const view = { ...toHeroView(hero), restingNextWeek: resting.has(hero.id), projected: form.get(hero.id)?.projected ?? 0 }
+    if (!live) return view
     const game = live.games.get(hero.id) ?? null
     const liveGame = game && {
       kickoff: game.kickoff,
@@ -180,25 +192,56 @@ function sideView(
       // A final game with no stat line: the player sat out, so 0.
       points: game.final ? Math.round((live.points.get(hero.id) ?? 0) * 100) / 100 : null
     }
-    return { slot: slot.key, label: slot.label, hero: { ...view, game: liveGame } }
+    return { ...view, game: liveGame }
+  }
+  const starters: MatchupSideView['starters'] = ruleset.lineup.slots.map(slot => {
+    const hero = heroById.get(lineup[slot.key] ?? '')
+    return { slot: slot.key, label: slot.label, hero: hero ? viewOf(hero) : null }
   })
-  // The same strategy math as the battle, on projected damage: synergies and the projected total.
-  const fighters = starters.flatMap(({ hero }) =>
-    hero && !hero.restingNextWeek ? [{ heroId: hero.id, traits: hero.traits, damage: hero.projected, isChampion: hero.id === champion }] : []
-  )
-  const outcome = applyStrategy(fighters, ruleset.strategy)
-  const liveTotal = live
-    ? applyStrategy(
-        starters.flatMap(({ hero }) => {
-          if (!hero || hero.restingNextWeek) return []
-          const points = hero.game?.points
-          const heroClass = heroById.get(hero.id)?.heroClass
-          const damage = points === null || points === undefined || !heroClass ? hero.projected : points * ruleset.lineup.classMultipliers[heroClass]
-          return [{ heroId: hero.id, traits: hero.traits, damage, isChampion: hero.id === champion }]
-        }),
-        ruleset.strategy
-      ).total
+  const questParty = ruleset.quest
+    ? (party.questParty ?? []).flatMap(id => {
+        const hero = heroById.get(id.toString())
+        return hero ? [viewOf(hero)] : []
+      })
     : null
+  const quest = ruleset.quest && encounter ? { rules: ruleset.quest, encounter } : null
+  const multiplierOf = (id: string) => {
+    const heroClass = heroById.get(id)?.heroClass
+    return heroClass ? ruleset.lineup.classMultipliers[heroClass] : 1
+  }
+  // One starter's damage on the Quest (or Classic's battle): class damage, plus Crossover's encounter modifier,
+  // and once the game is final its natural 20 or 1.
+  const battleDamage = (id: string, classDamage: number, finalPoints: number | null) => {
+    const heroClass = heroById.get(id)?.heroClass
+    if (!quest || !heroClass) return classDamage
+    let damage = classDamage
+    if (finalPoints !== null) {
+      const crit = critOf({ slot: 'starter', points: finalPoints, resting: false }, heroClass, ruleset)
+      if (crit === 'success') damage *= quest.rules.natural20Multiplier
+      if (crit === 'fail') damage *= quest.rules.natural1Multiplier
+    }
+    return damage * encounterMultiplier(quest.encounter, heroClass, quest.rules)
+  }
+  const fightingStarters = starters.flatMap(({ hero }) => (hero && !hero.restingNextWeek ? [hero] : []))
+  // Classic's battle is fought by the starters; Crossover's Quest by the Quest party.
+  const fightingBattle = questParty ? questParty.filter(hero => !hero.restingNextWeek) : fightingStarters
+  // The same strategy math as the battle: synergies and the projected total.
+  const total = (finalPointsOf: (hero: MatchupHeroView) => number | null) =>
+    applyStrategy(
+      fightingBattle.map(hero => {
+        const points = finalPointsOf(hero)
+        const classDamage = points === null ? hero.projected : points * multiplierOf(hero.id)
+        return { heroId: hero.id, traits: hero.traits, damage: battleDamage(hero.id, classDamage, points), isChampion: hero.id === champion }
+      }),
+      ruleset.strategy
+    )
+  const outcome = total(() => null)
+  const liveTotal = live ? total(hero => hero.game?.points ?? null).total : null
+  // Gridiron: plain points. A projection in points is the class-damage projection without the class multiplier.
+  const gridiron = (finalPointsOf: (hero: MatchupHeroView) => number | null) =>
+    fightingStarters.reduce((sum, hero) => sum + (finalPointsOf(hero) ?? hero.projected / multiplierOf(hero.id)), 0)
+  const projectedGridiron = quest ? Math.round(gridiron(() => null)) : null
+  const liveGridiron = quest && live ? Math.round(gridiron(hero => hero.game?.points ?? null)) : null
   const row = standings.find(standing => standing.partyId === party.id)
   return {
     partyId: party.id,
@@ -206,9 +249,12 @@ function sideView(
     crest: { emblem: party.crest.emblem, banner: party.crest.banner },
     record: { wins: row?.wins ?? 0, losses: row?.losses ?? 0, draws: row?.draws ?? 0 },
     starters,
+    questParty,
     champion,
     projectedTotal: Math.round(outcome.total),
+    projectedGridiron,
     liveTotal: liveTotal === null ? null : Math.round(liveTotal),
+    liveGridiron,
     synergies: outcome.synergies
   }
 }

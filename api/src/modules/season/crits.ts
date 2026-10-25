@@ -4,7 +4,7 @@ import type { Ruleset } from '../scoring/rulesets.js'
 /*
  * Natural 20s and natural 1s. A d20 lands on 20 one time in 20, so a critical success is a week in
  * the top 5% of a hero's class, and a critical fail one in the bottom 5% (thresholds in the
- * ruleset). Flavor only: crits never change damage or who wins.
+ * ruleset). In Classic they're flavor only; in Crossover they count on the Quest board (ruleset.quest).
  */
 
 export type Crit = 'success' | 'fail'

@@ -17,9 +17,16 @@ const heroResultSchema = new Schema(
     // Set when this bench hero was auto-swapped into a slot for a resting starter
     swappedInto: { type: String, default: null },
     // Damage that counted toward the party: class damage (× swap penalty for swapped-in heroes,
-    // × Champion multiplier for the Champion), 0 on the bench
-    counted: { type: Number, required: true }
+    // × Champion multiplier for the Champion), 0 on the bench. Crossover: Quest damage, 0 outside the Quest party.
+    counted: { type: Number, required: true },
+    // Crossover only: the hero fought the encounter in the Quest party
+    quest: { type: Boolean, default: false }
   },
+  { _id: false }
+)
+
+const boardSchema = new Schema(
+  { total: { type: Number, required: true }, top: { type: Number, required: true }, bench: { type: Number, required: true } },
   { _id: false }
 )
 
@@ -33,7 +40,10 @@ const sideSchema = new Schema(
     champion: { type: Schema.Types.ObjectId, ref: 'Hero', default: null },
     // Synergies that took effect; total already includes them
     synergies: { type: [{ type: String, enum: SYNERGIES }], default: [] },
-    heroes: { type: [heroResultSchema], required: true }
+    heroes: { type: [heroResultSchema], required: true },
+    // Crossover only: the Gridiron board, plain fantasy points (total, then top starter and bench as tiebreakers).
+    // `total` above is then the Quest board.
+    gridiron: { type: boardSchema, default: null }
   },
   { _id: false }
 )
@@ -44,11 +54,17 @@ const matchupResultSchema = new Schema(
     // Absent when the home party fought the monster
     away: { type: sideSchema, default: null },
     monster: {
-      type: new Schema({ name: { type: String, required: true }, total: { type: Number, required: true } }, { _id: false }),
+      type: new Schema(
+        // gridiron: Crossover only, the monster's Gridiron score
+        { name: { type: String, required: true }, total: { type: Number, required: true }, gridiron: { type: Number, default: null } },
+        { _id: false }
+      ),
       default: null
     },
-    // "away" means the monster when there is no away party
-    outcome: { type: String, required: true, enum: ['home', 'away', 'draw'] }
+    // "away" means the monster when there is no away party. In Crossover, this is the Quest board.
+    outcome: { type: String, required: true, enum: ['home', 'away', 'draw'] },
+    // Crossover only: the Gridiron board's outcome
+    gridironOutcome: { type: String, enum: ['home', 'away', 'draw'], default: null }
   },
   { _id: false }
 )
@@ -57,7 +73,15 @@ const weekResultSchema = new Schema(
   {
     leagueId: { type: Schema.Types.ObjectId, ref: 'League', required: true, immutable: true },
     week: { type: Number, required: true, immutable: true },
-    matchups: { type: [matchupResultSchema], required: true }
+    matchups: { type: [matchupResultSchema], required: true },
+    // Crossover only: the week's encounter
+    encounter: {
+      type: new Schema(
+        { name: { type: String, required: true }, weak: { type: [String], required: true }, resists: { type: String, required: true } },
+        { _id: false }
+      ),
+      default: null
+    }
   },
   { timestamps: true }
 )

@@ -18,6 +18,7 @@ import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models
 import { decideBattle, decideMonsterBattle, monsterDamage, scoreParty, type Outcome } from './battle.js'
 import { monsterName } from './monsters.js'
 import { nflWeekOf, resolvesAt, seasonLength, weeksDueByTime, weeksReady } from './calendar.js'
+import { encounterFor, encounterMultiplier, type Encounter } from './encounters.js'
 import { heroGames, lockedHeroes, type HeroGame } from './nflWeeks.js'
 import { critOf, type Crit } from './crits.js'
 import { heroForm, type HeroForm } from './form.service.js'
@@ -81,21 +82,29 @@ async function resolveWeek(league: LeagueDocument, week: number): Promise<boolea
     ])
     const ruleset = getRuleset(league.rulesetVersion)
     const points = await heroPoints(heroes, season, nflWeekOf(league, week), ruleset, session)
-    const sides = new Map(parties.map(party => [party.id, buildSide(party, heroes, points, ruleset)]))
+    // Crossover's Quest is fought against the week's encounter; Classic has none.
+    const encounter = ruleset.quest ? encounterFor(seed, week) : null
+    const sides = new Map(
+      parties.map(party => [party.id, encounter ? buildCrossoverSide(party, heroes, points, ruleset, encounter) : buildSide(party, heroes, points, ruleset)])
+    )
     const monsterTotal = monsterDamage([...sides.values()].map(side => side.total))
+    const monsterGridiron = encounter ? monsterDamage([...sides.values()].map(side => side.gridiron?.total ?? 0)) : null
 
     const matchups = scheduled.matchups.map(matchup => {
       const home = sides.get(matchup.home.toString())
       if (!home) throw new Error(`Party ${matchup.home.toString()} not found`)
       if (!matchup.away) {
-        const monster = { name: monsterName(createRng(seed, `monster-${String(week)}`)), total: monsterTotal }
-        return { home, away: null, monster, outcome: decideMonsterBattle(home, monster.total) }
+        const monster = { name: encounter?.name ?? monsterName(createRng(seed, `monster-${String(week)}`)), total: monsterTotal, gridiron: monsterGridiron }
+        const gridironOutcome = home.gridiron && monsterGridiron !== null ? decideMonsterBattle(home.gridiron, monsterGridiron) : null
+        return { home, away: null, monster, outcome: decideMonsterBattle(home, monster.total), gridironOutcome }
       }
       const away = sides.get(matchup.away.toString())
       if (!away) throw new Error(`Party ${matchup.away.toString()} not found`)
-      return { home, away, monster: null, outcome: decideBattle(home, away) }
+      const gridironOutcome = home.gridiron && away.gridiron ? decideBattle(home.gridiron, away.gridiron) : null
+      return { home, away, monster: null, outcome: decideBattle(home, away), gridironOutcome }
     })
-    await WeekResultModel.create([{ leagueId: league._id, week, matchups }], { session })
+    const encounterRecord = encounter ? { name: encounter.name, weak: [...encounter.weak], resists: encounter.resists } : null
+    await WeekResultModel.create([{ leagueId: league._id, week, matchups, encounter: encounterRecord }], { session })
     return true
   })
 }
@@ -131,6 +140,11 @@ export async function heroPoints(
   )
 }
 
+/**
+ * One party's week. Classic: one battle, class damage with Champion and synergies. Crossover adds the Quest
+ * modifiers to that same battle (the encounter's weaknesses, natural 20s and 1s that count) and a separate
+ * Gridiron board of plain fantasy points.
+ */
 function buildSide(
   party: PartyDocument,
   heroes: readonly HeroDocument[],
@@ -144,8 +158,7 @@ function buildSide(
   const roster = heroes.filter(hero => hero.partyId?.equals(party._id))
   const pointsOf = (id: string) => points.get(id) ?? { points: 0, resting: true }
 
-  // Rulesets without auto-swap (Crossover: managers swap before kickoff) set the multiplier to 0.
-  const swaps = party.autoSwap && autoSwapMultiplier > 0
+  const swaps = party.autoSwap
     ? planAutoSwaps(
         lineup,
         slots,
@@ -192,7 +205,73 @@ function buildSide(
     total: outcome.total,
     champion: champion ? new mongoose.Types.ObjectId(champion) : null,
     synergies: outcome.synergies,
-    heroes: lines.map(entry => entry.line)
+    heroes: lines.map(entry => entry.line),
+    gridiron: null
+  }
+}
+
+/**
+ * One Crossover party's week: two boards (docs/CROSSOVER_SPEC.md). Gridiron: the football lineup's plain fantasy
+ * points. Quest: the Quest party's class damage against the encounter, with natural 20s and 1s that count, the
+ * Champion (who must be in the Quest party) and synergies.
+ */
+function buildCrossoverSide(
+  party: PartyDocument,
+  heroes: readonly HeroDocument[],
+  points: ReadonlyMap<string, HeroPoints>,
+  ruleset: Ruleset,
+  encounter: Encounter
+) {
+  const quest = ruleset.quest
+  if (!quest) throw new Error('A Crossover ruleset needs Quest rules')
+  const lineup = readLineup(party.lineup)
+  if (!lineup) throw new Error(`Party ${party.id} has no lineup`)
+  const slotByHero = new Map(Object.entries(lineup).map(([slot, heroId]) => [heroId, slot]))
+  const questParty = new Set((party.questParty ?? []).map(String))
+  const roster = heroes.filter(hero => hero.partyId?.equals(party._id))
+  const pointsOf = (id: string) => points.get(id) ?? { points: 0, resting: true }
+  const round2 = (value: number) => Math.round(value * 100) / 100
+  const champion = party.champion?.toString() ?? null
+
+  const lines = roster.map(hero => {
+    const slot = slotByHero.get(hero.id) ?? 'Bench'
+    const earned = pointsOf(hero.id)
+    const inQuest = questParty.has(hero.id)
+    const damage = earned.points * ruleset.lineup.classMultipliers[hero.heroClass]
+    let questDamage = damage
+    if (inQuest) {
+      const crit = critOf({ slot: 'quest', points: earned.points, resting: earned.resting }, hero.heroClass, ruleset)
+      if (crit === 'success') questDamage *= quest.natural20Multiplier
+      if (crit === 'fail') questDamage *= quest.natural1Multiplier
+      questDamage *= encounterMultiplier(encounter, hero.heroClass, quest)
+    }
+    const line = { heroId: hero._id, slot, ...earned, swappedInto: null, counted: inQuest ? round2(questDamage) : 0, quest: inQuest }
+    return { hero, line, fights: inQuest && !earned.resting, damage: round2(damage) }
+  })
+  const fighting = lines.filter(entry => entry.fights)
+  const outcome = applyStrategy(
+    fighting.map(({ hero, line }) => ({ heroId: hero.id, traits: hero.traits, damage: line.counted, isChampion: hero.id === champion })),
+    ruleset.strategy
+  )
+  for (const { hero, line } of fighting) line.counted = outcome.damage.get(hero.id) ?? line.counted
+  // Quest ties: the top Quest hero, then what the rest of the roster would have dealt.
+  const score = scoreParty(
+    fighting.map(({ line }) => line.counted),
+    lines.filter(entry => !entry.line.quest).map(entry => entry.damage)
+  )
+  // Gridiron: the football starters' plain fantasy points; the bench's points break ties.
+  const gridiron = scoreParty(
+    lines.filter(entry => entry.line.slot !== 'Bench').map(entry => entry.line.points),
+    lines.filter(entry => entry.line.slot === 'Bench').map(entry => entry.line.points)
+  )
+  return {
+    partyId: party._id,
+    ...score,
+    total: outcome.total,
+    champion: champion ? new mongoose.Types.ObjectId(champion) : null,
+    synergies: outcome.synergies,
+    heroes: lines.map(entry => entry.line),
+    gridiron
   }
 }
 
@@ -213,6 +292,9 @@ export interface LineupView {
    * that week (null on a bye), and `locked` once it has started, so they can't move in or out of the lineup.
    */
   roster: (HeroView & { restingNextWeek: boolean; projected: number; kickoff: Date | null; locked: boolean })[]
+  /** Crossover only: the Quest party's hero ids, and how many it holds; null in Classic */
+  questParty: string[] | null
+  questPartySize: number | null
   /** The next game week to resolve, or null if the season is over or hasn't started */
   nextWeek: number | null
   nextWeekAt: Date | null
@@ -240,6 +322,8 @@ export async function getLineup(member: AccountDocument, leagueId: string): Prom
       kickoff: games.get(hero.id)?.kickoff ?? null,
       locked: locked.has(hero.id)
     })),
+    questParty: ruleset.quest ? (party.questParty ?? []).map(String) : null,
+    questPartySize: ruleset.quest?.partySize ?? null,
     nextWeek: next?.week ?? null,
     nextWeekAt: next?.at ?? null
   }
@@ -261,8 +345,10 @@ export async function setLineup(member: AccountDocument, leagueId: string, lineu
     const moved = [current[slot], lineup[slot]].find(id => id !== undefined && locked.has(id))
     if (moved) throw new Conflict(`${roster.get(moved)?.name ?? 'That hero'} is locked: their game has kicked off`)
   }
-  // Benching the Champion withdraws them: a Champion must start.
-  const championBenched = party.champion && !Object.values(lineup).includes(party.champion.toString())
+  // Classic: benching the Champion withdraws them, since a Champion must start. Crossover's Champion leads the
+  // Quest party instead, so the football lineup doesn't affect them.
+  const championBenched =
+    !getRuleset(league.rulesetVersion).quest && party.champion && !Object.values(lineup).includes(party.champion.toString())
   await PartyModel.updateOne(
     { _id: party._id },
     { $set: { lineup: storedLineup(lineup), ...(championBenched ? { champion: null } : {}) } }
@@ -274,7 +360,11 @@ export async function setLineup(member: AccountDocument, leagueId: string, lineu
 export async function setChampion(member: AccountDocument, leagueId: string, heroId: string | null): Promise<LineupView> {
   const { league, party } = await loadLeagueAsMember(member, leagueId)
   if (!nextWeek(league)) throw new Conflict('A Champion can be named after the draft and until the season ends')
-  if (heroId !== null && !Object.values(readLineup(party.lineup) ?? {}).includes(heroId)) {
+  if (getRuleset(league.rulesetVersion).quest) {
+    if (heroId !== null && !(party.questParty ?? []).some(id => id.toString() === heroId)) {
+      throw new BadRequest('Your Champion must be in your Quest party')
+    }
+  } else if (heroId !== null && !Object.values(readLineup(party.lineup) ?? {}).includes(heroId)) {
     throw new BadRequest('Your Champion must be in your starting lineup')
   }
   const current = party.champion?.toString() ?? null
@@ -288,6 +378,31 @@ export async function setChampion(member: AccountDocument, leagueId: string, her
     { _id: party._id },
     { $set: { champion: heroId } }
   )
+  return getLineup(member, leagueId)
+}
+
+/**
+ * Crossover: sets the Quest party, the heroes who fight the week's encounter. Any class, from the whole roster.
+ * Kickoff locks apply, and a Champion left out of the party is withdrawn.
+ */
+export async function setQuestParty(member: AccountDocument, leagueId: string, heroIds: readonly string[]): Promise<LineupView> {
+  const { league, party } = await loadLeagueAsMember(member, leagueId)
+  const quest = getRuleset(league.rulesetVersion).quest
+  if (!quest) throw new BadRequest('Only Crossover leagues have a Quest party')
+  if (league.status !== 'active') throw new Conflict('The Quest party can be set after the draft and until the season ends')
+  const chosen = new Set(heroIds)
+  if (chosen.size !== heroIds.length) throw new BadRequest('Each hero can join the Quest party once')
+  if (chosen.size !== quest.partySize) throw new BadRequest(`A Quest party has ${String(quest.partySize)} heroes`)
+  const heroes = await HeroModel.find({ leagueId: league._id, partyId: party._id }).select('+source')
+  if ([...chosen].some(id => !heroes.some(hero => hero.id === id))) throw new BadRequest('Only heroes in your party can join the Quest party')
+
+  const current = new Set((party.questParty ?? []).map(String))
+  const locked = await lockedThisWeek(league, heroes)
+  const changed = [...chosen].filter(id => !current.has(id)).concat([...current].filter(id => !chosen.has(id)))
+  const moved = changed.find(id => locked.has(id))
+  if (moved) throw new Conflict(`${heroes.find(hero => hero.id === moved)?.name ?? 'That hero'} is locked: their game has kicked off`)
+  const championLeft = party.champion && !chosen.has(party.champion.toString())
+  await PartyModel.updateOne({ _id: party._id }, { $set: { questParty: [...chosen], ...(championLeft ? { champion: null } : {}) } })
   return getLineup(member, leagueId)
 }
 
@@ -347,7 +462,16 @@ export interface ScheduleWeekView {
     home: PartyRef
     /** null: the home party fights the dungeon monster */
     away: PartyRef | null
-    result: { homeTotal: number; awayTotal: number; outcome: Outcome; monster: string | null } | null
+    /** Crossover adds the Gridiron board's totals and outcome; Classic leaves them null */
+    result: {
+      homeTotal: number
+      awayTotal: number
+      outcome: Outcome
+      monster: string | null
+      homeGridiron: number | null
+      awayGridiron: number | null
+      gridironOutcome: Outcome | null
+    } | null
   }[]
 }
 
@@ -373,7 +497,10 @@ export async function getSchedule(viewer: AccountDocument, leagueId: string): Pr
                 homeTotal: played.home.total,
                 awayTotal: played.away?.total ?? played.monster?.total ?? 0,
                 outcome: played.outcome,
-                monster: played.monster?.name ?? null
+                monster: played.monster?.name ?? null,
+                homeGridiron: played.home.gridiron?.total ?? null,
+                awayGridiron: played.away?.gridiron?.total ?? played.monster?.gridiron ?? null,
+                gridironOutcome: played.gridironOutcome ?? null
               }
             : null
         }
@@ -383,7 +510,10 @@ export async function getSchedule(viewer: AccountDocument, leagueId: string): Pr
 }
 
 interface SideView extends PartyRef {
+  /** Classic: the battle total. Crossover: the Quest board. */
   total: number
+  /** Crossover only: the Gridiron board, plain fantasy points */
+  gridiron: number | null
   /** The Champion named that week, if any */
   champion: string | null
   synergies: Synergy[]
@@ -399,12 +529,24 @@ interface SideView extends PartyRef {
     swappedInto: string | null
     /** A natural 20 or natural 1 that week, for heroes who fought */
     crit: Crit | null
+    /** Crossover only: fought the encounter in the Quest party */
+    quest: boolean
   }[]
 }
 
 export interface WeekResultView {
   week: number
-  matchups: { home: SideView; away: SideView | null; monster: { name: string; total: number } | null; outcome: Outcome }[]
+  matchups: {
+    home: SideView
+    away: SideView | null
+    monster: { name: string; total: number; gridiron: number | null } | null
+    /** Classic: the battle. Crossover: the Quest board. */
+    outcome: Outcome
+    /** Crossover only: the Gridiron board */
+    gridironOutcome: Outcome | null
+  }[]
+  /** Crossover only: the week's encounter */
+  encounter: { name: string; weak: string[]; resists: string } | null
 }
 
 export async function getWeekResult(viewer: AccountDocument, leagueId: string, week: number): Promise<WeekResultView> {
@@ -419,6 +561,7 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
   const side = (stored: (typeof result.matchups)[number]['home']): SideView => ({
     ...(refs.get(stored.partyId.toString()) ?? { partyId: stored.partyId.toString(), name: 'Unknown', crest: DEFAULT_CREST }),
     total: stored.total,
+    gridiron: stored.gridiron?.total ?? null,
     champion: stored.champion?.toString() ?? null,
     synergies: [...stored.synergies],
     heroes: stored.heroes.map(line => ({
@@ -426,10 +569,11 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
       name: heroById.get(line.heroId.toString())?.name ?? 'Unknown hero',
       heroClass: heroById.get(line.heroId.toString())?.heroClass ?? '',
       slot: line.slot,
-      damage: displayedDamage(line, heroById.get(line.heroId.toString())?.heroClass ?? 'Mage', multipliers),
+      damage: displayedDamage(line, heroById.get(line.heroId.toString())?.heroClass ?? 'Mage', multipliers, !!ruleset.quest),
       resting: line.resting,
       swappedInto: line.swappedInto ?? null,
-      crit: critOf(line, heroById.get(line.heroId.toString())?.heroClass ?? 'Mage', ruleset)
+      crit: critOf(foughtLine(line, !!ruleset.quest), heroById.get(line.heroId.toString())?.heroClass ?? 'Mage', ruleset),
+      quest: line.quest
     }))
   })
 
@@ -438,9 +582,11 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
     matchups: result.matchups.map(matchup => ({
       home: side(matchup.home),
       away: matchup.away ? side(matchup.away) : null,
-      monster: matchup.monster ? { name: matchup.monster.name, total: matchup.monster.total } : null,
-      outcome: matchup.outcome
-    }))
+      monster: matchup.monster ? { name: matchup.monster.name, total: matchup.monster.total, gridiron: matchup.monster.gridiron ?? null } : null,
+      outcome: matchup.outcome,
+      gridironOutcome: matchup.gridironOutcome ?? null
+    })),
+    encounter: result.encounter ? { name: result.encounter.name, weak: [...result.encounter.weak], resists: result.encounter.resists } : null
   }
 }
 
@@ -469,13 +615,24 @@ export async function computeStandings(league: LeagueDocument): Promise<Standing
     else if (result === 'loss') row.losses++
     else row.draws++
   }
+  const asResults = (outcome: Outcome) => {
+    const home = outcome === 'home' ? ('win' as const) : outcome === 'away' ? ('loss' as const) : ('draw' as const)
+    return { home, away: home === 'win' ? ('loss' as const) : home === 'loss' ? ('win' as const) : ('draw' as const) }
+  }
   for (const result of results) {
     for (const matchup of result.matchups) {
-      const homeResult = matchup.outcome === 'home' ? 'win' : matchup.outcome === 'away' ? 'loss' : 'draw'
-      record(matchup.home.partyId.toString(), matchup.home.total, homeResult)
-      if (matchup.away) {
-        const awayResult = homeResult === 'win' ? 'loss' : homeResult === 'loss' ? 'win' : 'draw'
-        record(matchup.away.partyId.toString(), matchup.away.total, awayResult)
+      // Crossover: each board is a result of its own (a sweep is 2-0), and Gridiron points break ties.
+      // Classic: one battle, and total damage breaks ties.
+      const boards = matchup.gridironOutcome
+        ? [
+            { outcome: matchup.gridironOutcome, home: matchup.home.gridiron?.total ?? 0, away: matchup.away?.gridiron?.total ?? 0 },
+            { outcome: matchup.outcome, home: 0, away: 0 }
+          ]
+        : [{ outcome: matchup.outcome, home: matchup.home.total, away: matchup.away?.total ?? 0 }]
+      for (const board of boards) {
+        const outcome = asResults(board.outcome)
+        record(matchup.home.partyId.toString(), board.home, outcome.home)
+        if (matchup.away) record(matchup.away.partyId.toString(), board.away, outcome.away)
       }
     }
   }
@@ -485,13 +642,27 @@ export async function computeStandings(league: LeagueDocument): Promise<Standing
     .map(({ damage, ...row }) => ({ ...row, totalDamage: damage / 100 }))
 }
 
-type StoredHeroLine = { slot: string; points: number; counted: number; swappedInto?: string | null }
+type StoredHeroLine = { slot: string; points: number; counted: number; resting?: boolean; swappedInto?: string | null; quest?: boolean | null }
+
+/** In Crossover a hero fights (and can crit) in the Quest party, whatever their football slot. */
+export function foughtLine(line: StoredHeroLine & { resting: boolean }, questMode: boolean): { slot: string; points: number; resting: boolean; swappedInto: string | null } {
+  // A plain object: stored lines are Mongoose subdocuments, whose fields don't survive a spread.
+  const slot = questMode ? (line.quest ? 'quest' : 'Bench') : line.slot
+  return { slot, points: line.points, resting: line.resting, swappedInto: questMode ? null : (line.swappedInto ?? null) }
+}
 
 /**
  * The damage players see for one hero-week. Hidden-player rule: rounded to a whole number so weekly
  * lines can't be matched to public stats. Bench heroes show what they would have dealt.
  */
-function displayedDamage(line: StoredHeroLine, heroClass: HeroClass, multipliers: Readonly<Record<HeroClass, number>>): number {
+function displayedDamage(
+  line: StoredHeroLine,
+  heroClass: HeroClass,
+  multipliers: Readonly<Record<HeroClass, number>>,
+  questMode = false
+): number {
+  // Crossover: Quest party members show their Quest damage; everyone else what they'd have dealt.
+  if (questMode) return Math.round(line.quest ? line.counted : line.points * multipliers[heroClass])
   return Math.round(line.slot === 'Bench' && !line.swappedInto ? line.points * multipliers[heroClass] : line.counted)
 }
 
@@ -521,10 +692,10 @@ export async function getHeroDetail(viewer: AccountDocument, leagueId: string, h
       {
         week: result.week,
         slot: line.slot,
-        damage: displayedDamage(line, hero.heroClass, multipliers),
+        damage: displayedDamage(line, hero.heroClass, multipliers, !!ruleset.quest),
         resting: line.resting,
         swappedInto: line.swappedInto ?? null,
-        crit: critOf(line, hero.heroClass, ruleset)
+        crit: critOf(foughtLine(line, !!ruleset.quest), hero.heroClass, ruleset)
       }
     ]
   })

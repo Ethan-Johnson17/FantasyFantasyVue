@@ -79,6 +79,7 @@ identity is only ever serialized for Crossover leagues, with tests on both sides
 
 - **Starters (8):** QB, RB, RB, WR, WR, TE, FLEX (RB, WR or TE), DEF. **Bench: 6.** Roster of 14.
 - **Locks:** each starter and bench player locks at their game's kickoff (from the schedule's date and Eastern time).
+  Locks cover the Quest party too.
   Until then they can be moved freely. A locked player can't be moved in or out of the lineup, and the Champion can't
   be changed to or from a locked player.
 - **Byes and inactives:** a player on bye shows **Resting**. No auto-swap in Crossover *(default)*: with per-player
@@ -96,25 +97,43 @@ table). No class multipliers, no Champion, no synergies: plain fantasy football.
 
 ### Quest (the D&D half)
 
-Each week the league faces an **encounter**: a monster with strengths and weaknesses, picked from the league seed and
-announced before the week's first kickoff so parties can plan for it.
+Each week the league faces an **encounter**: a monster with strengths and weaknesses. The ten encounters come up in an
+order shuffled from the league seed, all ten before any repeats, and each week's is shown ahead of time so parties can
+plan for it. Together they cover every pair of classes once as weaknesses and resist each class twice, so no class is
+favored over a season.
 
-A starter's Quest damage is:
+The Quest is fought by a **Quest party of 5 heroes** (decided 2026-10-24): any class, picked from the whole roster,
+football starters and bench alike. The football lineup scores Gridiron; the Quest party scores the Quest. The jock can
+run one, the nerd the other. After the draft each party's highest-Level heroes form its first Quest party. Kickoff locks
+apply: a player whose game has started can't join or leave the party (or be dropped) until the week ends.
 
-> class damage (points × class multiplier, as in Classic) × encounter modifier × Champion, then synergies
+A Quest party member's damage is:
 
-- **Encounter modifiers:** each encounter is **weak to two classes** (×1.25) and **resists one** (×0.75) *(default)*.
-  Example: *Frost Wyrm: weak to Mages and Rangers, resists Warriors.* Building and starting for the matchup (FLEX,
-  close calls) is the nerds' decision.
-- **Champion, Mighty Champion, Order & Chaos, Bulwark:** as in Classic, and they count only in the Quest.
-- **Natural 20s and 1s count here** *(default values, to be balanced)*: a natural 20 adds +25% to that hero's Quest
-  damage and a natural 1 makes it 0. Same top/bottom 5% thresholds as Classic, by class.
-- **Odd number of parties:** the spare party fights the encounter's champion monster on both boards, whose scores are
-  that week's league averages (as Classic's dungeon monster).
+> class damage (points × class multiplier, as in Classic) × natural 20 or 1 × encounter modifier, then Champion and synergies
 
-Balancing goal, checked by simulation over the 2012–2025 seasons before the ruleset is locked: in a matchup, Gridiron and
-Quest disagree often enough (target: a split in at least 30% of matchups) that the D&D half really matters, and no
-single plan (stacking one class, ignoring encounters, never naming a Champion) dominates.
+- **Encounter modifiers:** weak to two classes ×1.25, resists one ×0.75.
+- **Natural 20s and 1s count here:** a natural 20 is +25% and a natural 1 deals nothing. Same top/bottom 5% thresholds as
+  Classic, by class.
+- **The Champion leads the Quest party:** they must be in it (the football lineup doesn't affect them), and leaving them
+  out withdraws them. Mighty Champion, Order & Chaos and Bulwark work as in Classic, among the Quest party.
+- **Odd number of parties:** the spare party fights the week's encounter on both boards; its scores are that week's
+  league averages (as Classic's dungeon monster).
+
+**Balancing (2026-10-24).** Simulated on the real 2013–2025 seasons: six-party leagues, 4 seeds each, 2,652 matchups per
+variant, each party following one plan through the real draft. The target was Gridiron and Quest disagreeing in at least
+30% of matchups, so the D&D half really decides results, with no plan running away.
+
+| Variant | Boards split | Encounter-aware plan | No Champion (Quest) |
+| --- | --- | --- | --- |
+| One lineup for both boards, ×1.25 / ×0.75 (the first proposal) | 13% | 55% overall | 44% |
+| One lineup, ×2 / ×0.5 | 19% | 56% overall | 43% |
+| One lineup, plus a random roll on each hero | 14.5% | 54% overall | 44% |
+| **Separate Quest party, ×1.25 / ×0.75 (chosen)** | **29%** | **55% overall, 55% of Quests** | **41%** |
+| Separate Quest party, ×1.5 / ×0.5 | 31% | 58% overall, 62% of Quests | 38% |
+
+With one shared lineup both boards come from the same players' points, so they almost always agree. A separate Quest
+party splits results about as often as the target, rewards planning for the encounter, and keeps every plan between
+45% and 55%. Larger modifiers made encounter-aware play too strong.
 
 ## What users see
 

@@ -33,7 +33,8 @@ export async function claimFreeAgent(
   // Crossover: players whose game this week has kicked off (computed before the transaction; kickoffs don't move).
   const locked = await lockedThisWeek(league, await HeroModel.find({ leagueId: league._id, _id: trusted({ $in: [heroId, dropHeroId] }) }).select('+source'))
   const lineupBefore = readLineup(party.lineup) ?? {}
-  if (locked.has(dropHeroId) && Object.values(lineupBefore).includes(dropHeroId)) {
+  const inQuestParty = (party.questParty ?? []).some(id => id.toString() === dropHeroId)
+  if (locked.has(dropHeroId) && (Object.values(lineupBefore).includes(dropHeroId) || inQuestParty)) {
     throw new Conflict('That hero is in this week’s lineup and their game has kicked off; drop them after the week')
   }
 
@@ -99,9 +100,24 @@ export async function claimFreeAgent(
       } else next = autoLineup(roster.map(hero => ({ id: hero.id, heroClass: hero.heroClass, value: expectedLevel(hero) })), slots)
     }
     const championDropped = current?.champion?.equals(dropped._id) ?? false
+    // Crossover: a dropped Quest party member is replaced by the claimed hero, or if they've already played this
+    // week, the best hero yet to play who isn't in the party.
+    let questParty = current?.questParty?.map(String)
+    if (questParty?.includes(dropped.id)) {
+      const remaining = questParty.filter(id => id !== dropped.id)
+      let replacement: string | undefined = locked.has(claimed.id) ? undefined : claimed.id
+      if (!replacement) {
+        const rosterLocked = await lockedThisWeek(league, await HeroModel.find({ leagueId: league._id, partyId: party._id }).select('+source').session(session))
+        replacement = roster
+          .filter(hero => !remaining.includes(hero.id) && !rosterLocked.has(hero.id))
+          .sort((a, b) => expectedLevel(b) - expectedLevel(a) || a.id.localeCompare(b.id))[0]?.id
+      }
+      if (!replacement) throw new BadRequest('Nobody yet to play can take that hero’s place in your Quest party this week')
+      questParty = [...remaining, replacement]
+    }
     await PartyModel.updateOne(
       { _id: party._id },
-      { $set: { lineup: storedLineup(next), ...(championDropped ? { champion: null } : {}) } },
+      { $set: { lineup: storedLineup(next), ...(questParty ? { questParty } : {}), ...(championDropped ? { champion: null } : {}) } },
       { session }
     )
     await RosterMoveModel.create(

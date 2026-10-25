@@ -18,6 +18,7 @@ import {
   PageQuerySchema,
   parseId,
   PinSchema,
+  QuestPartySchema,
   RankingsSchema,
   ScheduleDraftSchema,
   UpdateLeagueSchema,
@@ -110,6 +111,10 @@ export function leagueRouter({ crossoverEnabled }: { crossoverEnabled: boolean }
     .put('/:id/lineup', async (req, res) => {
       const lineup = LineupSchema.parse(req.body)
       res.json(await season.setLineup(currentAccount(req), parseId(req.params.id), lineup))
+    })
+    .put('/:id/quest-party', async (req, res) => {
+      const { heroIds } = QuestPartySchema.parse(req.body)
+      res.json(await season.setQuestParty(currentAccount(req), parseId(req.params.id), heroIds))
     })
     .put('/:id/champion', async (req, res) => {
       const { heroId } = ChampionSchema.parse(req.body)

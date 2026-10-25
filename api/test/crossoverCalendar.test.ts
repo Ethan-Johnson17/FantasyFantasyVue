@@ -1,43 +1,13 @@
-import mongoose from 'mongoose'
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { HeroClass } from '../src/modules/heroes/classes.js'
-import { HeroModel, type HeroDocument } from '../src/modules/heroes/hero.model.js'
+import { HeroModel } from '../src/modules/heroes/hero.model.js'
 import { LeagueModel } from '../src/modules/leagues/league.model.js'
 import { PartyModel, readLineup } from '../src/modules/leagues/party.model.js'
 import { weekFinalAt } from '../src/modules/season/nflWeeks.js'
 import { WeekResultModel } from '../src/modules/season/weekResult.model.js'
 import { NflGameModel, PlayerWeekStatModel, StatsImportModel } from '../src/modules/stats/stats.models.js'
+import { alice, draftedCrossover, fixedRoster, freeAgent, kickOff } from './crossoverLeague.js'
 import { SEASON, seedCrossover } from './crossoverSeed.js'
-import { as, host } from './leagueHelpers.js'
-
-const alice = as('auth0|alice')
-const crest = { emblem: 'crown', banner: 'crimson' }
-
-/** A drafted Crossover league (host + alice). In the seed, week 8 is next: KC-BUF and PHI-SF play; DET, BAL, GB, DAL are on bye. */
-async function draftedCrossover() {
-  const created = await host.post('/api/leagues', {
-    name: 'Sunday Crossover',
-    visibility: 'private',
-    cadence: 'weekly',
-    maxParties: 4,
-    mode: 'crossover',
-    party: { name: 'Host Party', crest }
-  })
-  const { id, pin } = created.body as { id: string; pin: string }
-  await alice.post('/api/leagues/join', { pin, party: { name: 'Alice Party', crest } })
-  await host.post(`/api/leagues/${id}/draft`, { draftAt: new Date(Date.now() + 3_600_000).toISOString() })
-  await LeagueModel.updateOne({ _id: id }, { $set: { draftAt: new Date(Date.now() - 1000) } })
-  await host.get(`/api/leagues/${id}`)
-  return id
-}
-
-/** Starts the week 8 game a team plays in. */
-async function kickOff(team: string) {
-  await NflGameModel.updateOne(
-    { season: SEASON, week: 8, $or: [{ homeTeam: team }, { awayTeam: team }] },
-    { $set: { kickoff: new Date(Date.now() - 60_000) } }
-  )
-}
+import { host } from './leagueHelpers.js'
 
 beforeEach(async () => {
   await seedCrossover()
@@ -115,57 +85,6 @@ describe('when a Crossover week goes final', () => {
     expect(league.status).toBe('complete')
   })
 })
-
-/*
- * A fixed roster for Alice, so lock and claim cases don't depend on the draft. Week 8: KC-BUF and PHI-SF
- * play; DET, BAL, GB and DAL are on bye.
- */
-const ALICE_ROSTER = [
-  { key: 'qb', heroClass: 'Mage', team: 'KC' },
-  { key: 'rb1', heroClass: 'Warrior', team: 'DET' },
-  { key: 'rb2', heroClass: 'Warrior', team: 'PHI' },
-  { key: 'wr1', heroClass: 'Ranger', team: 'BUF' },
-  { key: 'wr2', heroClass: 'Ranger', team: 'GB' },
-  { key: 'te', heroClass: 'Rogue', team: 'SF' },
-  { key: 'flex', heroClass: 'Warrior', team: 'BAL' },
-  { key: 'def', heroClass: 'Paladin', team: 'BAL' },
-  { key: 'bench-qb', heroClass: 'Mage', team: 'DET' },
-  { key: 'bench-rb', heroClass: 'Warrior', team: 'KC' },
-  { key: 'bench-wr', heroClass: 'Ranger', team: 'SF' },
-  { key: 'bench-te', heroClass: 'Rogue', team: 'DET' }
-] as const
-type RosterKey = (typeof ALICE_ROSTER)[number]['key']
-
-async function fixedRoster(leagueId: string) {
-  const party = (await PartyModel.findOne({ leagueId, name: 'Alice Party' }))!
-  await HeroModel.updateMany({ leagueId, partyId: party._id }, { $set: { partyId: null } })
-  const picked = new Map<RosterKey, HeroDocument>()
-  for (const want of ALICE_ROSTER) {
-    const taken = new Set([...picked.values()].map(hero => hero.id))
-    const hero = (await HeroModel.find({ leagueId, heroClass: want.heroClass, 'player.team': want.team })).find(candidate => !taken.has(candidate.id))
-    if (!hero) throw new Error(`The seed has no ${want.heroClass} on ${want.team}`)
-    await HeroModel.updateOne({ _id: hero._id }, { $set: { partyId: party._id } })
-    await PartyModel.updateMany({ leagueId, _id: mongoose.trusted({ $ne: party._id }) }, { $pull: { lineup: { heroId: hero._id } } })
-    picked.set(want.key, hero)
-  }
-  const starters = ALICE_ROSTER.filter(want => !want.key.startsWith('bench'))
-  await PartyModel.updateOne(
-    { _id: party._id },
-    { $set: { lineup: starters.map(want => ({ slot: want.key, heroId: picked.get(want.key)!._id })), champion: null } }
-  )
-  const ids = Object.fromEntries([...picked].map(([key, hero]) => [key, hero.id])) as Record<RosterKey, string>
-  const lineup = Object.fromEntries(starters.map(want => [want.key, ids[want.key]]))
-  return { party, ids, lineup }
-}
-
-/** A free agent of a class on a team, taken from whoever holds one. */
-async function freeAgent(leagueId: string, heroClass: HeroClass, team: string, except: readonly string[]) {
-  const hero = (await HeroModel.find({ leagueId, heroClass, 'player.team': team })).find(candidate => !except.includes(candidate.id))
-  if (!hero) throw new Error(`The seed has no spare ${heroClass} on ${team}`)
-  await HeroModel.updateOne({ _id: hero._id }, { $set: { partyId: null } })
-  await PartyModel.updateMany({ leagueId }, { $pull: { lineup: { heroId: hero._id } } })
-  return hero.id
-}
 
 describe('kickoff locks', () => {
   it('show each hero’s kickoff, byes as resting, and lock heroes once their game starts', async () => {
@@ -262,6 +181,8 @@ describe('game-day scores', () => {
   interface LiveSide {
     projectedTotal: number
     liveTotal: number | null
+    projectedGridiron: number | null
+    liveGridiron: number | null
     starters: { slot: string; hero: { id: string; projected: number; game?: { final: boolean; locked: boolean; points: number | null } | null } | null }[]
   }
 
@@ -285,12 +206,12 @@ describe('game-day scores', () => {
     // The live total swaps the quarterback's projection for his 30 real points (a Mage deals 1x).
     // The BUF receiver's game is over too, but he has no stat line: he sat out, so 0 instead of a projection.
     expect(slot('wr1').game).toMatchObject({ final: true, points: 0 })
-    // The live total swaps those two projections for real points (a Mage deals 1x). Byes don't fight, and any
-    // synergy bonus scales both totals alike, so compare the ratio, allowing for rounding.
-    const fighting = matchup.me.starters.flatMap(({ hero }) => (hero?.game ? [hero.projected] : []))
-    const projectedSum = fighting.reduce((sum, value) => sum + value, 0)
-    const liveSum = projectedSum - slot('qb').projected + 30 - slot('wr1').projected
-    expect(Math.abs(matchup.me.liveTotal! - (matchup.me.projectedTotal * liveSum) / projectedSum)).toBeLessThanOrEqual(1)
+    // Gridiron is plain points: the live total swaps those two projections (class damage / class multiplier) for
+    // real points, rounding aside. Quest goes live the same way, with the encounter's modifiers on top.
+    const pointsOf = (projected: number, multiplier: number) => projected / multiplier
+    const expected = matchup.me.projectedGridiron! - pointsOf(slot('qb').projected, 1) + 30 - pointsOf(slot('wr1').projected, 1.4)
+    expect(Math.abs(matchup.me.liveGridiron! - expected)).toBeLessThanOrEqual(1)
+    expect(matchup.me.liveTotal).not.toBe(matchup.me.projectedTotal)
   })
 
   it('are left out of Classic matchups', async () => {
@@ -306,6 +227,7 @@ describe('game-day scores', () => {
     const matchup = (await alice.get(`/api/leagues/${id}/matchup`)).body as { games: unknown; me: LiveSide }
     expect(matchup.games).toBeNull()
     expect(matchup.me.liveTotal).toBeNull()
+    expect(matchup.me.projectedGridiron).toBeNull()
     expect(JSON.stringify(matchup.me.starters)).not.toContain('"game"')
   })
 })
