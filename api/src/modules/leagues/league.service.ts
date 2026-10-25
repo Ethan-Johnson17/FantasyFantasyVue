@@ -5,6 +5,7 @@ import { AccountModel, type AccountDocument } from '../accounts/account.model.js
 import { expireLeagueChat, unreadCount } from '../chat/chat.service.js'
 import { RULESET_FOR_MODE } from '../scoring/rulesets.js'
 import { advanceLeague } from '../season/advance.js'
+import { resolvesAt, seasonLength } from '../season/calendar.js'
 import { crossoverWindow } from '../season/nflWeeks.js'
 import { partyOutlook, type PartyOutlook } from '../season/outlook.service.js'
 import { computeStandings } from '../season/season.service.js'
@@ -63,6 +64,10 @@ export interface LeagueSummaryView {
   weekOneAt: Date | null
   /** Game weeks played so far */
   resolvedWeeks: number
+  /** Game weeks in the season: 14 in Classic; Crossover's from its first NFL week through week 17, once drafted */
+  seasonWeeks: number
+  /** When the next game week resolves, once the season has started */
+  nextResolvesAt: Date | null
   createdAt: Date
 }
 
@@ -365,6 +370,8 @@ function toSummary(
     draftAt: league.draftAt ?? null,
     weekOneAt: league.weekOneAt ?? null,
     resolvedWeeks: league.resolvedWeeks,
+    seasonWeeks: seasonLength(league),
+    nextResolvesAt: league.status === 'active' ? resolvesAt(league, league.resolvedWeeks + 1) : null,
     createdAt: league.createdAt
   }
 }

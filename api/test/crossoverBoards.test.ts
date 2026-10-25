@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import request from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { HERO_CLASSES, type HeroClass } from '../src/modules/heroes/classes.js'
 import { HeroModel } from '../src/modules/heroes/hero.model.js'
@@ -10,6 +11,7 @@ import { WeekResultModel } from '../src/modules/season/weekResult.model.js'
 import { DefenseWeekStatModel, NflGameModel, PlayerWeekStatModel, StatsImportModel } from '../src/modules/stats/stats.models.js'
 import { alice, draftedCrossover, fixedRoster, freeAgent, kickOff, QUEST_PARTY, type RosterKey } from './crossoverLeague.js'
 import { SEASON, seedCrossover } from './crossoverSeed.js'
+import { buildTestApp } from './helpers.js'
 import { host } from './leagueHelpers.js'
 
 const quest = CROSSOVER_V1.quest!
@@ -123,11 +125,11 @@ describe('the two scoreboards', () => {
     expect(side.gridiron?.total).toBe(41)
 
     const view = (await alice.get(`/api/leagues/${id}/results/1`)).body as {
-      matchups: { home: { heroes: { heroId: string; crit: string | null; quest: boolean; damage: number }[] }; away: { heroes: { heroId: string; crit: string | null; quest: boolean }[] } | null }[]
+      matchups: { home: { heroes: { heroId: string; crit: string | null; quest: boolean; damage: number; points?: number }[] }; away: { heroes: { heroId: string; crit: string | null; quest: boolean; points?: number }[] } | null }[]
       encounter: { name: string } | null
     }
     const lines = [...view.matchups[0]!.home.heroes, ...(view.matchups[0]!.away?.heroes ?? [])]
-    expect(lines.find(entry => entry.heroId === ids.qb)).toMatchObject({ crit: 'success', quest: true })
+    expect(lines.find(entry => entry.heroId === ids.qb)).toMatchObject({ crit: 'success', quest: true, points: 40 })
     expect(lines.find(entry => entry.heroId === ids.wr1)).toMatchObject({ crit: 'fail', quest: true })
     expect(view.encounter?.name).toBe(encounter.name)
   })
@@ -272,5 +274,31 @@ describe('the matchup preview', () => {
       return sum + (hero.restingNextWeek ? 0 : hero.projected * encounterMultiplier(encounter, heroClass, quest))
     }, 0)
     expect(Math.abs(matchup.me.projectedTotal - expected)).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('what the app needs to show Crossover', () => {
+  it('publishes Crossover’s rules, and whether leagues can be created yet', async () => {
+    type Rules = { crossover: { available: boolean; slots: string[]; quest: { partySize: number }; encounters: unknown[] } }
+    const on = (await request(buildTestApp()).get('/api/rules')).body as Rules
+    expect(on.crossover).toMatchObject({ available: true, slots: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'DEF'], quest: { partySize: 5 } })
+    expect(on.crossover.encounters).toHaveLength(10)
+    const off = (await request(buildTestApp({ crossoverEnabled: false })).get('/api/rules')).body as Rules
+    expect(off.crossover.available).toBe(false)
+  })
+
+  it('gives the lineup screen the next encounter and the Quest modifiers', async () => {
+    const { id, encounter } = await league()
+    const lineup = (await alice.get(`/api/leagues/${id}/lineup`)).body as { quest: { encounter: { name: string }; weakMultiplier: number; classMultipliers: Record<string, number> } }
+    expect(lineup.quest).toMatchObject({ encounter: { name: encounter.name }, weakMultiplier: quest.weakMultiplier, classMultipliers: { Rogue: 2.05 } })
+  })
+
+  it('labels each week with its NFL week', async () => {
+    const { id } = await league()
+    const schedule = (await alice.get(`/api/leagues/${id}/schedule`)).body as { week: number; nflWeek: number }[]
+    expect(schedule.slice(0, 2).map(week => [week.week, week.nflWeek])).toEqual([
+      [1, 8],
+      [2, 9]
+    ])
   })
 })

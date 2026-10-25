@@ -9,6 +9,7 @@ import { activeSynergies, levelText, levelValue, projectedTotal, SYNERGY_ORDER, 
 import { useLeague } from '../../league'
 import { timeUntil } from '../../time'
 import PlayerTag from '../../components/PlayerTag.vue'
+import CrossoverParty from '../../components/CrossoverParty.vue'
 
 const api = useApi()
 const { league, myParty } = useLeague()
@@ -21,9 +22,11 @@ const saving = ref(false)
 const namingChampion = ref(false)
 const error = ref<unknown>(null)
 const notice = ref('')
+// Crossover has two lineups and kickoff locks: its own screen (components/CrossoverParty.vue).
+const crossover = computed(() => league.value?.mode === 'crossover')
 
 onMounted(async () => {
-  if (!league.value || league.value.status === 'forming' || league.value.status === 'drafting') return
+  if (crossover.value || !league.value || league.value.status === 'forming' || league.value.status === 'drafting') return
   try {
     data.value = await api.getLineup(league.value.id)
     draft.value = { ...(data.value.lineup ?? {}) }
@@ -119,136 +122,139 @@ async function toggleAutoSwap(event: Event) {
 </script>
 
 <template>
-  <header class="page-header">
-    <div class="eyebrow">{{ league?.name }}</div>
-    <h1 class="title">{{ myParty?.name ?? 'Your party' }}</h1>
-  </header>
+  <CrossoverParty v-if="crossover" />
+  <template v-else>
+    <header class="page-header">
+      <div class="eyebrow">{{ league?.name }}</div>
+      <h1 class="title">{{ myParty?.name ?? 'Your party' }}</h1>
+    </header>
 
-  <p v-if="league && (league.status === 'forming' || league.status === 'drafting')" class="card muted">
-    Your party fills out at the draft. Rank your heroes on the Heroes tab before it runs.
-  </p>
-
-  <FormError :error="error" />
-
-  <template v-if="data">
-    <section v-if="data.nextWeek" class="card week">
-      <div class="week-title">Week {{ data.nextWeek }}</div>
-      <div class="muted small">Battle begins {{ data.nextWeekAt ? timeUntil(new Date(data.nextWeekAt)) : 'soon' }} · your lineup locks then</div>
-      <RouterLink :to="`/leagues/${league?.id}/matchup`" class="matchup-link">See the matchup ›</RouterLink>
-    </section>
-
-    <section v-if="data.nextWeek" class="card champion-card" :class="{ named: championHero }" aria-live="polite">
-      <div class="champion-title"><span class="crown-mark" aria-hidden="true">♛</span> Champion</div>
-      <p v-if="championHero" class="champion-text">
-        <strong>{{ championHero.name }}</strong> leads your party in every battle until you choose another, dealing
-        {{ times(championHero.traits.includes('mighty') ? data.strategy.mightyChampionMultiplier : data.strategy.championMultiplier) }} damage.
-        <span v-if="championHero.restingNextWeek" class="resting-text">They're resting this week, so this week's bonus would be lost. Consider another.</span>
-      </p>
-      <p v-else class="champion-text muted">
-        No Champion yet. Tap ♛ on a starter: your Champion deals {{ times(data.strategy.championMultiplier) }} damage
-        ({{ times(data.strategy.mightyChampionMultiplier) }} if Mighty) and stays Champion until you change them.
-      </p>
-    </section>
-
-    <div class="row-heading">
-      <h2 class="section-title">Starting party</h2>
-      <span v-if="data.nextWeek" class="projected-total" aria-label="Projected damage this battle">Projected {{ projected }}</span>
-      <span v-else class="muted small">{{ data.slots.length }} slots · any class</span>
-    </div>
-    <p v-if="selectedSlot" class="note small-note" role="status">
-      Choose a bench hero to start in {{ selectedRule?.label }}, or tap the slot again to cancel.
+    <p v-if="league && (league.status === 'forming' || league.status === 'drafting')" class="card muted">
+      Your party fills out at the draft. Rank your heroes on the Heroes tab before it runs.
     </p>
-    <ol class="starters">
-      <li v-for="{ slot, hero } in starters" :key="slot.key" class="starter">
-        <template v-if="hero">
-          <button
-            type="button"
-            class="hero-row"
-            :class="{ selected: selectedSlot === slot.key, resting: hero.restingNextWeek, champion: champion === hero.id }"
-            :aria-pressed="selectedSlot === slot.key"
-            @click="selectSlot(slot.key)"
-          >
-            <ClassIcon :hero-class="hero.heroClass" />
-            <span class="hero-text">
-              <span class="hero-name">{{ hero.name }}</span>
-              <PlayerTag :hero="hero" />
-              <span v-if="hero.restingNextWeek" class="resting-text">
-                Resting this week{{ data.autoSwap ? ' · auto-swap ready' : '' }}
+
+    <FormError :error="error" />
+
+    <template v-if="data">
+      <section v-if="data.nextWeek" class="card week">
+        <div class="week-title">Week {{ data.nextWeek }}</div>
+        <div class="muted small">Battle begins {{ data.nextWeekAt ? timeUntil(new Date(data.nextWeekAt)) : 'soon' }} · your lineup locks then</div>
+        <RouterLink :to="`/leagues/${league?.id}/matchup`" class="matchup-link">See the matchup ›</RouterLink>
+      </section>
+
+      <section v-if="data.nextWeek" class="card champion-card" :class="{ named: championHero }" aria-live="polite">
+        <div class="champion-title"><span class="crown-mark" aria-hidden="true">♛</span> Champion</div>
+        <p v-if="championHero" class="champion-text">
+          <strong>{{ championHero.name }}</strong> leads your party in every battle until you choose another, dealing
+          {{ times(championHero.traits.includes('mighty') ? data.strategy.mightyChampionMultiplier : data.strategy.championMultiplier) }} damage.
+          <span v-if="championHero.restingNextWeek" class="resting-text">They're resting this week, so this week's bonus would be lost. Consider another.</span>
+        </p>
+        <p v-else class="champion-text muted">
+          No Champion yet. Tap ♛ on a starter: your Champion deals {{ times(data.strategy.championMultiplier) }} damage
+          ({{ times(data.strategy.mightyChampionMultiplier) }} if Mighty) and stays Champion until you change them.
+        </p>
+      </section>
+
+      <div class="row-heading">
+        <h2 class="section-title">Starting party</h2>
+        <span v-if="data.nextWeek" class="projected-total" aria-label="Projected damage this battle">Projected {{ projected }}</span>
+        <span v-else class="muted small">{{ data.slots.length }} slots · any class</span>
+      </div>
+      <p v-if="selectedSlot" class="note small-note" role="status">
+        Choose a bench hero to start in {{ selectedRule?.label }}, or tap the slot again to cancel.
+      </p>
+      <ol class="starters">
+        <li v-for="{ slot, hero } in starters" :key="slot.key" class="starter">
+          <template v-if="hero">
+            <button
+              type="button"
+              class="hero-row"
+              :class="{ selected: selectedSlot === slot.key, resting: hero.restingNextWeek, champion: champion === hero.id }"
+              :aria-pressed="selectedSlot === slot.key"
+              @click="selectSlot(slot.key)"
+            >
+              <ClassIcon :hero-class="hero.heroClass" />
+              <span class="hero-text">
+                <span class="hero-name">{{ hero.name }}</span>
+                <PlayerTag :hero="hero" />
+                <span v-if="hero.restingNextWeek" class="resting-text">
+                  Resting this week{{ data.autoSwap ? ' · auto-swap ready' : '' }}
+                </span>
+                <span v-else class="muted small">{{ hero.race }} {{ hero.heroClass }}</span>
+                <TraitChips :traits="hero.traits" />
               </span>
-              <span v-else class="muted small">{{ hero.race }} {{ hero.heroClass }}</span>
-              <TraitChips :traits="hero.traits" />
-            </span>
-            <span class="numbers">
-              <span class="level">{{ levelText(hero) }}</span>
-              <span class="proj small">{{ hero.restingNextWeek ? 'Resting' : `Proj ${String(hero.projected)}` }}</span>
-            </span>
-          </button>
+              <span class="numbers">
+                <span class="level">{{ levelText(hero) }}</span>
+                <span class="proj small">{{ hero.restingNextWeek ? 'Resting' : `Proj ${String(hero.projected)}` }}</span>
+              </span>
+            </button>
+            <button
+              v-if="data.nextWeek"
+              type="button"
+              class="crown"
+              :class="{ active: champion === hero.id }"
+              :aria-pressed="champion === hero.id"
+              :aria-label="champion === hero.id ? `Withdraw ${hero.name} as Champion` : `Name ${hero.name} Champion`"
+              :title="changed ? 'Save your lineup to choose a Champion' : undefined"
+              :disabled="changed || namingChampion"
+              @click="toggleChampion(hero)"
+            >
+              ♛
+            </button>
+            <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="details" :aria-label="`About ${hero.name}`">›</RouterLink>
+          </template>
+        </li>
+      </ol>
+
+      <div class="row-heading">
+        <h2 class="section-title">Synergies</h2>
+        <RouterLink to="/how-it-works#synergies" class="small">How they work ›</RouterLink>
+      </div>
+      <ul class="synergies">
+        <li v-for="synergy in SYNERGY_ORDER" :key="synergy" class="synergy" :class="{ active: synergies.has(synergy) }">
+          <span class="synergy-text">
+            <span class="synergy-name">{{ synergyInfo(synergy).label }}</span>
+            <span class="muted small">{{ synergyInfo(synergy, data.strategy).description }}</span>
+          </span>
+          <span class="synergy-state small">{{ synergies.has(synergy) ? 'Active' : 'Inactive' }}</span>
+        </li>
+      </ul>
+
+      <div class="row-heading">
+        <h2 class="section-title">Bench</h2>
+        <label class="toggle">
+          <input type="checkbox" :checked="data.autoSwap" @change="toggleAutoSwap" />
+          Auto-swap at 50%
+        </label>
+      </div>
+      <ul class="bench">
+        <li v-for="hero in bench" :key="hero.id">
           <button
-            v-if="data.nextWeek"
             type="button"
-            class="crown"
-            :class="{ active: champion === hero.id }"
-            :aria-pressed="champion === hero.id"
-            :aria-label="champion === hero.id ? `Withdraw ${hero.name} as Champion` : `Name ${hero.name} Champion`"
-            :title="changed ? 'Save your lineup to choose a Champion' : undefined"
-            :disabled="changed || namingChampion"
-            @click="toggleChampion(hero)"
+            class="bench-hero"
+            :class="{ eligible: selectedSlot && canFill(hero), resting: hero.restingNextWeek }"
+            :disabled="!!selectedSlot && !canFill(hero)"
+            @click="selectedSlot ? swapIn(hero) : undefined"
           >
-            ♛
+            <span class="hero-name">{{ hero.name }}</span>
+            <PlayerTag :hero="hero" />
+            <span class="muted small">
+              {{ hero.heroClass }} · {{ levelText(hero) }} · {{ hero.restingNextWeek ? 'resting' : `proj ${String(hero.projected)}` }}
+            </span>
+            <TraitChips :traits="hero.traits" />
           </button>
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="details" :aria-label="`About ${hero.name}`">›</RouterLink>
-        </template>
-      </li>
-    </ol>
+        </li>
+      </ul>
 
-    <div class="row-heading">
-      <h2 class="section-title">Synergies</h2>
-      <RouterLink to="/how-it-works#synergies" class="small">How they work ›</RouterLink>
-    </div>
-    <ul class="synergies">
-      <li v-for="synergy in SYNERGY_ORDER" :key="synergy" class="synergy" :class="{ active: synergies.has(synergy) }">
-        <span class="synergy-text">
-          <span class="synergy-name">{{ synergyInfo(synergy).label }}</span>
-          <span class="muted small">{{ synergyInfo(synergy, data.strategy).description }}</span>
-        </span>
-        <span class="synergy-state small">{{ synergies.has(synergy) ? 'Active' : 'Inactive' }}</span>
-      </li>
-    </ul>
+      <p class="muted small help">Tap a starter, then a bench hero, to swap them; tap › for a hero's stats. If a starter rests and auto-swap is on, your best bench hero steps in at half damage. Benching your Champion withdraws them.</p>
 
-    <div class="row-heading">
-      <h2 class="section-title">Bench</h2>
-      <label class="toggle">
-        <input type="checkbox" :checked="data.autoSwap" @change="toggleAutoSwap" />
-        Auto-swap at 50%
-      </label>
-    </div>
-    <ul class="bench">
-      <li v-for="hero in bench" :key="hero.id">
-        <button
-          type="button"
-          class="bench-hero"
-          :class="{ eligible: selectedSlot && canFill(hero), resting: hero.restingNextWeek }"
-          :disabled="!!selectedSlot && !canFill(hero)"
-          @click="selectedSlot ? swapIn(hero) : undefined"
-        >
-          <span class="hero-name">{{ hero.name }}</span>
-          <PlayerTag :hero="hero" />
-          <span class="muted small">
-            {{ hero.heroClass }} · {{ levelText(hero) }} · {{ hero.restingNextWeek ? 'resting' : `proj ${String(hero.projected)}` }}
-          </span>
-          <TraitChips :traits="hero.traits" />
-        </button>
-        <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="details" :aria-label="`About ${hero.name}`">›</RouterLink>
-      </li>
-    </ul>
-
-    <p class="muted small help">Tap a starter, then a bench hero, to swap them; tap › for a hero's stats. If a starter rests and auto-swap is on, your best bench hero steps in at half damage. Benching your Champion withdraws them.</p>
-
-    <p v-if="notice" class="muted" role="status">{{ notice }}</p>
-    <div v-if="changed" class="actions">
-      <button type="button" class="btn btn-secondary" :disabled="saving" @click="reset">Undo changes</button>
-      <button type="button" class="btn btn-primary" :disabled="saving" @click="save">{{ saving ? 'Saving…' : 'Save lineup' }}</button>
-    </div>
+      <p v-if="notice" class="muted" role="status">{{ notice }}</p>
+      <div v-if="changed" class="actions">
+        <button type="button" class="btn btn-secondary" :disabled="saving" @click="reset">Undo changes</button>
+        <button type="button" class="btn btn-primary" :disabled="saving" @click="save">{{ saving ? 'Saving…' : 'Save lineup' }}</button>
+      </div>
+    </template>
   </template>
 </template>
 

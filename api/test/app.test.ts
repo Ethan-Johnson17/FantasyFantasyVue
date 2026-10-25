@@ -19,7 +19,8 @@ describe('app infrastructure', () => {
   it('serves the public game rules without auth, from the current ruleset', async () => {
     const res = await request(app).get('/api/rules')
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({
+    // Classic's numbers; Crossover's are covered in crossoverBoards.test.ts.
+    expect(res.body).toMatchObject({
       version: RULESET_V1.version,
       seasonWeeks: 14,
       rosterSize: RULESET_V1.lineup.rosterSize,

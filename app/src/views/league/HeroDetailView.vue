@@ -7,7 +7,7 @@ import ClassIcon from '../../components/ClassIcon.vue'
 import FormError from '../../components/FormError.vue'
 import { CLASS_COLOR, CLASS_TEMPERAMENT, CRIT_NAMES, isMystery, levelText, TRAITS } from '../../heroes'
 import { useLeague } from '../../league'
-import { SEASON_WEEKS } from '../../time'
+import { seasonWeeksOf } from '../../time'
 import PlayerTag from '../../components/PlayerTag.vue'
 
 const api = useApi()
@@ -34,7 +34,7 @@ const average = computed(() =>
 const maxDamage = computed(() => Math.max(1, ...(detail.value?.history.map(week => week.damage) ?? [])))
 const latestWeek = computed(() => Math.max(0, ...(detail.value?.history.map(week => week.week) ?? [])))
 const bars = computed(() =>
-  Array.from({ length: SEASON_WEEKS }, (_, index) => {
+  Array.from({ length: seasonWeeksOf(league.value) }, (_, index) => {
     const week = detail.value?.history.find(entry => entry.week === index + 1)
     return { week: index + 1, entry: week ?? null, height: week ? Math.max(4, Math.round((week.damage / maxDamage.value) * 100)) : 0 }
   })
@@ -107,7 +107,7 @@ const chartLabel = computed(() =>
           :style="{ height: bar.entry && !bar.entry.resting ? `${bar.height}%` : undefined }"
         ></div>
       </div>
-      <div class="axis muted small"><span>Week 1</span><span>Week {{ SEASON_WEEKS }}</span></div>
+      <div class="axis muted small"><span>Week 1</span><span>Week {{ seasonWeeksOf(league) }}</span></div>
       <p v-if="critCounts.success || critCounts.fail" class="crit-summary muted small">
         <span v-if="critCounts.success" class="crit-success">{{ critCounts.success }} × natural 20 ({{ CRIT_NAMES[hero.heroClass].success }})</span>
         <span v-if="critCounts.success && critCounts.fail"> · </span>

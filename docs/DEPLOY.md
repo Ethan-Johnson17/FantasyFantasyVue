@@ -122,4 +122,16 @@ database address as a secret:
 GitHub pauses scheduled workflows in a repository with no activity for 60 days; a push, or re-enabling the
 workflow on the Actions tab, starts it again.
 
+## 9. Switch on Crossover
+
+Crossover leagues can be created only when the API's `CROSSOVER_ENABLED` setting is `true` (docs/CROSSOVER_SPEC.md).
+Before switching it on, make sure the scheduled import (step 8) has run, so the current season's schedule and stats are
+in the database.
+
+1. Vercel → the API project (`fantasy-fantasy`) → **Settings → Environment Variables → Add**: name
+   `CROSSOVER_ENABLED`, value `true`, environment **Production**.
+2. **Deployments → the latest → Redeploy**, so the setting takes effect.
+3. Open the app's **Host a league** screen: a **Game** choice (Classic or Crossover) appears, and How it works gains a
+   Crossover section. To switch it off again, remove the variable and redeploy; existing Crossover leagues keep playing.
+
 Remaining launch items (Google sign-in keys, and so on) are in `ROADMAP.md` under "Before public launch".

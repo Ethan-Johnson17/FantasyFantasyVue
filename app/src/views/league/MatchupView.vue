@@ -8,7 +8,9 @@ import MatchupPreview from '../../components/matchup/MatchupPreview.vue'
 import MatchupResult from '../../components/matchup/MatchupResult.vue'
 import { useLeague } from '../../league'
 import { mySeason, type MyWeek } from '../../mySeason'
-import { SEASON_WEEKS } from '../../time'
+import { seasonWeeksOf } from '../../time'
+import CrossoverPreview from '../../components/matchup/CrossoverPreview.vue'
+import CrossoverResult from '../../components/matchup/CrossoverResult.vue'
 
 /*
  * My matchup for any week of the season: the result once it's played, a preview before that.
@@ -22,10 +24,14 @@ const { league, myParty } = useLeague()
 
 const scheduled = computed(() => league.value?.status === 'active' || league.value?.status === 'complete')
 /** The week to open on: the next battle, or the last one once the season is over. */
-const currentWeek = computed(() => Math.min(SEASON_WEEKS, (league.value?.resolvedWeeks ?? 0) + (league.value?.status === 'complete' ? 0 : 1)))
+const seasonWeeks = computed(() => seasonWeeksOf(league.value))
+const crossover = computed(() => league.value?.mode === 'crossover')
+const currentWeek = computed(() =>
+  Math.min(seasonWeeks.value, (league.value?.resolvedWeeks ?? 0) + (league.value?.status === 'complete' ? 0 : 1))
+)
 const week = computed(() => {
   const requested = Number(route.params.week)
-  return Number.isInteger(requested) && requested >= 1 && requested <= SEASON_WEEKS ? requested : currentWeek.value
+  return Number.isInteger(requested) && requested >= 1 && requested <= seasonWeeks.value ? requested : currentWeek.value
 })
 const played = computed(() => week.value <= (league.value?.resolvedWeeks ?? 0))
 const label = computed(() => (played.value ? 'Played' : week.value === currentWeek.value ? 'Next battle' : 'Upcoming'))
@@ -68,16 +74,28 @@ watch(
   { immediate: true }
 )
 const season = computed(() => mySeason(schedule.value, myParty.value?.id))
+/** Crossover: the real NFL week shown under the game week */
+const nflWeek = computed(() => schedule.value.find(entry => entry.week === week.value)?.nflWeek ?? null)
 
 const OUTCOME_MARK = { win: 'W', loss: 'L', draw: 'D' } as const
 function chipLabel(entry: MyWeek): string {
   const versus = entry.opponent ? ` vs ${entry.opponent}` : ''
+  if (entry.boards) {
+    return `Week ${String(entry.week)}: ${entry.outcome ?? ''}${versus}, boards ${chipMark(entry)}`
+  }
   if (entry.outcome && entry.myTotal !== null && entry.theirTotal !== null) {
     return `Week ${String(entry.week)}: ${entry.outcome}${versus}, ${String(Math.round(entry.myTotal))} to ${String(Math.round(entry.theirTotal))}`
   }
   return `Week ${String(entry.week)}${versus}${entry.week === currentWeek.value ? ', next battle' : ''}`
 }
 
+/** W/L/D, or in Crossover the boards won (2–0 a sweep, 1–1 a split). */
+function chipMark(entry: MyWeek): string {
+  if (entry.boards) return `${boardCount(entry.boards.mine)}–${boardCount(entry.boards.theirs)}`
+  if (entry.outcome) return OUTCOME_MARK[entry.outcome]
+  return entry.monster ? '☠' : entry.week === currentWeek.value ? '•' : ''
+}
+const boardCount = (value: number) => (Number.isInteger(value) ? String(value) : `${String(Math.floor(value))}½`)
 const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/matchup/${String(target)}`
 </script>
 
@@ -94,10 +112,11 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/matchup/$
       <RouterLink v-if="week > 1" :to="linkTo(week - 1)" class="step" :aria-label="`Week ${week - 1}`">‹</RouterLink>
       <span v-else class="step disabled" aria-hidden="true">‹</span>
       <div class="week-label" aria-live="polite">
-        <span class="week-number">Week {{ week }} of {{ SEASON_WEEKS }}</span>
+        <span class="week-number">Week {{ week }} of {{ seasonWeeks }}</span>
+        <span v-if="nflWeek" class="muted small">NFL week {{ nflWeek }}</span>
         <span class="week-state small" :class="{ next: label === 'Next battle' }">{{ label }}</span>
       </div>
-      <RouterLink v-if="week < SEASON_WEEKS" :to="linkTo(week + 1)" class="step" :aria-label="`Week ${week + 1}`">›</RouterLink>
+      <RouterLink v-if="week < seasonWeeks" :to="linkTo(week + 1)" class="step" :aria-label="`Week ${week + 1}`">›</RouterLink>
       <span v-else class="step disabled" aria-hidden="true">›</span>
     </nav>
     <ol v-if="season.length" class="strip" aria-label="Season">
@@ -110,7 +129,7 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/matchup/$
           :aria-current="entry.week === week ? 'page' : undefined"
         >
           <span class="chip-week">{{ entry.week }}</span>
-          <span class="chip-mark" aria-hidden="true">{{ entry.outcome ? OUTCOME_MARK[entry.outcome] : entry.monster ? '☠' : entry.week === currentWeek ? '•' : '' }}</span>
+          <span class="chip-mark" aria-hidden="true">{{ chipMark(entry) }}</span>
         </RouterLink>
       </li>
     </ol>
@@ -118,7 +137,9 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/matchup/$
     <FormError :error="error" />
     <p v-if="loading" class="muted" aria-busy="true">Loading…</p>
 
-    <MatchupResult v-if="result && league" :result="result" :week="week" :my-party-id="myParty?.id ?? null" :league-id="league.id" />
+    <CrossoverResult v-if="result && league && crossover" :result="result" :my-party-id="myParty?.id ?? null" :league-id="league.id" />
+    <MatchupResult v-else-if="result && league" :result="result" :week="week" :my-party-id="myParty?.id ?? null" :league-id="league.id" />
+    <CrossoverPreview v-else-if="preview && league && crossover" :matchup="preview" :league-id="league.id" />
     <MatchupPreview v-else-if="preview && league" :matchup="preview" :league-id="league.id" />
   </template>
 </template>

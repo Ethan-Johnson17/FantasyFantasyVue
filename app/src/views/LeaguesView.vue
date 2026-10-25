@@ -10,7 +10,7 @@ import InstallCard from '../components/InstallCard.vue'
 import NamePrompt from '../components/NamePrompt.vue'
 import { pickSpotlight } from '../spotlight'
 import { useSessionStore } from '../stores/session'
-import { nextBattleAt, SEASON_WEEKS, timeUntil } from '../time'
+import { nextBattleAt, seasonWeeksOf, timeUntil } from '../time'
 
 const api = useApi()
 const session = useSessionStore()
@@ -61,8 +61,13 @@ function cardLink(league: MyLeague): string {
 function statusLine(league: MyLeague): { label: string; detail: string; callout?: string } {
   switch (league.status) {
     case 'active': {
-      const week = Math.min(league.resolvedWeeks + 1, SEASON_WEEKS)
-      const next = league.weekOneAt ? timeUntil(nextBattleAt(league.weekOneAt, league.resolvedWeeks, league.cadence)) : ''
+      const week = Math.min(league.resolvedWeeks + 1, seasonWeeksOf(league))
+      const nextAt = league.nextResolvesAt
+        ? new Date(league.nextResolvesAt)
+        : league.weekOneAt
+          ? nextBattleAt(league.weekOneAt, league.resolvedWeeks, league.cadence)
+          : null
+      const next = nextAt ? timeUntil(nextAt) : ''
       return { label: `Week ${String(week)}`, detail: `Next battle ${next}`, callout: nextStep(league) }
     }
     case 'drafting':
@@ -199,7 +204,7 @@ function signOut() {
         <li v-for="league in leagues" :key="league.id">
           <RouterLink :to="cardLink(league)" class="card league" :class="{ highlight: league.status === 'active' }">
             <div class="league-top">
-              <span class="league-name">{{ league.name }}</span>
+              <span class="league-name">{{ league.name }}<span v-if="league.mode === 'crossover'" class="mode-tag"> · Crossover</span></span>
               <span v-if="league.unreadChat" class="unread" :aria-label="`${unreadText(league.unreadChat)} unread chat messages`">
                 {{ unreadText(league.unreadChat) }} new
               </span>
@@ -516,5 +521,10 @@ function signOut() {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+.mode-tag {
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 700;
 }
 </style>

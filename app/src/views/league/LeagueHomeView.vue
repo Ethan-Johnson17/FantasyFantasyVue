@@ -6,7 +6,7 @@ import type { ScheduleWeek, Standing } from '../../api/types'
 import CrestShield from '../../components/CrestShield.vue'
 import FormError from '../../components/FormError.vue'
 import { useLeague } from '../../league'
-import { nextBattleAt, SEASON_WEEKS, timeUntil } from '../../time'
+import { nextBattleAt, seasonWeeksOf, timeUntil } from '../../time'
 
 const api = useApi()
 const router = useRouter()
@@ -32,16 +32,18 @@ const draftMax = computed(() => toLocalInput(new Date(Date.now() + MAX_LEAD_MS))
 
 const isHost = computed(() => !!league.value?.isHost)
 const inSeason = computed(() => league.value?.status === 'active' || league.value?.status === 'complete')
+const seasonWeeks = computed(() => seasonWeeksOf(league.value))
 const currentWeek = computed(() => {
   if (!league.value) return null
-  if (league.value.status === 'complete') return SEASON_WEEKS
-  return Math.min(league.value.resolvedWeeks + 1, SEASON_WEEKS)
+  if (league.value.status === 'complete') return seasonWeeks.value
+  return Math.min(league.value.resolvedWeeks + 1, seasonWeeks.value)
 })
 const thisWeek = computed(() => schedule.value.find(week => week.week === currentWeek.value) ?? null)
 const nextBattle = computed(() => {
   const value = league.value
   if (value?.status !== 'active' || !value.weekOneAt) return ''
-  return timeUntil(nextBattleAt(value.weekOneAt, value.resolvedWeeks, value.cadence))
+  const at = value.nextResolvesAt ? new Date(value.nextResolvesAt) : nextBattleAt(value.weekOneAt, value.resolvedWeeks, value.cadence)
+  return timeUntil(at)
 })
 const inviteLink = computed(() => (league.value?.pin ? `${window.location.origin}/join?pin=${league.value.pin}` : ''))
 
@@ -115,10 +117,13 @@ const isMine = (partyId: string) => partyId === myParty.value?.id
     <header class="page-header">
       <RouterLink to="/leagues" class="back-link">‹ Your leagues</RouterLink>
       <h1 class="title">{{ league.name }}</h1>
+      <span v-if="league.mode === 'crossover'" class="mode-chip">Crossover</span>
       <div class="muted">
         <template v-if="league.status === 'forming'">Gathering parties · {{ league.partyCount }} of {{ league.maxParties }}</template>
         <template v-else-if="league.status === 'drafting'">Draft {{ league.draftAt ? timeUntil(new Date(league.draftAt)) : 'soon' }}</template>
-        <template v-else-if="league.status === 'active'">Week {{ currentWeek }} of {{ SEASON_WEEKS }} · battles resolve {{ league.cadence }}</template>
+        <template v-else-if="league.status === 'active'">
+          Week {{ currentWeek }} of {{ seasonWeeks }} · {{ league.mode === 'crossover' ? 'follows the NFL schedule' : `battles resolve ${league.cadence}` }}
+        </template>
         <template v-else-if="league.status === 'complete'">Season complete</template>
         <template v-else>This league was canceled</template>
       </div>
@@ -447,5 +452,14 @@ tr.mine .rank {
 .finale-cta {
   font-size: 14px;
   color: var(--gold);
+}
+.mode-chip {
+  align-self: flex-start;
+  padding: 1px 10px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 700;
 }
 </style>

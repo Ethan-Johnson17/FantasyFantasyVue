@@ -70,6 +70,14 @@ describe('schedule', () => {
     const totals = [realGame.home.total, realGame.away.total, monsterGame.home.total] as number[]
     expect(monsterGame.monster.total).toBeCloseTo(totals.reduce((a, b) => a + b, 0) / 3, 2)
   })
+
+  it('never sends exact points in Classic results (hidden-player rule)', async () => {
+    const id = await draftedLeague([alice])
+    await makeWeeksDue(id, 1)
+    const body = JSON.stringify((await alice.get(`/api/leagues/${id}/results/1`)).body)
+    expect(body).not.toContain('"points"')
+    expect(body).not.toContain('"gridiron":{')
+  })
 })
 
 describe('weekly resolution', () => {

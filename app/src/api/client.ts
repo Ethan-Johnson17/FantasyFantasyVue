@@ -64,6 +64,8 @@ export interface ApiClient {
   getLineup(leagueId: string): Promise<Lineup>
   setLineup(leagueId: string, lineup: Record<string, string>): Promise<Lineup>
   setChampion(leagueId: string, heroId: string | null): Promise<Lineup>
+  /** Crossover: the heroes who fight the week's encounter */
+  setQuestParty(leagueId: string, heroIds: string[]): Promise<Lineup>
   claimHero(leagueId: string, heroId: string, dropHeroId: string): Promise<Lineup>
   listMoves(leagueId: string): Promise<RosterMove[]>
   getSchedule(leagueId: string): Promise<ScheduleWeek[]>
@@ -138,6 +140,7 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     getLineup: id => request('GET', `/api/leagues/${segment(id)}/lineup`),
     setLineup: (id, lineup) => request('PUT', `/api/leagues/${segment(id)}/lineup`, lineup),
     setChampion: (id, heroId) => request('PUT', `/api/leagues/${segment(id)}/champion`, { heroId }),
+    setQuestParty: (id, heroIds) => request('PUT', `/api/leagues/${segment(id)}/quest-party`, { heroIds }),
     claimHero: (id, heroId, dropHeroId) => request('POST', `/api/leagues/${segment(id)}/claims`, { heroId, dropHeroId }),
     listMoves: id => request('GET', `/api/leagues/${segment(id)}/moves`),
     getSchedule: id => request('GET', `/api/leagues/${segment(id)}/schedule`),
