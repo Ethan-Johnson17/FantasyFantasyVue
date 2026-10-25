@@ -70,8 +70,10 @@ identity is only ever serialized for Crossover leagues, with tests on both sides
   points, as in Classic; players without a previous season have none.
 - **Draft:** the same automatic, ranked snake draft. Members rank players beforehand; the draft runs at the scheduled
   time. Class limits apply (at most 2 team defenses *(default)*). A live draft is post-MVP.
-- **Free agency:** as in Classic, claim by dropping, first come, first served. A claimed or dropped player who has
-  already kicked off that week counts from the next week.
+- **Free agency:** as in Classic, claim by dropping, first come, first served. Kickoff locks apply: a starter whose
+  game has kicked off can't be dropped until the week ends. When a dropped starter's slot needs filling, the claimed
+  player takes it if their game hasn't started; otherwise the best bench player yet to play steps in, and if nobody
+  can, the claim is refused. So a player never counts for a week they weren't on the roster at kickoff.
 
 ## Lineup and locks
 

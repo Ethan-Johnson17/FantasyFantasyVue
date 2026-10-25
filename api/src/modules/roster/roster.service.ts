@@ -1,14 +1,17 @@
+import mongoose from 'mongoose'
 import { BadRequest, Conflict, NotFound } from '../../lib/errors.js'
 import type { AccountDocument } from '../accounts/account.model.js'
 import { HeroModel } from '../heroes/hero.model.js'
-import { autoLineup, maxFillableSlots } from '../heroes/lineup.js'
+import { autoLineup, bestForSlot, maxFillableSlots } from '../heroes/lineup.js'
 import { expectedLevel } from '../heroes/pool.js'
 import { inTransaction, loadLeagueAsMember, loadVisibleLeague } from '../leagues/league.access.js'
 import { LeagueModel } from '../leagues/league.model.js'
 import { PartyModel, readLineup, storedLineup } from '../leagues/party.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
-import { dueWeekCount, getLineup, type LineupView } from '../season/season.service.js'
+import { getLineup, lockedThisWeek, readyWeekCount, type LineupView } from '../season/season.service.js'
 import { RosterMoveModel } from './rosterMove.model.js'
+
+const { trusted } = mongoose
 
 /*
  * Roster changes after the draft. Free agency: any undrafted (or dropped) hero can be claimed by
@@ -26,12 +29,19 @@ export async function claimFreeAgent(
   if (league.status !== 'active') throw new Conflict('Free agents can be claimed after the draft and until the season ends')
   if (heroId === dropHeroId) throw new BadRequest('Choose a different hero to drop')
   const { slots, classLimits } = getRuleset(league.rulesetVersion).lineup
+  const ready = await readyWeekCount(league)
+  // Crossover: players whose game this week has kicked off (computed before the transaction; kickoffs don't move).
+  const locked = await lockedThisWeek(league, await HeroModel.find({ leagueId: league._id, _id: trusted({ $in: [heroId, dropHeroId] }) }).select('+source'))
+  const lineupBefore = readLineup(party.lineup) ?? {}
+  if (locked.has(dropHeroId) && Object.values(lineupBefore).includes(dropHeroId)) {
+    throw new Conflict('That hero is in this week’s lineup and their game has kicked off; drop them after the week')
+  }
 
   await inTransaction(async session => {
     // Every due battle must already be resolved, so a claim never changes a week that is due. Writing
     // the league also makes this transaction conflict with a battle being resolved at the same moment.
     const upToDate = await LeagueModel.updateOne(
-      { _id: league._id, status: 'active', resolvedWeeks: dueWeekCount(league) },
+      { _id: league._id, status: 'active', resolvedWeeks: ready },
       { $set: { updatedAt: new Date() } },
       { session }
     )
@@ -72,11 +82,21 @@ export async function claimFreeAgent(
     const lineup = readLineup(current?.lineup) ?? {}
     const slot = Object.keys(lineup).find(key => lineup[key] === dropped.id)
     let next = lineup
-    if (slot) {
-      const fits = slots.find(rule => rule.key === slot)?.classes.includes(claimed.heroClass)
-      next = fits
-        ? { ...lineup, [slot]: claimed.id }
-        : autoLineup(roster.map(hero => ({ id: hero.id, heroClass: hero.heroClass, value: expectedLevel(hero) })), slots)
+    const rule = slots.find(entry => entry.key === slot)
+    if (slot && rule) {
+      const fits = rule.classes.includes(claimed.heroClass) && !locked.has(claimed.id)
+      if (fits) next = { ...lineup, [slot]: claimed.id }
+      else if (league.mode === 'crossover') {
+        // Kickoff locks: refill only the open slot, from bench heroes who haven't played yet this week.
+        const starters = new Set(Object.values(lineup))
+        const benchLocked = await lockedThisWeek(league, await HeroModel.find({ leagueId: league._id, partyId: party._id }).select('+source').session(session))
+        const bench = roster
+          .filter(hero => !starters.has(hero.id) && !benchLocked.has(hero.id))
+          .map(hero => ({ id: hero.id, heroClass: hero.heroClass, value: expectedLevel(hero) }))
+        const fill = bestForSlot(bench, rule)
+        if (!fill) throw new BadRequest(`Nobody on your bench who hasn’t played yet can fill your ${rule.label} slot this week`)
+        next = { ...lineup, [slot]: fill.id }
+      } else next = autoLineup(roster.map(hero => ({ id: hero.id, heroClass: hero.heroClass, value: expectedLevel(hero) })), slots)
     }
     const championDropped = current?.champion?.equals(dropped._id) ?? false
     await PartyModel.updateOne(

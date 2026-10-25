@@ -5,10 +5,10 @@ import { HeroModel } from '../heroes/hero.model.js'
 import type { Crest } from '../leagues/crests.js'
 import { LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
 import { PartyModel, readLineup, type PartyDocument } from '../leagues/party.model.js'
-import { getRuleset } from '../scoring/rulesets.js'
+
 import type { Outcome } from './battle.js'
 import { monsterName } from './monsters.js'
-import { heroPoints, nextWeek } from './season.service.js'
+import { nextWeek, restingHeroes } from './season.service.js'
 import { WeekResultModel } from './weekResult.model.js'
 
 /*
@@ -65,8 +65,7 @@ async function upcoming(league: LeagueDocument, party: PartyDocument): Promise<P
     opponentId ? PartyModel.findById(opponentId, 'name crest') : null,
     HeroModel.find({ _id: trusted({ $in: lineup }), partyId: party._id }).select('+source')
   ])
-  const season = hidden?.season
-  const points = season === undefined || season === null ? null : await heroPoints(starters, season, next.week, getRuleset(league.rulesetVersion))
+  const resting = await restingHeroes(league, starters, next.week)
   return {
     week: next.week,
     at: next.at,
@@ -74,7 +73,7 @@ async function upcoming(league: LeagueDocument, party: PartyDocument): Promise<P
     // The same name the battle will use.
     monster: !opponent && hidden?.seed ? monsterName(createRng(hidden.seed, `monster-${String(next.week)}`)) : null,
     noChampion: !party.champion,
-    restingStarters: points ? [...points.values()].filter(value => value.resting).length : 0
+    restingStarters: resting.size
   }
 }
 

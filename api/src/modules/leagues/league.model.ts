@@ -79,7 +79,12 @@ const leagueSchema = new Schema(
     // Game weeks resolved so far; also the optimistic-concurrency token for resolving the next one
     resolvedWeeks: { type: Number, required: true, default: 0 },
     // When the season finished or the league was canceled; starts the chat's retention clock
-    endedAt: { type: Date }
+    endedAt: { type: Date },
+    // Crossover only, set when the draft runs: the NFL week each game week uses and when it goes final
+    nflWeeks: {
+      type: [new Schema({ nflWeek: { type: Number, required: true }, finalAt: { type: Date, required: true } }, { _id: false })],
+      default: undefined
+    }
   },
   { timestamps: true }
 )

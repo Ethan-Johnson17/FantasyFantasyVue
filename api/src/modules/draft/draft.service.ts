@@ -12,7 +12,7 @@ import { CADENCE_MS, LeagueModel } from '../leagues/league.model.js'
 import { PartyModel, storedLineup } from '../leagues/party.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
 import { heroForm, type HeroForm } from '../season/form.service.js'
-import { crossoverWindow } from '../season/nflWeeks.js'
+import { crossoverWeeks, crossoverWindow } from '../season/nflWeeks.js'
 import { roundRobin } from '../season/schedule.js'
 import { loadPoolCandidates, pickSeason } from './candidates.js'
 import { loadCrossoverCandidates, type PlayerCard } from './crossoverCandidates.js'
@@ -142,9 +142,23 @@ export async function runDueDraft(leagueId: string): Promise<void> {
       }),
       { session }
     )
-    // Crossover's calendar follows the NFL's weeks; it's set up in a later build phase (docs/CROSSOVER_SPEC.md).
+    // Crossover follows the NFL: game week 1 is the first NFL week starting after the draft time, through week 17.
     if (league.mode === 'crossover') {
-      await LeagueModel.updateOne({ _id: league._id }, { $set: { draftOrder: order, draftPicks: picks } }, { session })
+      const { season, firstWeek } = await crossoverWindow(league.draftAt)
+      const nflWeeks = await crossoverWeeks(season, firstWeek)
+      await LeagueModel.updateOne(
+        { _id: league._id },
+        {
+          $set: {
+            draftOrder: order,
+            draftPicks: picks,
+            nflWeeks,
+            schedule: roundRobin(parties.map(party => party.id), createRng(league.seed, 'schedule'), nflWeeks.length),
+            weekOneAt: nflWeeks[0]?.finalAt
+          }
+        },
+        { session }
+      )
       return
     }
     await LeagueModel.updateOne(

@@ -147,7 +147,8 @@ export interface Lineup {
   /** The Champion named for the next battle */
   champion: string | null
   strategy: StrategyRules
-  roster: (Hero & { restingNextWeek: boolean; projected: number })[]
+  /** Crossover adds each hero's kickoff that week (null on a bye) and whether it has started (locked) */
+  roster: (Hero & { restingNextWeek: boolean; projected: number; kickoff?: string | null; locked?: boolean })[]
   nextWeek: number | null
   nextWeekAt: string | null
 }
@@ -173,10 +174,12 @@ export interface StrategyRules {
 
 export interface MatchupSide extends PartyRef {
   record: { wins: number; losses: number; draws: number }
-  starters: { slot: string; label: string; hero: (Hero & { restingNextWeek: boolean; projected: number }) | null }[]
+  starters: { slot: string; label: string; hero: (Hero & { restingNextWeek: boolean; projected: number; game?: LiveGame | null }) | null }[]
   champion: string | null
   /** Projected party total: starters who'll fight, with Champion and synergy bonuses */
   projectedTotal: number
+  /** Crossover game days: real damage for final games, projections for the rest; null otherwise */
+  liveTotal?: number | null
   /** Synergies this lineup would trigger if the battle resolved now */
   synergies: Synergy[]
 }
@@ -192,6 +195,8 @@ export interface Matchup {
   monster: { name: string } | null
   /** Earlier battles between us, oldest first */
   meetings: { week: number; myTotal: number; theirTotal: number; outcome: 'win' | 'loss' | 'draw' }[]
+  /** Crossover game days: how many of the NFL week's games are final; null otherwise */
+  games?: { final: number; total: number } | null
 }
 
 type AwardParty = PartyRef
@@ -299,4 +304,14 @@ export interface ChatPage {
   canModerate: boolean
   /** The league was canceled: messages can be read, not sent */
   readOnly: boolean
+}
+
+/** Crossover, next battle only: a starter's real NFL game that week. */
+export interface LiveGame {
+  kickoff: string
+  /** Kicked off: the player can't move in or out of the lineup */
+  locked: boolean
+  final: boolean
+  /** Fantasy points once the game is final; null until then */
+  points: number | null
 }
