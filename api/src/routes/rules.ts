@@ -12,7 +12,8 @@ export function rulesRouter({ crossoverEnabled }: { crossoverEnabled: boolean })
   return Router().get('/', (_req, res) => {
     const { lineup, strategy } = getRuleset(CURRENT_RULESET_VERSION)
     const crossover = CROSSOVER_V1
-    res.set('Cache-Control', 'public, max-age=3600')
+    // A minute, so switching Crossover on (or off) reaches everyone quickly.
+    res.set('Cache-Control', 'public, max-age=60')
     res.json({
       version: CURRENT_RULESET_VERSION,
       seasonWeeks: SEASON_WEEKS,
