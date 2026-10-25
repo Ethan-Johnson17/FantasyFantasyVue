@@ -295,6 +295,13 @@ export interface LineupView {
   /** Crossover only: the Quest party's hero ids, and how many it holds; null in Classic */
   questParty: string[] | null
   questPartySize: number | null
+  /** Crossover only: what the next week's Quest is fought with: the encounter, its modifiers, and class multipliers */
+  quest: {
+    encounter: { name: string; weak: string[]; resists: string } | null
+    weakMultiplier: number
+    resistMultiplier: number
+    classMultipliers: Record<string, number>
+  } | null
   /** The next game week to resolve, or null if the season is over or hasn't started */
   nextWeek: number | null
   nextWeekAt: Date | null
@@ -324,6 +331,7 @@ export async function getLineup(member: AccountDocument, leagueId: string): Prom
     })),
     questParty: ruleset.quest ? (party.questParty ?? []).map(String) : null,
     questPartySize: ruleset.quest?.partySize ?? null,
+    quest: ruleset.quest ? await questInfo(league, ruleset, next?.week ?? null) : null,
     nextWeek: next?.week ?? null,
     nextWeekAt: next?.at ?? null
   }
@@ -379,6 +387,17 @@ export async function setChampion(member: AccountDocument, leagueId: string, her
     { $set: { champion: heroId } }
   )
   return getLineup(member, leagueId)
+}
+
+async function questInfo(league: LeagueDocument, ruleset: Ruleset, week: number | null): Promise<NonNullable<LineupView['quest']>> {
+  const seed = week === null ? null : (await LeagueModel.findById(league._id).select('+seed'))?.seed
+  const encounter = seed && week !== null ? encounterFor(seed, week) : null
+  return {
+    encounter: encounter ? { name: encounter.name, weak: [...encounter.weak], resists: encounter.resists } : null,
+    weakMultiplier: ruleset.quest?.weakMultiplier ?? 1,
+    resistMultiplier: ruleset.quest?.resistMultiplier ?? 1,
+    classMultipliers: { ...ruleset.lineup.classMultipliers }
+  }
 }
 
 /**
@@ -457,6 +476,8 @@ interface PartyRef {
 
 export interface ScheduleWeekView {
   week: number
+  /** Crossover only: the real NFL week this game week follows */
+  nflWeek: number | null
   resolvesAt: Date | null
   matchups: {
     home: PartyRef
@@ -486,6 +507,7 @@ export async function getSchedule(viewer: AccountDocument, leagueId: string): Pr
     const result = resultByWeek.get(scheduled.week)
     return {
       week: scheduled.week,
+      nflWeek: league.mode === 'crossover' ? nflWeekOf(league, scheduled.week) : null,
       resolvesAt: resolvesAt(league, scheduled.week),
       matchups: scheduled.matchups.map(matchup => {
         const played = result?.matchups.find(m => m.home.partyId.equals(matchup.home))
@@ -531,6 +553,11 @@ interface SideView extends PartyRef {
     crit: Crit | null
     /** Crossover only: fought the encounter in the Quest party */
     quest: boolean
+    /**
+     * Crossover only: the player's real fantasy points that week, to one decimal. Never sent for Classic, where exact
+     * points could be matched to public stats to identify the hidden player.
+     */
+    points?: number
   }[]
 }
 
@@ -573,7 +600,8 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
       resting: line.resting,
       swappedInto: line.swappedInto ?? null,
       crit: critOf(foughtLine(line, !!ruleset.quest), heroById.get(line.heroId.toString())?.heroClass ?? 'Mage', ruleset),
-      quest: line.quest
+      quest: line.quest,
+      ...(ruleset.quest ? { points: Math.round(line.points * 10) / 10 } : {})
     }))
   })
 

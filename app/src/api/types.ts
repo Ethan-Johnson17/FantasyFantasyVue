@@ -43,6 +43,10 @@ export interface LeagueSummary {
   draftAt: string | null
   weekOneAt: string | null
   resolvedWeeks: number
+  /** Game weeks in the season (Crossover's depend on when it drafted) */
+  seasonWeeks?: number
+  /** When the next game week resolves, once the season has started */
+  nextResolvesAt?: string | null
   createdAt: string
 }
 
@@ -87,6 +91,8 @@ export interface CreateLeagueInput {
   visibility: Visibility
   cadence: Cadence
   maxParties: number
+  /** Classic unless given; Crossover leagues are always weekly */
+  mode?: LeagueMode
   party: PartyInput
 }
 
@@ -151,6 +157,16 @@ export interface Lineup {
   roster: (Hero & { restingNextWeek: boolean; projected: number; kickoff?: string | null; locked?: boolean })[]
   nextWeek: number | null
   nextWeekAt: string | null
+  /** Crossover only: the Quest party's hero ids and its size; null in Classic */
+  questParty?: string[] | null
+  questPartySize?: number | null
+  /** Crossover only: the next week's encounter and the Quest's modifiers */
+  quest?: {
+    encounter: Encounter | null
+    weakMultiplier: number
+    resistMultiplier: number
+    classMultipliers: Record<HeroClass, number>
+  } | null
 }
 
 /** The public numbers of the current ruleset (GET /api/rules). */
@@ -163,6 +179,28 @@ export interface GameRules {
   /** Most heroes of a class one party may hold */
   classLimits: Partial<Record<HeroClass, number>>
   strategy: StrategyRules
+  /** Crossover's rules, and whether its leagues can be created yet */
+  crossover?: CrossoverRules
+}
+
+export interface CrossoverRules {
+  available: boolean
+  rosterSize: number
+  /** Football lineup slot labels, in order */
+  slots: string[]
+  /** Leagues play through this NFL week, and need this many weeks left to start */
+  lastWeek: number
+  minWeeks: number
+  quest: QuestRules
+  encounters: Encounter[]
+}
+
+export interface QuestRules {
+  partySize: number
+  weakMultiplier: number
+  resistMultiplier: number
+  natural20Multiplier: number
+  natural1Multiplier: number
 }
 
 export interface StrategyRules {
@@ -253,11 +291,22 @@ export type Outcome = 'home' | 'away' | 'draw'
 
 export interface ScheduleWeek {
   week: number
+  /** Crossover only: the real NFL week this game week follows */
+  nflWeek?: number | null
   resolvesAt: string | null
   matchups: {
     home: PartyRef
     away: PartyRef | null
-    result: { homeTotal: number; awayTotal: number; outcome: Outcome; monster: string | null } | null
+    /** Classic: one battle. Crossover: totals and outcome are the Quest board; the gridiron fields the other board. */
+    result: {
+      homeTotal: number
+      awayTotal: number
+      outcome: Outcome
+      monster: string | null
+      homeGridiron?: number | null
+      awayGridiron?: number | null
+      gridironOutcome?: Outcome | null
+    } | null
   }[]
 }
 
@@ -270,10 +319,17 @@ export interface ResultHero {
   resting: boolean
   swappedInto: string | null
   crit: Crit | null
+  /** Crossover only: fought the encounter in the Quest party */
+  quest?: boolean
+  /** Crossover only: the player's real fantasy points that week */
+  points?: number
 }
 
 export interface ResultSide extends PartyRef {
+  /** Classic: the battle total. Crossover: the Quest board. */
   total: number
+  /** Crossover only: the Gridiron board, plain fantasy points */
+  gridiron?: number | null
   /** The Champion named that week, if any */
   champion: string | null
   synergies: Synergy[]
@@ -282,7 +338,17 @@ export interface ResultSide extends PartyRef {
 
 export interface WeekResult {
   week: number
-  matchups: { home: ResultSide; away: ResultSide | null; monster: { name: string; total: number } | null; outcome: Outcome }[]
+  matchups: {
+    home: ResultSide
+    away: ResultSide | null
+    monster: { name: string; total: number; gridiron?: number | null } | null
+    /** Classic: the battle. Crossover: the Quest board. */
+    outcome: Outcome
+    /** Crossover only: the Gridiron board */
+    gridironOutcome?: Outcome | null
+  }[]
+  /** Crossover only: the week's encounter */
+  encounter?: Encounter | null
 }
 
 export interface Standing extends PartyRef {

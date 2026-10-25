@@ -48,7 +48,7 @@ export function createApp({ env, logger, authenticate }: AppDependencies) {
 
   app.use('/health', healthRouter)
   // Public, so the rules can be read before signing in. Mounted ahead of the authenticated API.
-  app.use('/api/rules', rulesRouter)
+  app.use('/api/rules', rulesRouter({ crossoverEnabled: env.CROSSOVER_ENABLED ?? false }))
 
   const api = express.Router()
   api.use(authenticate, loadAccount)

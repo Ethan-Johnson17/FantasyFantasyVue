@@ -27,6 +27,10 @@ const times = (value: number) => `${String(value)}×`
 const percent = (value: number) => `${String(Math.round(value * 100))}%`
 const TRAIT_ORDER: HeroTrait[] = ['steadfast', 'wild', 'mighty']
 
+// Crossover is explained once its leagues can be created.
+const crossover = computed(() => (rules.value?.crossover?.available ? rules.value.crossover : null))
+const multiplierText = (value: number) => `×${String(value)}`
+
 const champion = computed(() =>
   rules.value
     ? `${times(rules.value.strategy.championMultiplier)} damage (${times(rules.value.strategy.mightyChampionMultiplier)} if they're Mighty)`
@@ -67,6 +71,7 @@ function back() {
       <a href="#projections">Projections</a>
       <a href="#crits">Natural 20s</a>
       <a href="#season">The season</a>
+      <a v-if="crossover" href="#crossover">Crossover</a>
     </nav>
 
     <section id="strength" class="section">
@@ -207,6 +212,44 @@ function back() {
       </ul>
     </section>
 
+    <section v-if="crossover" id="crossover" class="section">
+      <h2 class="section-title">Crossover</h2>
+      <p>
+        A second way to play, half football and half D&amp;D, so fans of either can play together. Everything above about
+        heroes, traits, the Champion and the draft still applies, with these differences.
+      </p>
+      <ul class="points">
+        <li>
+          <strong>Real players, this season.</strong> Each hero is a real NFL player or team defense, shown by name, and the
+          league follows the real NFL schedule through week {{ crossover.lastWeek }}. A league can start any week with at
+          least {{ crossover.minWeeks }} weeks left.
+        </li>
+        <li>
+          <strong>Two boards every week.</strong> <em>Gridiron</em>: your football lineup ({{ crossover.slots.join(', ') }}) scores
+          plain fantasy points. <em>Quest</em>: a party of {{ crossover.quest.partySize }} heroes, any class, from your whole
+          roster, fights the week's monster. Each board is a win: sweep both for 2–0, or split 1–1. Ties in the standings go
+          to total Gridiron points.
+        </li>
+        <li>
+          <strong>Encounters.</strong> Each monster is weak to two classes ({{ multiplierText(crossover.quest.weakMultiplier) }}
+          damage) and resists one ({{ multiplierText(crossover.quest.resistMultiplier) }}), and you see it ahead of time, so pick
+          your Quest party for it. Your Champion leads the Quest party, and natural 20s and 1s count here: a natural 20 deals
+          {{ multiplierText(crossover.quest.natural20Multiplier) }}, a natural 1 nothing.
+        </li>
+        <li>
+          <strong>Kickoff locks.</strong> Each player locks when their game starts, for both lineups, and unlocks when the week
+          ends. Scores fill in as games finish, and the week goes final the Tuesday morning after its games.
+        </li>
+      </ul>
+      <h3 class="sub-title">The monsters</h3>
+      <ul class="encounters">
+        <li v-for="encounter in crossover.encounters" :key="encounter.name">
+          <strong>{{ encounter.name }}</strong>
+          <span class="muted small">weak to {{ encounter.weak.join(' and ') }}s · resists {{ encounter.resists }}s</span>
+        </li>
+      </ul>
+    </section>
+
     <section class="section fine">
       <p class="muted">Free to play. No wagering, ever.</p>
       <p class="muted">Stats data provided by nflverse.</p>
@@ -311,5 +354,22 @@ function back() {
   .terms {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+.sub-title {
+  margin: 14px 0 4px;
+  font-size: 17px;
+}
+.encounters {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.encounters li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
 }
 </style>

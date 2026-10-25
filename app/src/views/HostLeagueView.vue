@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../api/inject'
-import type { Cadence, CreateLeagueInput, Visibility } from '../api/types'
+import type { Cadence, CreateLeagueInput, CrossoverRules, LeagueMode, Visibility } from '../api/types'
 import FormError from '../components/FormError.vue'
 import PartyFields from '../components/PartyFields.vue'
 import { DEFAULT_CREST } from '../crests'
@@ -15,6 +15,7 @@ const form = reactive<CreateLeagueInput>({
   visibility: 'private',
   cadence: 'daily',
   maxParties: 6,
+  mode: 'classic',
   party: { name: '', crest: { ...DEFAULT_CREST } }
 })
 // Matches the API's MIN_PARTIES..MAX_PARTIES (api/src/modules/leagues/league.model.ts)
@@ -26,6 +27,21 @@ const cadences: { value: Cadence; label: string; hint: string }[] = [
 const visibilities: { value: Visibility; label: string; hint: string }[] = [
   { value: 'private', label: 'Private', hint: 'Join by PIN only' },
   { value: 'public', label: 'Public', hint: 'Listed for anyone' }
+]
+
+// Crossover shows as a choice only once it's switched on for everyone (GET /api/rules).
+const crossover = ref<CrossoverRules | null>(null)
+onMounted(async () => {
+  try {
+    const rules = await api.getRules()
+    crossover.value = rules.crossover?.available ? rules.crossover : null
+  } catch {
+    // Without the rules, Classic is the only choice, as before.
+  }
+})
+const modes: { value: LeagueMode; label: string; hint: string }[] = [
+  { value: 'classic', label: 'Classic', hint: 'Heroes hide the real players behind them. Plays any time.' },
+  { value: 'crossover', label: 'Crossover', hint: 'Real NFL players this season. Football and a D&D quest each week.' }
 ]
 
 const submitting = ref(false)
@@ -71,7 +87,22 @@ async function submit() {
         <span class="muted hint">With an odd number of parties, one battles the dungeon monster each week.</span>
       </fieldset>
 
-      <fieldset class="choice">
+      <fieldset v-if="crossover" class="choice">
+        <legend class="field-label">Game</legend>
+        <div class="pair">
+          <label v-for="option in modes" :key="option.value" class="option" :class="{ on: (form.mode ?? 'classic') === option.value }">
+            <span class="option-title"><input v-model="form.mode" type="radio" name="mode" :value="option.value" />{{ option.label }}</span>
+            <span class="muted hint">{{ option.hint }}</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <p v-if="form.mode === 'crossover' && crossover" class="note small-note">
+        Crossover follows the real NFL schedule: each week's battles go final the Tuesday after its games, through NFL week
+        {{ crossover.lastWeek }}. Each week has two boards: Gridiron (your football lineup's fantasy points) and Quest (a party
+        of {{ crossover.quest.partySize }} heroes against a monster). <RouterLink to="/how-it-works#crossover">How it works</RouterLink>
+      </p>
+      <fieldset v-else class="choice">
         <legend class="field-label">Battles resolve</legend>
         <div class="pair">
           <label v-for="option in cadences" :key="option.value" class="option" :class="{ on: form.cadence === option.value }">
@@ -103,6 +134,10 @@ async function submit() {
 <style scoped>
 .title {
   font-size: 32px;
+}
+.small-note {
+  margin: 0;
+  font-size: 14px;
 }
 .form {
   display: flex;

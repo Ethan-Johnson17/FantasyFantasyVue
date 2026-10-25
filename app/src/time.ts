@@ -26,7 +26,20 @@ export function chatTime(at: Date, now: Date = new Date()): string {
   return `${at.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`
 }
 
+/** A league's season length: Crossover's depends on when it drafted, Classic's is always 14. */
+export function seasonWeeksOf(league: { seasonWeeks?: number } | null | undefined): number {
+  return league?.seasonWeeks || SEASON_WEEKS
+}
+
 /** When the next game week resolves, given week 1's time and weeks already played. */
 export function nextBattleAt(weekOneAt: string, resolvedWeeks: number, cadence: Cadence): Date {
   return new Date(new Date(weekOneAt).getTime() + resolvedWeeks * CADENCE_MS[cadence])
+}
+
+/** A kickoff for Crossover lineups: "Sun 1:00 PM" this week, with the date further out. */
+export function kickoffText(at: Date, now: Date = new Date()): string {
+  const time = at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  const day = at.toLocaleDateString([], { weekday: 'short' })
+  if (Math.abs(at.getTime() - now.getTime()) < 6 * DAY) return `${day} ${time}`
+  return `${day} ${at.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`
 }
