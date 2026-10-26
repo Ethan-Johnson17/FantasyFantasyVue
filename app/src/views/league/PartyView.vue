@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useApi } from '../../api/inject'
 import type { Hero, Lineup } from '../../api/types'
 import ClassIcon from '../../components/ClassIcon.vue'
@@ -10,6 +10,7 @@ import { useLeague } from '../../league'
 import { timeUntil } from '../../time'
 import PlayerTag from '../../components/PlayerTag.vue'
 import CrossoverParty from '../../components/CrossoverParty.vue'
+import SwapBar from '../../components/SwapBar.vue'
 
 const api = useApi()
 const { league, myParty } = useLeague()
@@ -62,15 +63,30 @@ const projected = computed(() => {
   return projectedTotal(fighters, champion.value, data.value.strategy)
 })
 
-function selectSlot(key: string) {
+const benchHeading = ref<HTMLElement | null>(null)
+const swappingOut = computed(() => heroById.value.get(draft.value[selectedSlot.value ?? ''] ?? '') ?? null)
+const swapChoices = computed(() => bench.value.filter(hero => canFill(hero)).length)
+/** The hero just swapped in, highlighted briefly so the change is easy to spot. */
+const justSwapped = ref<string | null>(null)
+
+async function selectSlot(key: string) {
   selectedSlot.value = selectedSlot.value === key ? null : key
   notice.value = ''
+  // Bring the bench into view: that's where the next tap goes.
+  if (selectedSlot.value) {
+    await nextTick()
+    benchHeading.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }
 }
 
 function swapIn(hero: Hero) {
   if (!selectedSlot.value || !canFill(hero)) return
   draft.value = { ...draft.value, [selectedSlot.value]: hero.id }
   selectedSlot.value = null
+  justSwapped.value = hero.id
+  setTimeout(() => {
+    if (justSwapped.value === hero.id) justSwapped.value = null
+  }, 1500)
 }
 
 function reset() {
@@ -160,16 +176,13 @@ async function toggleAutoSwap(event: Event) {
         <span v-if="data.nextWeek" class="projected-total" aria-label="Projected damage this battle">Projected {{ projected }}</span>
         <span v-else class="muted small">{{ data.slots.length }} slots · any class</span>
       </div>
-      <p v-if="selectedSlot" class="note small-note" role="status">
-        Choose a bench hero to start in {{ selectedRule?.label }}, or tap the slot again to cancel.
-      </p>
       <ol class="starters">
         <li v-for="{ slot, hero } in starters" :key="slot.key" class="starter">
           <template v-if="hero">
             <button
               type="button"
               class="hero-row"
-              :class="{ selected: selectedSlot === slot.key, resting: hero.restingNextWeek, champion: champion === hero.id }"
+              :class="{ selected: selectedSlot === slot.key, resting: hero.restingNextWeek, champion: champion === hero.id, swapped: justSwapped === hero.id }"
               :aria-pressed="selectedSlot === slot.key"
               @click="selectSlot(slot.key)"
             >
@@ -183,7 +196,8 @@ async function toggleAutoSwap(event: Event) {
                 <span v-else class="muted small">{{ hero.race }} {{ hero.heroClass }}</span>
                 <TraitChips :traits="hero.traits" />
               </span>
-              <span class="numbers">
+              <span v-if="selectedSlot === slot.key" class="swap-tag">Swapping out</span>
+              <span v-else class="numbers">
                 <span class="level">{{ levelText(hero) }}</span>
                 <span class="proj small">{{ hero.restingNextWeek ? 'Resting' : `Proj ${String(hero.projected)}` }}</span>
               </span>
@@ -220,7 +234,7 @@ async function toggleAutoSwap(event: Event) {
         </li>
       </ul>
 
-      <div class="row-heading">
+      <div ref="benchHeading" class="row-heading bench-heading">
         <h2 class="section-title">Bench</h2>
         <label class="toggle">
           <input type="checkbox" :checked="data.autoSwap" @change="toggleAutoSwap" />
@@ -236,7 +250,10 @@ async function toggleAutoSwap(event: Event) {
             :disabled="!!selectedSlot && !canFill(hero)"
             @click="selectedSlot ? swapIn(hero) : undefined"
           >
-            <span class="hero-name">{{ hero.name }}</span>
+            <span class="bench-top">
+              <span class="hero-name">{{ hero.name }}</span>
+              <span v-if="selectedSlot && canFill(hero)" class="swap-tag">Swap in</span>
+            </span>
             <PlayerTag :hero="hero" />
             <span class="muted small">
               {{ hero.heroClass }} · {{ levelText(hero) }} · {{ hero.restingNextWeek ? 'resting' : `proj ${String(hero.projected)}` }}
@@ -246,6 +263,8 @@ async function toggleAutoSwap(event: Event) {
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="details" :aria-label="`About ${hero.name}`">›</RouterLink>
         </li>
       </ul>
+
+      <SwapBar v-if="selectedSlot && swappingOut" :hero-name="swappingOut.name" :slot-label="selectedRule?.label ?? ''" :choices="swapChoices" @cancel="selectedSlot = null" />
 
       <p class="muted small help">Tap a starter, then a bench hero, to swap them; tap › for a hero's stats. If a starter rests and auto-swap is on, your best bench hero steps in at half damage. Benching your Champion withdraws them.</p>
 
@@ -316,9 +335,39 @@ async function toggleAutoSwap(event: Event) {
   text-align: left;
   cursor: pointer;
 }
+/* Selected for a swap: unmistakable, and different from the Champion's gold border. */
 .hero-row.selected {
-  border-color: var(--gold);
-  background: var(--surface-raised);
+  border: 2px solid var(--gold);
+  background: color-mix(in srgb, var(--gold) 16%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 25%, transparent);
+}
+.hero-row.swapped {
+  animation: swapped 1.5s ease-out;
+}
+@keyframes swapped {
+  from {
+    background: color-mix(in srgb, var(--gold) 30%, var(--surface));
+  }
+}
+.swap-tag {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--on-gold);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.bench-top {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.bench-heading {
+  scroll-margin-top: 12px;
 }
 .numbers {
   flex: none;
@@ -477,7 +526,8 @@ async function toggleAutoSwap(event: Event) {
   cursor: pointer;
 }
 .bench-hero.eligible {
-  border-color: var(--gold);
+  border: 2px solid var(--gold);
+  background: var(--surface);
 }
 .bench-hero:disabled {
   opacity: 0.45;

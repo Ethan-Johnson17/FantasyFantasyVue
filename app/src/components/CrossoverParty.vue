@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useApi } from '../api/inject'
 import type { Hero, Lineup } from '../api/types'
 import { activeSynergies, levelText, levelValue, projectedTotal, synergyInfo } from '../heroes'
@@ -9,6 +9,7 @@ import ClassIcon from './ClassIcon.vue'
 import EncounterCard from './EncounterCard.vue'
 import FormError from './FormError.vue'
 import PlayerTag from './PlayerTag.vue'
+import SwapBar from './SwapBar.vue'
 import TraitChips from './TraitChips.vue'
 
 /*
@@ -60,16 +61,30 @@ const selectedRule = computed(() => data.value?.slots.find(slot => slot.key === 
 const canFill = (hero: Hero) => !!selectedRule.value && selectedRule.value.classes.includes(hero.heroClass)
 const isLocked = (hero: RosterHero) => !!hero.locked
 
-function selectSlot(key: string) {
+const benchHeading = ref<HTMLElement | null>(null)
+const swappingOut = computed(() => heroById.value.get(draft.value[selectedSlot.value ?? ''] ?? '') ?? null)
+const swapChoices = computed(() => bench.value.filter(hero => canFill(hero) && !isLocked(hero)).length)
+/** The player just swapped in, highlighted briefly so the change is easy to spot. */
+const justSwapped = ref<string | null>(null)
+
+async function selectSlot(key: string) {
   const hero = heroById.value.get(draft.value[key] ?? '')
   if (hero && isLocked(hero)) return
   selectedSlot.value = selectedSlot.value === key ? null : key
   notice.value = ''
+  if (selectedSlot.value) {
+    await nextTick()
+    benchHeading.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }
 }
 function swapIn(hero: RosterHero) {
   if (!selectedSlot.value || !canFill(hero) || isLocked(hero)) return
   draft.value = { ...draft.value, [selectedSlot.value]: hero.id }
   selectedSlot.value = null
+  justSwapped.value = hero.id
+  setTimeout(() => {
+    if (justSwapped.value === hero.id) justSwapped.value = null
+  }, 1500)
 }
 
 /** A player's game this week: a bye, kicked off, or when it kicks off. */
@@ -190,14 +205,13 @@ function cancelQuest() {
       <h2 class="section-title">Football lineup</h2>
       <span class="muted small">Scores Gridiron</span>
     </div>
-    <p v-if="selectedSlot" class="note small-note" role="status">Choose a bench player for {{ selectedRule?.label }}, or tap the slot again to cancel.</p>
     <ol class="list">
       <li v-for="{ slot, hero } in starters" :key="slot.key">
         <button
           v-if="hero"
           type="button"
           class="row"
-          :class="{ selected: selectedSlot === slot.key, locked: hero.locked, resting: hero.restingNextWeek }"
+          :class="{ selected: selectedSlot === slot.key, locked: hero.locked, resting: hero.restingNextWeek, swapped: justSwapped === hero.id }"
           :aria-pressed="selectedSlot === slot.key"
           :disabled="hero.locked"
           @click="selectSlot(slot.key)"
@@ -208,14 +222,15 @@ function cancelQuest() {
             <PlayerTag :hero="hero" />
             <span class="muted small game"><span v-if="hero.locked" aria-hidden="true">🔒 </span>{{ gameText(hero) }}</span>
           </span>
-          <span class="numbers">
+          <span v-if="selectedSlot === slot.key" class="swap-tag">Swapping out</span>
+          <span v-else class="numbers">
             <span class="level">{{ levelText(hero) }}</span>
             <span class="muted small">proj {{ hero.projected }}</span>
           </span>
         </button>
       </li>
     </ol>
-    <h3 class="sub-title">Bench</h3>
+    <h3 ref="benchHeading" class="sub-title bench-heading">Bench</h3>
     <ul class="list">
       <li v-for="hero in bench" :key="hero.id">
         <button
@@ -231,10 +246,12 @@ function cancelQuest() {
             <PlayerTag :hero="hero" />
             <span class="muted small game"><span v-if="hero.locked" aria-hidden="true">🔒 </span>{{ gameText(hero) }}</span>
           </span>
-          <span class="numbers"><span class="level">{{ levelText(hero) }}</span></span>
+          <span v-if="selectedSlot && canFill(hero) && !hero.locked" class="swap-tag">Swap in</span>
+          <span v-else class="numbers"><span class="level">{{ levelText(hero) }}</span></span>
         </button>
       </li>
     </ul>
+    <SwapBar v-if="selectedSlot && swappingOut" :hero-name="swappingOut.name" :slot-label="selectedRule?.label ?? ''" :choices="swapChoices" @cancel="selectedSlot = null" />
     <div v-if="lineupChanged" class="actions">
       <button type="button" class="btn btn-secondary" :disabled="saving" @click="draft = { ...(data.lineup ?? {}) }">Undo</button>
       <button type="button" class="btn btn-primary" :disabled="saving" @click="saveLineup">{{ saving ? 'Saving…' : 'Save lineup' }}</button>
@@ -391,10 +408,38 @@ function cancelQuest() {
 .row:disabled {
   cursor: default;
 }
-.row.selected,
-.row.eligible,
+/* Selected for a swap: unmistakable, and different from the Champion's gold edge. */
+.row.selected {
+  border: 2px solid var(--gold);
+  background: color-mix(in srgb, var(--gold) 16%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 25%, transparent);
+}
+.row.eligible {
+  border: 2px solid var(--gold);
+}
 .row.on {
   border-color: var(--gold);
+}
+.row.swapped {
+  animation: swapped 1.5s ease-out;
+}
+@keyframes swapped {
+  from {
+    background: color-mix(in srgb, var(--gold) 30%, var(--surface));
+  }
+}
+.swap-tag {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--on-gold);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.bench-heading {
+  scroll-margin-top: 12px;
 }
 .row.champion {
   border-color: var(--gold);

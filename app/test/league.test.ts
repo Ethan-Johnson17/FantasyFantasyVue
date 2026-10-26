@@ -161,6 +161,24 @@ describe('Party tab', () => {
     expect(wrapper.text()).toContain('Lineup saved.')
   })
 
+  it('makes a swap in progress unmistakable, and lets it be cancelled', async () => {
+    const api = fakeApi({ getLineup: vi.fn().mockResolvedValue(lineupData()) })
+    const { wrapper } = await mountLeague(PartyView, api, detail({ status: 'active', parties: [party('p1', true)] }))
+    expect(wrapper.find('.swap-bar').exists()).toBe(false)
+
+    await wrapper.find('.starters .hero-row').trigger('click')
+    expect(wrapper.find('.starters .hero-row').classes()).toContain('selected')
+    expect(wrapper.find('.starters .hero-row').text()).toContain('Swapping out')
+    expect(wrapper.find('.swap-bar').text()).toContain('Swapping out Hero h1')
+    expect(wrapper.find('.swap-bar').text()).toContain('1 can play here')
+    expect(wrapper.find('.bench-hero').text()).toContain('Swap in')
+
+    await wrapper.findAll('.swap-bar button').find(b => b.text() === 'Cancel')!.trigger('click')
+    expect(wrapper.find('.swap-bar').exists()).toBe(false)
+    expect(wrapper.find('.starters .hero-row').classes()).not.toContain('selected')
+    expect(wrapper.find('.bench-hero').text()).not.toContain('Swap in')
+  })
+
   it('links every hero, starters and bench, to their stats page', async () => {
     const api = fakeApi({ getLineup: vi.fn().mockResolvedValue(lineupData()) })
     const { wrapper } = await mountLeague(PartyView, api, detail({ status: 'active', parties: [party('p1', true)] }))
