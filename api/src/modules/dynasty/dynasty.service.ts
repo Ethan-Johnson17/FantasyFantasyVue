@@ -7,7 +7,7 @@ import { loadPoolCandidates } from '../draft/candidates.js'
 import type { DraftHero, DraftOptions } from '../draft/snakeDraft.js'
 import { generateAppearances } from '../heroes/generator.js'
 import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
-import { expectedLevel, selectHeroPool, type HeroTrait, type PoolEntry } from '../heroes/pool.js'
+import { expectedLevel, selectHeroPool, type HeroTrait, type PoolCandidate, type PoolEntry } from '../heroes/pool.js'
 import { inTransaction, loadLeagueAsHost, loadLeagueAsMember } from '../leagues/league.access.js'
 import { LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
 import { PartyModel, type PartyDocument } from '../leagues/party.model.js'
@@ -16,6 +16,8 @@ import { getRuleset, type Ruleset } from '../scoring/rulesets.js'
 import { computeStandings } from '../season/season.service.js'
 import { LAST_MATCHUP_WEEK } from '../draft/candidates.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models.js'
+import { WeekResultModel } from '../season/weekResult.model.js'
+import { chooseEarnedTrait, TOP_XP_TIER, withEarnedTrait, xpTier, xpView, type XpView } from './xp.js'
 
 /*
  * Dynasty: a Classic league that plays a chain of hidden seasons (docs/DYNASTY_SPEC.md). Each season is its own
@@ -122,6 +124,10 @@ export interface KeeperOption {
   /** No games this season: can't be kept */
   retired: boolean
   kept: boolean
+  /** XP they'd carry into this season if kept: what they had plus the damage they dealt for you last season */
+  xp: XpView
+  /** Kept, they'd reach the top tier and earn this trait (or keep the one they earned before) */
+  earnedTrait: HeroTrait | null
 }
 
 export interface KeepersView {
@@ -135,18 +141,23 @@ export async function getKeepers(member: AccountDocument, leagueId: string): Pro
   const { league, party } = await loadLaterSeason(member, leagueId)
   const previousRoster = await previousHeroes(party)
   const relevel = await releveler(league, getRuleset(league.rulesetVersion))
+  const carried = await carriedXp(previousRoster)
   const kept = new Set((party.keepers ?? []).map(String))
   const options = previousRoster.map(hero => {
     const next = relevel(hero)
+    const xp = carried.get(hero.id) ?? 0
+    const earnedTrait = next ? (hero.earnedTrait ?? (xpTier(xp) >= TOP_XP_TIER ? next.earnable : null)) : null
     return {
       heroId: hero.id,
       name: hero.name,
       heroClass: hero.heroClass,
       previousLevel: hero.level ?? null,
       level: next?.level ?? null,
-      traits: next?.traits ?? [],
+      traits: next ? withEarnedTrait(next.traits, earnedTrait) : [],
       retired: !next,
-      kept: kept.has(hero.id)
+      kept: kept.has(hero.id),
+      xp: xpView(xp),
+      earnedTrait
     }
   })
   options.sort((a, b) => (b.level ?? -1) - (a.level ?? -1) || a.name.localeCompare(b.name))
@@ -195,10 +206,15 @@ const sourceKey = (source: { kind: string; id: string }) => `${source.kind}|${so
  * rest of this season's pool. A hero who played this season but missed the pool (too few games last season) is
  * Level 1; one with no games this season has retired (null).
  */
-async function releveler(league: LeagueDocument, ruleset: Ruleset): Promise<(hero: HeroDocument) => Pick<PoolEntry, 'level' | 'traits'> | null> {
+async function releveler(
+  league: LeagueDocument,
+  ruleset: Ruleset
+): Promise<(hero: HeroDocument) => (Pick<PoolEntry, 'level' | 'traits'> & { earnable: HeroTrait | null }) | null> {
   const season = (await LeagueModel.findById(league._id).select('+season'))?.season
   if (season === undefined || season === null) throw new Error(`League ${league.id} is missing its season`)
-  const pool = selectHeroPool(await loadPoolCandidates(season, ruleset), Math.max(2, league.partyCount), ruleset.pool)
+  const candidates = await loadPoolCandidates(season, ruleset)
+  const candidateBySource = new Map(candidates.map(candidate => [sourceKey({ kind: candidate.sourceKind, id: candidate.sourceId }), candidate]))
+  const pool = selectHeroPool(candidates, Math.max(2, league.partyCount), ruleset.pool)
   const bySource = new Map(pool.map(entry => [sourceKey({ kind: entry.sourceKind, id: entry.sourceId }), entry]))
   const [players, teams] = await Promise.all([
     PlayerWeekStatModel.distinct('playerId', { season, seasonType: 'REG', week: trusted({ $lte: LAST_MATCHUP_WEEK }) }),
@@ -208,9 +224,44 @@ async function releveler(league: LeagueDocument, ruleset: Ruleset): Promise<(her
   return hero => {
     const key = sourceKey(hero.source)
     const entry = bySource.get(key)
-    if (entry) return { level: entry.level ?? 1, traits: entry.traits }
-    return playing.has(key) ? { level: 1, traits: [] } : null
+    const candidate = candidateBySource.get(key)
+    const traits = entry?.traits ?? []
+    // The trait they'd earn at the top XP tier, judged against their class this season.
+    const earnable = chooseEarnedTrait({ heroClass: hero.heroClass, traits, ...pick(candidate) }, candidates)
+    if (entry) return { level: entry.level ?? 1, traits, earnable }
+    return playing.has(key) ? { level: 1, traits: [], earnable } : null
   }
+}
+
+const pick = (candidate: PoolCandidate | undefined) => ({
+  ...(candidate?.volatility !== undefined ? { volatility: candidate.volatility } : {}),
+  ...(candidate?.ceiling !== undefined ? { ceiling: candidate.ceiling } : {})
+})
+
+/**
+ * XP each of last season's heroes would carry into this one: what they carried into last season plus the damage they
+ * dealt for the party that ends the season with them (bench weeks count nothing).
+ */
+async function carriedXp(heroes: readonly HeroDocument[]): Promise<Map<string, number>> {
+  const byLeague = new Map<string, HeroDocument[]>()
+  for (const hero of heroes) byLeague.set(hero.leagueId.toString(), [...(byLeague.get(hero.leagueId.toString()) ?? []), hero])
+  const result = new Map<string, number>()
+  for (const [leagueId, members] of byLeague) {
+    const partyOf = new Map(members.map(hero => [hero.id, hero.partyId?.toString() ?? null]))
+    const earned = new Map<string, number>()
+    for (const week of await WeekResultModel.find({ leagueId })) {
+      for (const matchup of week.matchups) {
+        for (const side of matchup.away ? [matchup.home, matchup.away] : [matchup.home]) {
+          for (const line of side.heroes) {
+            const id = line.heroId.toString()
+            if (partyOf.get(id) === side.partyId.toString()) earned.set(id, (earned.get(id) ?? 0) + line.counted)
+          }
+        }
+      }
+    }
+    for (const hero of members) result.set(hero.id, hero.xp + (earned.get(hero.id) ?? 0))
+  }
+  return result
 }
 
 // ---------------------------------------------------------------------------
@@ -231,7 +282,10 @@ export async function buildDynastyPool(league: LeagueDocument, season: number, r
   const parties = await PartyModel.find({ leagueId: league._id })
   const keptIds = parties.flatMap(party => (party.keepers ?? []).map(id => ({ heroId: id, partyId: party._id })))
   const keptHeroes = await HeroModel.find({ _id: trusted({ $in: keptIds.map(entry => entry.heroId) }) }).select('+source')
-  const pool = selectHeroPool(await loadPoolCandidates(season, ruleset), league.partyCount, ruleset.pool)
+  const candidates = await loadPoolCandidates(season, ruleset)
+  const candidateBySource = new Map(candidates.map(candidate => [sourceKey({ kind: candidate.sourceKind, id: candidate.sourceId }), candidate]))
+  const pool = selectHeroPool(candidates, league.partyCount, ruleset.pool)
+  const carried = await carriedXp(keptHeroes)
   const bySource = new Map(pool.map(entry => [sourceKey({ kind: entry.sourceKind, id: entry.sourceId }), entry]))
   const keptSources = new Set(keptHeroes.map(hero => sourceKey(hero.source)))
 
@@ -239,6 +293,14 @@ export async function buildDynastyPool(league: LeagueDocument, season: number, r
     const hero = keptHeroes.find(entry => entry._id.equals(heroId))
     if (!hero) return []
     const entry = bySource.get(sourceKey(hero.source))
+    const xp = carried.get(hero.id) ?? 0
+    const traits = entry?.traits ?? []
+    // Reaching the top XP tier earns one trait, kept for as long as the party keeps the hero.
+    const earnedTrait =
+      hero.earnedTrait ??
+      (xpTier(xp) >= TOP_XP_TIER
+        ? chooseEarnedTrait({ heroClass: hero.heroClass, traits, ...pick(candidateBySource.get(sourceKey(hero.source))) }, candidates)
+        : null)
     return [
       {
         leagueId: league._id,
@@ -254,9 +316,11 @@ export async function buildDynastyPool(league: LeagueDocument, season: number, r
         magic: hero.magic,
         level: entry?.level ?? 1,
         levelRange: null,
-        traits: entry?.traits ?? [],
+        traits: withEarnedTrait(traits, earnedTrait),
         source: { kind: hero.source.kind, id: hero.source.id },
-        previousHeroId: hero._id
+        previousHeroId: hero._id,
+        xp,
+        earnedTrait
       }
     ]
   })

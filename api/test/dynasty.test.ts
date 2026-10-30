@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createRng } from '../src/lib/random.js'
 import { LAST_LEAGUE_SEASON, pickSeason } from '../src/modules/draft/candidates.js'
 import { DYNASTY_KEEPERS } from '../src/modules/dynasty/dynasty.service.js'
+import { chooseEarnedTrait, withEarnedTrait, XP_TIERS, xpMultiplier, xpTier, xpView } from '../src/modules/dynasty/xp.js'
+import { WeekResultModel } from '../src/modules/season/weekResult.model.js'
 import { generateAppearances } from '../src/modules/heroes/generator.js'
 import type { PoolEntry } from '../src/modules/heroes/pool.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../src/modules/stats/stats.models.js'
@@ -19,7 +21,18 @@ const crest = { emblem: 'crown', banner: 'crimson' }
 
 interface Keepers {
   limit: number
-  options: { heroId: string; name: string; heroClass: string; previousLevel: number | null; level: number | null; retired: boolean; kept: boolean }[]
+  options: {
+    heroId: string
+    name: string
+    heroClass: string
+    previousLevel: number | null
+    level: number | null
+    traits: string[]
+    retired: boolean
+    kept: boolean
+    xp: { xp: number; tier: number; bonus: number; nextTierAt: number | null }
+    earnedTrait: string | null
+  }[]
 }
 
 beforeEach(async () => {
@@ -260,5 +273,171 @@ describe('keepers', () => {
   it('are only for later dynasty seasons', async () => {
     const id = await createDynasty()
     expect((await alice.get(`/api/leagues/${id}/keepers`)).status).toBe(404)
+  })
+})
+
+describe('experience', () => {
+  it('sets tiers, a damage bonus up to +4%, and the next goal', () => {
+    expect(XP_TIERS).toEqual([150, 300, 450, 600])
+    expect([0, 149, 150, 449, 450, 600, 5000].map(xpTier)).toEqual([0, 0, 1, 2, 3, 4, 4])
+    expect(xpMultiplier(0)).toBe(1)
+    expect(xpMultiplier(600)).toBeCloseTo(1.04)
+    expect(xpView(320.4)).toEqual({ xp: 320, tier: 2, bonus: 0.02, nextTierAt: 450 })
+    expect(xpView(700).nextTierAt).toBeNull()
+  })
+
+  it('earns the trait a hero is closest to, never one that conflicts', () => {
+    const peers = Array.from({ length: 10 }, (_, i) => ({
+      sourceKind: 'player' as const,
+      sourceId: `p${String(i)}`,
+      heroClass: 'Mage' as const,
+      ppg: 10,
+      volatility: i / 10,
+      ceiling: i * 3
+    }))
+    // Steadiest of the class but an average ceiling: Steadfast.
+    expect(chooseEarnedTrait({ heroClass: 'Mage', traits: [], volatility: 0.01, ceiling: 13 }, peers)).toBe('steadfast')
+    // Already Wild, so not Steadfast; the best remaining is Mighty.
+    expect(chooseEarnedTrait({ heroClass: 'Mage', traits: ['wild'], volatility: 0.01, ceiling: 13 }, peers)).toBe('mighty')
+    expect(chooseEarnedTrait({ heroClass: 'Mage', traits: ['steadfast', 'mighty'], volatility: 0.5, ceiling: 13 }, peers)).toBeNull()
+    expect(withEarnedTrait(['mighty'], 'steadfast')).toEqual(['steadfast', 'mighty'])
+    expect(withEarnedTrait(['wild'], 'steadfast')).toEqual(['wild'])
+  })
+
+  /** A finished first season, the next season opened, and Alice's best active hero from last season. */
+  async function afterSeasonOne() {
+    const id = await createDynasty()
+    await draft(id)
+    await finish(id)
+    const nextId = await nextSeason(id)
+    const oldParty = (await PartyModel.findOne({ leagueId: id, name: 'Member 0' }))!
+    return { id, nextId, oldParty }
+  }
+
+  /** Damage a hero dealt for a party in a league's results. */
+  async function damageFor(leagueId: string, heroId: string, partyId: string) {
+    let total = 0
+    for (const week of await WeekResultModel.find({ leagueId })) {
+      for (const matchup of week.matchups) {
+        for (const side of matchup.away ? [matchup.home, matchup.away] : [matchup.home]) {
+          if (side.partyId.toString() !== partyId) continue
+          for (const line of side.heroes) if (line.heroId.toString() === heroId) total += line.counted
+        }
+      }
+    }
+    return total
+  }
+
+  it('is the damage a hero dealt for the party, shown on the keeper screen', async () => {
+    const { id, nextId, oldParty } = await afterSeasonOne()
+    const { options } = (await alice.get(`/api/leagues/${nextId}/keepers`)).body as Keepers
+    for (const option of options) {
+      const dealt = await damageFor(id, option.heroId, oldParty.id)
+      expect(option.xp.xp).toBe(Math.round(dealt))
+      expect(option.xp.tier).toBe(xpTier(dealt))
+    }
+    expect(options.some(option => option.xp.xp > 0)).toBe(true)
+  })
+
+  it('carries into the next season with its damage bonus, and resets when a hero changes hands', async () => {
+    const { id, nextId, oldParty } = await afterSeasonOne()
+    const { options } = (await alice.get(`/api/leagues/${nextId}/keepers`)).body as Keepers
+    const best = options.filter(option => !option.retired).sort((a, b) => b.xp.xp - a.xp.xp).slice(0, 3)
+    await alice.put(`/api/leagues/${nextId}/keepers`, { heroIds: best.map(option => option.heroId) })
+    await draft(nextId)
+
+    const kept = await HeroModel.find({ leagueId: nextId, previousHeroId: trusted({ $in: best.map(option => option.heroId) }) })
+    expect(kept).toHaveLength(3)
+    for (const hero of kept) {
+      const option = best.find(entry => entry.heroId === hero.previousHeroId!.toString())!
+      expect(Math.round(hero.xp)).toBe(option.xp.xp)
+      expect(Math.round(hero.xp)).toBe(Math.round(await damageFor(id, option.heroId, oldParty.id)))
+    }
+    // The hero list shows XP for kept heroes.
+    const listed = (await alice.get(`/api/leagues/${nextId}/heroes`)).body as { id: string; xp?: { tier: number } }[]
+    expect(listed.find(hero => hero.id === kept[0]!.id)?.xp?.tier).toBe(xpTier(kept[0]!.xp))
+
+    // In battle, a kept hero's class damage includes the bonus.
+    await makeWeeksDue(nextId, 1)
+    await host.get(`/api/leagues/${nextId}`)
+    const week = (await WeekResultModel.findOne({ leagueId: nextId, week: 1 }))!
+    const lines = week.matchups.flatMap(matchup => (matchup.away ? [matchup.home, matchup.away] : [matchup.home])).flatMap(side => side.heroes)
+    const boosted = kept.filter(hero => xpTier(hero.xp) > 0)
+    for (const hero of boosted) {
+      const line = lines.find(entry => entry.heroId.equals(hero._id))!
+      if (line.slot === 'Bench' || line.resting) continue
+      const classDamage = line.points * { Mage: 1, Warrior: 1.45, Ranger: 1.4, Rogue: 2.05, Paladin: 2.35 }[hero.heroClass]
+      // The Champion's multiplier may apply on top; the XP bonus is always there.
+      expect(line.counted / classDamage).toBeGreaterThanOrEqual(xpMultiplier(hero.xp) - 0.001)
+    }
+
+    // Dropped for a free agent: the kept hero loses their XP, and the free agent starts at 0.
+    const party = (await PartyModel.findOne({ leagueId: nextId, name: 'Member 0' }))!
+    const free = await HeroModel.findOne({ leagueId: nextId, partyId: null, heroClass: kept[0]!.heroClass })
+    if (free) {
+      expect((await alice.post(`/api/leagues/${nextId}/claims`, { heroId: free.id, dropHeroId: kept[0]!.id })).status).toBe(200)
+      expect((await HeroModel.findById(kept[0]!.id))!.xp).toBe(0)
+      expect((await HeroModel.findById(free.id))!.partyId?.equals(party._id)).toBe(true)
+      expect((await HeroModel.findById(free.id))!.xp).toBe(0)
+    }
+  })
+
+  it('only counts damage dealt for the party that keeps the hero', async () => {
+    const { id, nextId, oldParty } = await afterSeasonOne()
+    const before = ((await alice.get(`/api/leagues/${nextId}/keepers`)).body as Keepers).options[0]!
+    // A week the hero fought for Bob before Alice claimed them: it doesn't count toward Alice's XP.
+    const bobParty = (await PartyModel.findOne({ leagueId: id, name: 'Member 1' }))!
+    const side = (partyId: mongoose.Types.ObjectId, counted: number) => ({
+      partyId,
+      total: counted,
+      top: counted,
+      bench: 0,
+      heroes: [{ heroId: new mongoose.Types.ObjectId(before.heroId), slot: 'slot1', points: counted, resting: false, counted }]
+    })
+    await WeekResultModel.create({ leagueId: id, week: 15, matchups: [{ home: side(bobParty._id, 500), away: side(oldParty._id, 7), outcome: 'home' }] })
+    const after = ((await alice.get(`/api/leagues/${nextId}/keepers`)).body as Keepers).options.find(option => option.heroId === before.heroId)!
+    expect(after.xp.xp).toBe(Math.round(before.xp.xp + 7))
+  })
+
+  it('adds its bonus to a starter’s damage in battle', async () => {
+    const { nextId } = await afterSeasonOne()
+    const { options } = (await alice.get(`/api/leagues/${nextId}/keepers`)).body as Keepers
+    const keeper = options.find(option => !option.retired)!
+    await alice.put(`/api/leagues/${nextId}/keepers`, { heroIds: [keeper.heroId] })
+    await draft(nextId)
+    // Top-tier XP, starting, no Champion: their damage is exactly class damage x 1.04.
+    const hero = (await HeroModel.findOne({ leagueId: nextId, previousHeroId: keeper.heroId }))!
+    await HeroModel.updateOne({ _id: hero._id }, { $set: { xp: 600 } })
+    const party = (await PartyModel.findOne({ leagueId: nextId, name: 'Member 0' }))!
+    const lineup = party.lineup!.map(entry => ({ slot: entry.slot, heroId: entry.heroId }))
+    if (!lineup.some(entry => entry.heroId.equals(hero._id))) lineup[0] = { slot: lineup[0]!.slot, heroId: hero._id }
+    await PartyModel.updateOne({ _id: party._id }, { $set: { lineup, champion: null, autoSwap: false } })
+    await makeWeeksDue(nextId, 1)
+    await host.get(`/api/leagues/${nextId}`)
+    const week = (await WeekResultModel.findOne({ leagueId: nextId, week: 1 }))!
+    const line = week.matchups.flatMap(matchup => (matchup.away ? [matchup.home, matchup.away] : [matchup.home])).flatMap(entry => entry.heroes).find(entry => entry.heroId.equals(hero._id))!
+    const multipliers = { Mage: 1, Warrior: 1.45, Ranger: 1.4, Rogue: 2.05, Paladin: 2.35 }
+    expect(line.resting).toBe(false)
+    expect(line.counted).toBeCloseTo(line.points * multipliers[hero.heroClass] * 1.04, 1)
+  })
+
+  it('earns a trait at the top tier, kept for as long as the hero is', async () => {
+    const { nextId, oldParty } = await afterSeasonOne()
+    const { options } = (await alice.get(`/api/leagues/${nextId}/keepers`)).body as Keepers
+    // Someone who isn't already Mighty can always earn a trait.
+    const veteran = options.find(option => !option.retired && !option.traits.includes('mighty'))!
+    // As if they'd already built up years of XP with Alice.
+    await HeroModel.updateOne({ _id: veteran.heroId }, { $set: { xp: 1000 } })
+    const after = ((await alice.get(`/api/leagues/${nextId}/keepers`)).body as Keepers).options.find(option => option.heroId === veteran.heroId)!
+    expect(after.xp.tier).toBe(4)
+    expect(after.earnedTrait).not.toBeNull()
+    expect(after.traits).toContain(after.earnedTrait)
+
+    await alice.put(`/api/leagues/${nextId}/keepers`, { heroIds: [veteran.heroId] })
+    await draft(nextId)
+    const kept = (await HeroModel.findOne({ leagueId: nextId, previousHeroId: veteran.heroId }))!
+    expect(kept.earnedTrait).toBe(after.earnedTrait)
+    expect(kept.xp).toBeGreaterThanOrEqual(1000)
+    expect(oldParty).toBeDefined()
   })
 })

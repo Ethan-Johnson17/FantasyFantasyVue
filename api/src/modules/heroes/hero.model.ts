@@ -26,6 +26,10 @@ const heroSchema = new Schema(
     traits: { type: [{ type: String, enum: HERO_TRAITS }], default: [] },
     // Dynasty: the same hero last season, when a party kept them
     previousHeroId: { type: Schema.Types.ObjectId, ref: 'Hero', default: null },
+    // Dynasty: XP carried into this season (damage dealt in earlier seasons for the party that kept them), and the
+    // trait earned at the top XP tier. Both reset when the hero changes party. See modules/dynasty/xp.ts.
+    xp: { type: Number, default: 0, min: 0 },
+    earnedTrait: { type: String, enum: HERO_TRAITS, default: null },
     // Crossover only: the real player shown with the hero. Always null in Classic, whose players stay hidden.
     player: {
       type: new Schema(

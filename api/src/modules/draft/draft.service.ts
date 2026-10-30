@@ -17,6 +17,7 @@ import { roundRobin } from '../season/schedule.js'
 import { loadPoolCandidates, pickSeason } from './candidates.js'
 import { loadCrossoverCandidates, type PlayerCard } from './crossoverCandidates.js'
 import { buildDynastyPool, dynastyDraftOptions, isLaterDynastySeason } from '../dynasty/dynasty.service.js'
+import { xpView, type XpView } from '../dynasty/xp.js'
 import { DraftRankingModel } from './ranking.model.js'
 import { runSnakeDraft } from './snakeDraft.js'
 
@@ -50,6 +51,10 @@ export interface HeroView {
   partyId: string | null
   /** Crossover only: the real player. Never present in Classic, whose players stay hidden. */
   player?: PlayerCard
+  /** Dynasty only: XP carried into this season and its bonus, for heroes who have some */
+  xp?: XpView
+  /** Dynasty only: the trait earned at the top XP tier (also in `traits` unless it conflicts) */
+  earnedTrait?: HeroTrait
 }
 
 export async function scheduleDraft(host: AccountDocument, leagueId: string, draftAt: Date): Promise<void> {
@@ -254,6 +259,8 @@ export function toHeroView(hero: HeroDocument): HeroView {
     levelRange: hero.levelRange ? { min: hero.levelRange.min, max: hero.levelRange.max } : null,
     traits: [...hero.traits],
     partyId: hero.partyId?.toString() ?? null,
-    ...(hero.player ? { player: { name: hero.player.name, team: hero.player.team, position: hero.player.position } } : {})
+    ...(hero.player ? { player: { name: hero.player.name, team: hero.player.team, position: hero.player.position } } : {}),
+    ...(hero.xp > 0 ? { xp: xpView(hero.xp) } : {}),
+    ...(hero.earnedTrait ? { earnedTrait: hero.earnedTrait } : {})
   }
 }
