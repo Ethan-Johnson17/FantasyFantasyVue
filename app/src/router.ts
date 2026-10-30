@@ -30,7 +30,9 @@ export const routes: RouteRecordRaw[] = [
       { path: 'heroes/:heroId', name: 'hero', component: () => import('./views/league/HeroDetailView.vue') },
       { path: 'finale', name: 'finale', component: () => import('./views/league/FinaleView.vue') },
       { path: 'draft', name: 'draft', component: () => import('./views/league/DraftRecapView.vue') },
-      { path: 'chat', name: 'chat', component: () => import('./views/league/ChatView.vue') }
+      { path: 'chat', name: 'chat', component: () => import('./views/league/ChatView.vue') },
+      { path: 'keepers', name: 'keepers', component: () => import('./views/league/KeepersView.vue') },
+      { path: 'dynasty', name: 'dynasty', component: () => import('./views/league/DynastyView.vue') }
     ]
   },
   { path: '/:pathMatch(.*)*', redirect: '/leagues' }

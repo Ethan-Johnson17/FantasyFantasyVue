@@ -1,6 +1,6 @@
 # Dynasty Spec (Classic)
 
-> Status: **approved** (2026-10-29), including every *(default)*. Phases 1 (the chain and the offseason), 2 (XP) and 3 (members) are built.
+> Status: **approved** (2026-10-29), including every *(default)*. All four build phases are built (2026-10-30).
 
 ## Goals
 

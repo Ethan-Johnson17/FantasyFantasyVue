@@ -539,3 +539,47 @@ describe('members between seasons', () => {
     expect(await openParties(id)).toEqual([])
   })
 })
+
+describe('the dynasty summary', () => {
+  interface Summary {
+    seasons: number
+    current: number
+    history: { number: number; leagueId: string; status: string; champion: { name: string } | null }[]
+    standings: { name: string; titles: number; wins: number; losses: number; seasons: number; isMine: boolean }[]
+  }
+
+  it('lists every season with its champion, and all-time standings that follow each party', async () => {
+    const id = await createDynasty()
+    await draft(id)
+    await finish(id)
+    const nextId = await nextSeason(id)
+    // Alice leaves; Carol takes her party over and renames it.
+    const carol = as('auth0|carol')
+    await alice.post(`/api/leagues/${nextId}/leave`)
+    const open = ((await host.get(`/api/leagues/${nextId}`)).body as { openParties: { id: string }[] }).openParties[0]!
+    await carol.post('/api/leagues/join', { pin: (await LeagueModel.findById(nextId))!.pin, party: { name: 'Carol Reborn', crest }, takeOver: open.id })
+
+    const summary = (await carol.get(`/api/leagues/${nextId}/dynasty`)).body as Summary
+    expect(summary).toMatchObject({ seasons: 3, current: 2 })
+    expect(summary.history.map(season => [season.number, season.leagueId, season.status])).toEqual([
+      [1, id, 'complete'],
+      [2, nextId, 'forming']
+    ])
+    const firstStandings = (await host.get(`/api/leagues/${id}/standings`)).body as { name: string; wins: number }[]
+    expect(summary.history[0]!.champion?.name).toBe(firstStandings[0]!.name)
+    expect(summary.history[1]!.champion).toBeNull()
+
+    // Three parties all-time: Alice's line now shows as Carol's, with season one's record.
+    expect(summary.standings).toHaveLength(3)
+    const carolsLine = summary.standings.find(row => row.name === 'Carol Reborn')!
+    const aliceSeasonOne = firstStandings.find(row => row.name === 'Member 0')!
+    expect(carolsLine).toMatchObject({ wins: aliceSeasonOne.wins, seasons: 1, isMine: true })
+    expect(summary.standings.reduce((sum, row) => sum + row.titles, 0)).toBe(1)
+    expect(summary.standings[0]!.titles).toBe(1)
+  })
+
+  it('is only for dynasties', async () => {
+    const plain = await host.post('/api/leagues', { name: 'Plain', visibility: 'private', cadence: 'daily', maxParties: 4, party: { name: 'P', crest } })
+    expect((await host.get(`/api/leagues/${(plain.body as { id: string }).id}/dynasty`)).status).toBe(404)
+  })
+})

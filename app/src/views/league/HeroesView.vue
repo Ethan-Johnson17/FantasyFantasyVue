@@ -10,6 +10,7 @@ import { CLASS_COLOR, HERO_CLASSES, isMystery, levelText, levelValue } from '../
 import { useLeague } from '../../league'
 import { timeUntil } from '../../time'
 import PlayerTag from '../../components/PlayerTag.vue'
+import XpBadge from '../../components/XpBadge.vue'
 
 const api = useApi()
 const { league, myParty } = useLeague()
@@ -226,6 +227,7 @@ async function save() {
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
             <PlayerTag :hero="hero" />
+            <XpBadge v-if="hero.xp" :xp="hero.xp" />
             <span class="small" :style="{ color: CLASS_COLOR[hero.heroClass] }">
               {{ hero.race }} {{ hero.heroClass }}{{ isMystery(hero) ? ' · mystery recruit' : '' }}
             </span>
@@ -253,6 +255,7 @@ async function save() {
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
             <PlayerTag :hero="hero" />
+            <XpBadge v-if="hero.xp" :xp="hero.xp" />
             <span class="muted small">{{ hero.race }} {{ hero.heroClass }}{{ isMystery(hero) ? ' · mystery recruit' : '' }}</span>
             <TraitChips :traits="hero.traits" />
           </RouterLink>
@@ -288,6 +291,7 @@ async function save() {
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
             <PlayerTag :hero="hero" />
+            <XpBadge v-if="hero.xp" :xp="hero.xp" />
             <span class="muted small">{{ hero.race }} {{ hero.heroClass }}{{ isMystery(hero) ? ' · mystery recruit' : '' }}</span>
             <span v-if="formText(hero)" class="form small">{{ formText(hero) }}</span>
             <TraitChips :traits="hero.traits" />
@@ -304,6 +308,7 @@ async function save() {
           <RouterLink :to="`/leagues/${league?.id}/heroes/${hero.id}`" class="hero-text">
             <span class="hero-name">{{ hero.name }}</span>
             <PlayerTag :hero="hero" />
+            <XpBadge v-if="hero.xp" :xp="hero.xp" />
             <span class="muted small">{{ hero.heroClass }} · {{ partyName(hero.partyId) }}</span>
             <span v-if="formText(hero)" class="form small">{{ formText(hero) }}</span>
             <TraitChips :traits="hero.traits" />

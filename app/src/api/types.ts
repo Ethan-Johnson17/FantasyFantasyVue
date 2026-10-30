@@ -97,6 +97,8 @@ export interface CreateLeagueInput {
   maxParties: number
   /** Classic unless given; Crossover leagues are always weekly */
   mode?: LeagueMode
+  /** Classic only: play a dynasty of this many seasons */
+  dynastySeasons?: 3 | 5
   party: PartyInput
 }
 
@@ -123,7 +125,7 @@ export interface Hero {
   traits: HeroTrait[]
   partyId: string | null
   /** Dynasty only: XP carried into this season, its tier and damage bonus */
-  xp?: { xp: number; tier: number; bonus: number; nextTierAt: number | null }
+  xp?: HeroXp
   /** Dynasty only: the trait earned at the top XP tier */
   earnedTrait?: HeroTrait
   /** Crossover only: the real player. Classic heroes never have one. */
@@ -402,4 +404,46 @@ export interface LiveGame {
   final: boolean
   /** Fantasy points once the game is final; null until then */
   points: number | null
+}
+
+/** Dynasty: a hero's XP this season (docs/DYNASTY_SPEC.md) */
+export interface HeroXp {
+  xp: number
+  tier: number
+  /** Damage bonus, e.g. 0.02 for +2% */
+  bonus: number
+  nextTierAt: number | null
+}
+
+/** Dynasty, between seasons: one of last season's heroes, re-leveled for this season */
+export interface KeeperOption {
+  heroId: string
+  name: string
+  heroClass: HeroClass
+  previousLevel: number | null
+  /** Null when retired */
+  level: number | null
+  traits: HeroTrait[]
+  retired: boolean
+  kept: boolean
+  /** The XP they'd carry if kept */
+  xp: HeroXp
+  earnedTrait: HeroTrait | null
+}
+
+export interface Keepers {
+  limit: number
+  options: KeeperOption[]
+}
+
+interface DynastyParty {
+  name: string
+  crest: Crest
+}
+
+export interface DynastySummary {
+  seasons: number
+  current: number
+  history: { number: number; leagueId: string; status: LeagueStatus; champion: DynastyParty | null }[]
+  standings: (DynastyParty & { titles: number; wins: number; losses: number; draws: number; seasons: number; isMine: boolean })[]
 }

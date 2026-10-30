@@ -118,6 +118,9 @@ export function leagueRouter({ crossoverEnabled }: { crossoverEnabled: boolean }
       const nextId = await dynasty.startNextSeason(currentAccount(req), parseId(req.params.id))
       res.status(201).json(await leagues.getLeague(currentAccount(req), nextId))
     })
+    .get('/:id/dynasty', async (req, res) => {
+      res.json(await dynasty.getDynasty(currentAccount(req), parseId(req.params.id)))
+    })
     .get('/:id/keepers', async (req, res) => {
       res.json(await dynasty.getKeepers(currentAccount(req), parseId(req.params.id)))
     })

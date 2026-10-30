@@ -15,11 +15,27 @@ const router = useRouter()
 const pin = ref(normalizePin(typeof route.query.pin === 'string' ? route.query.pin : ''))
 const league = ref<LeagueSummary | null>(null)
 const party = reactive<PartyInput>({ name: '', crest: { ...DEFAULT_CREST } })
+/** Dynasty, between seasons: the open party being taken over, or null for a new party */
+const takeOver = ref<string | null>(null)
 const busy = ref(false)
 const error = ref<unknown>(null)
 
 const pinComplete = computed(() => pin.value.length === 6)
-const isFull = computed(() => !!league.value && league.value.partyCount >= league.value.maxParties)
+const openParties = computed(() => league.value?.openParties ?? [])
+// Open parties hold their places: a new party needs room beyond them, a takeover doesn't.
+const isFull = computed(
+  () => !!league.value && !takeOver.value && league.value.partyCount + openParties.value.length >= league.value.maxParties
+)
+
+/** Taking over suggests the party's own name and crest; the new member can change them. */
+function chooseTakeOver(id: string | null) {
+  takeOver.value = id
+  const open = openParties.value.find(entry => entry.id === id)
+  if (open) {
+    party.name = open.name
+    party.crest = { ...open.crest }
+  }
+}
 const isClosed = computed(() => !!league.value && league.value.status !== 'forming')
 
 function onPinInput(event: Event) {
@@ -48,7 +64,7 @@ async function join() {
   busy.value = true
   error.value = null
   try {
-    const joined = await api.joinLeague(pin.value, party)
+    const joined = takeOver.value ? await api.joinLeague(pin.value, party, takeOver.value) : await api.joinLeague(pin.value, party)
     await router.push(`/leagues/${joined.id}`)
   } catch (caught) {
     error.value = caught
@@ -98,13 +114,24 @@ async function join() {
           </dl>
         </section>
 
+        <fieldset v-if="openParties.length && !isClosed" class="choice">
+          <legend class="field-label">Your party</legend>
+          <p class="muted small">This dynasty has parties whose owners left. Take one over to inherit its history and keepers.</p>
+          <label class="option" :class="{ on: takeOver === null }">
+            <input type="radio" name="take-over" :checked="takeOver === null" @change="chooseTakeOver(null)" /> Start a new party
+          </label>
+          <label v-for="open in openParties" :key="open.id" class="option" :class="{ on: takeOver === open.id }">
+            <input type="radio" name="take-over" :checked="takeOver === open.id" @change="chooseTakeOver(open.id)" /> Take over {{ open.name }}
+          </label>
+        </fieldset>
+
         <p v-if="isClosed" class="error" role="status">This league has already started its draft, so it isn't taking new parties.</p>
         <p v-else-if="isFull" class="error" role="status">This league is full.</p>
         <template v-else>
           <PartyFields v-model="party" />
           <p class="note">Once the host schedules the draft, the party list locks, so join before then.</p>
           <button type="submit" class="btn btn-primary" :disabled="busy || !party.name">
-            {{ busy ? 'Joining…' : `Join ${league.name}` }}
+            {{ busy ? 'Joining…' : takeOver ? 'Take over and join' : `Join ${league.name}` }}
           </button>
         </template>
       </template>
@@ -134,6 +161,27 @@ async function join() {
 }
 .small {
   font-size: 13px;
+}
+.choice {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.option {
+  min-height: var(--tap);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.option.on {
+  border-color: var(--gold);
 }
 .found {
   display: flex;
