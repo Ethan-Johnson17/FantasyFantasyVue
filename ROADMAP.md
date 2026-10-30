@@ -51,7 +51,7 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
 
 ## Future ideas
 
-- **Dynasty leagues:** heroes carry over between seasons. This is why hero identities are never revealed.
+- **Dynasty leagues (next, spec in [docs/DYNASTY_SPEC.md](docs/DYNASTY_SPEC.md)):** Classic leagues play a chain of 3 or 5 hidden seasons; parties keep 3 heroes (their first picks), heroes are re-leveled each season and grow with XP (a small damage bonus and an earned trait). Hero identities are never revealed, across seasons too.
 - **Daily standings refresh:** a free scheduled trigger (for example GitHub Actions) that advances leagues even when
   nobody opens them. Leagues already advance on demand, so this only needs adding once the API is hosted.
 
