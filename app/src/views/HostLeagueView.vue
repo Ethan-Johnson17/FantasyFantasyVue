@@ -39,6 +39,14 @@ onMounted(async () => {
     // Without the rules, Classic is the only choice, as before.
   }
 })
+// Classic only: one season, or a dynasty of chained seasons (docs/DYNASTY_SPEC.md).
+const lengths: { value: 1 | 3 | 5; label: string; hint: string }[] = [
+  { value: 1, label: 'One season', hint: 'A single season' },
+  { value: 3, label: 'Dynasty · 3', hint: 'Keep 3 heroes a season' },
+  { value: 5, label: 'Dynasty · 5', hint: 'The long haul' }
+]
+const length = ref<1 | 3 | 5>(1)
+
 const modes: { value: LeagueMode; label: string; hint: string }[] = [
   { value: 'classic', label: 'Classic', hint: 'Heroes hide the real players behind them. Plays any time.' },
   { value: 'crossover', label: 'Crossover', hint: 'Real NFL players this season. Football and a D&D quest each week.' }
@@ -51,7 +59,8 @@ async function submit() {
   submitting.value = true
   error.value = null
   try {
-    const league = await api.createLeague(form)
+    const dynasty = form.mode !== 'crossover' && length.value !== 1 ? { dynastySeasons: length.value } : {}
+    const league = await api.createLeague({ ...form, ...dynasty })
     await router.push(`/leagues/${league.id}`)
   } catch (caught) {
     error.value = caught
@@ -112,6 +121,20 @@ async function submit() {
         </div>
       </fieldset>
 
+      <fieldset v-if="form.mode !== 'crossover'" class="choice">
+        <legend class="field-label">Seasons</legend>
+        <div class="triple">
+          <label v-for="option in lengths" :key="option.value" class="option" :class="{ on: length === option.value }">
+            <span class="option-title"><input v-model="length" type="radio" name="length" :value="option.value" />{{ option.label }}</span>
+            <span class="muted hint">{{ option.hint }}</span>
+          </label>
+        </div>
+        <span v-if="length !== 1" class="muted hint">
+          A dynasty plays {{ length }} seasons in a row. Between seasons each party keeps up to 3 heroes, who level up or
+          down with their real form and grow with experience.
+        </span>
+      </fieldset>
+
       <fieldset class="choice">
         <legend class="field-label">Who can find it</legend>
         <div class="pair">
@@ -134,6 +157,11 @@ async function submit() {
 <style scoped>
 .title {
   font-size: 32px;
+}
+.triple {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 .small-note {
   margin: 0;

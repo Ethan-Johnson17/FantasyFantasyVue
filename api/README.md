@@ -61,6 +61,7 @@ Everything under `/api` requires an Auth0 access token (`Authorization: Bearer .
 | `GET /api/leagues/:id/results/:week` | members; anyone if public | A resolved week (per-hero damage rounded) |
 | `GET /api/leagues/:id/standings` | members; anyone if public | Wins, losses, draws, total damage |
 | `POST /api/leagues/:id/next-season` | host, once a dynasty season is over | Opens the dynasty's next season: a new league with every party carried over, on the next hidden season (docs/DYNASTY_SPEC.md) |
+| `GET /api/leagues/:id/dynasty` | members, or anyone if public | A dynasty's seasons with each champion, and all-time standings that follow each party across seasons |
 | `GET` / `PUT /api/leagues/:id/keepers` | members, in a later dynasty season | Last season's roster re-leveled for this season; keep up to 3 (`{ heroIds }`) until the draft is scheduled |
 | `GET /api/leagues/:id/chat?before=` | members only, even if public | League chat: the latest 50 messages, oldest first, or the page before a message id |
 | `GET /api/leagues/:id/chat/unread` | members only | Messages from others since I last opened chat (`{ unread }`, capped at 10); `GET /api/leagues/mine` includes it as `unreadChat` |

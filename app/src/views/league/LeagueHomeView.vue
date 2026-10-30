@@ -110,6 +110,27 @@ async function copyInvite() {
 }
 
 const isMine = (partyId: string) => partyId === myParty.value?.id
+
+// Dynasty (docs/DYNASTY_SPEC.md): between seasons, after a season, and the way to the next one.
+const dynasty = computed(() => league.value?.dynasty ?? null)
+const offseason = computed(() => !!dynasty.value && dynasty.value.number > 1 && league.value?.status === 'forming')
+const canStartNext = computed(
+  () => isHost.value && league.value?.status === 'complete' && !!dynasty.value && dynasty.value.number < dynasty.value.seasons && !dynasty.value.nextLeagueId
+)
+
+async function startNextSeason() {
+  if (!league.value) return
+  busy.value = true
+  error.value = null
+  try {
+    const next = await api.startNextSeason(league.value.id)
+    await router.push(`/leagues/${next.id}`)
+  } catch (caught) {
+    error.value = caught
+  } finally {
+    busy.value = false
+  }
+}
 </script>
 
 <template>
@@ -118,6 +139,7 @@ const isMine = (partyId: string) => partyId === myParty.value?.id
       <RouterLink to="/leagues" class="back-link">‹ Your leagues</RouterLink>
       <h1 class="title">{{ league.name }}</h1>
       <span v-if="league.mode === 'crossover'" class="mode-chip">Crossover</span>
+      <RouterLink v-if="dynasty" :to="`/leagues/${league.id}/dynasty`" class="mode-chip">Dynasty · season {{ dynasty.number }} of {{ dynasty.seasons }} ›</RouterLink>
       <div class="muted">
         <template v-if="league.status === 'forming'">Gathering parties · {{ league.partyCount }} of {{ league.maxParties }}</template>
         <template v-else-if="league.status === 'drafting'">Draft {{ league.draftAt ? timeUntil(new Date(league.draftAt)) : 'soon' }}</template>
@@ -130,6 +152,33 @@ const isMine = (partyId: string) => partyId === myParty.value?.id
     </header>
 
     <FormError :error="error" />
+
+    <!-- Dynasty: between seasons, keepers and open parties; after a season, the next one -->
+    <template v-if="offseason">
+      <section class="card stack">
+        <h2 class="section-title">The offseason</h2>
+        <p class="muted small">Choose up to 3 heroes to keep from last season before the host schedules the draft. Keepers use your first picks.</p>
+        <RouterLink :to="`/leagues/${league.id}/keepers`" class="btn btn-primary">Choose keepers</RouterLink>
+      </section>
+      <section v-if="league.openParties?.length" class="card stack">
+        <h2 class="section-title">Open parties</h2>
+        <p class="muted small">Their owners left. Anyone joining with the PIN can take one over, with its history and keepers.</p>
+        <ul class="open-parties">
+          <li v-for="open in league.openParties" :key="open.id">
+            <CrestShield :crest="open.crest" :size="28" decorative />
+            {{ open.name }}
+          </li>
+        </ul>
+        <p v-if="isHost" class="muted small">Any still open when you schedule the draft leave the dynasty, and their keepers return to the pool.</p>
+      </section>
+    </template>
+    <section v-if="canStartNext" class="card stack">
+      <h2 class="section-title">Season {{ (dynasty?.number ?? 0) + 1 }} awaits</h2>
+      <p class="muted small">Start the next season: every party carries over, and everyone chooses keepers before the draft.</p>
+      <button type="button" class="btn btn-primary" :disabled="busy" @click="startNextSeason">Start season {{ (dynasty?.number ?? 0) + 1 }}</button>
+    </section>
+    <RouterLink v-if="dynasty?.nextLeagueId" :to="`/leagues/${dynasty.nextLeagueId}`" class="recap-link">Season {{ dynasty.number + 1 }} is open ›</RouterLink>
+    <RouterLink v-if="dynasty?.previousLeagueId" :to="`/leagues/${dynasty.previousLeagueId}`" class="recap-link">‹ Season {{ dynasty.number - 1 }}</RouterLink>
 
     <!-- Forming: invite, parties, and getting to the draft -->
     <template v-if="league.status === 'forming'">
@@ -461,5 +510,22 @@ tr.mine .rank {
   color: var(--gold);
   font-size: 13px;
   font-weight: 700;
+}
+.open-parties {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.open-parties li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+a.mode-chip {
+  text-decoration: none;
 }
 </style>

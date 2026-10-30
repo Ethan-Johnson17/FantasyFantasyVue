@@ -8,7 +8,7 @@ import type { DraftHero, DraftOptions } from '../draft/snakeDraft.js'
 import { generateAppearances } from '../heroes/generator.js'
 import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
 import { expectedLevel, selectHeroPool, type HeroTrait, type PoolCandidate, type PoolEntry } from '../heroes/pool.js'
-import { inTransaction, loadLeagueAsHost, loadLeagueAsMember } from '../leagues/league.access.js'
+import { inTransaction, loadLeagueAsHost, loadLeagueAsMember, loadVisibleLeague } from '../leagues/league.access.js'
 import { LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
 import { PartyModel, type PartyDocument } from '../leagues/party.model.js'
 import { generatePin } from '../leagues/pin.js'
@@ -356,4 +356,78 @@ export async function dynastyDraftOptions(
   }
   for (const list of keepers.values()) list.sort((a, b) => b.value - a.value || a.id.localeCompare(b.id))
   return { order, keepers }
+}
+
+// ---------------------------------------------------------------------------
+// The whole dynasty
+
+interface DynastyParty {
+  name: string
+  crest: { emblem: string; banner: string }
+}
+
+export interface DynastyView {
+  seasons: number
+  /** This league's season of the chain */
+  current: number
+  /** Every season opened so far, oldest first, with the champion of each finished one */
+  history: { number: number; leagueId: string; status: string; champion: DynastyParty | null }[]
+  /**
+   * All-time standings, following each party across seasons (through takeovers): titles, then wins (a draw is half),
+   * then total damage. Named as in their latest season.
+   */
+  standings: (DynastyParty & { titles: number; wins: number; losses: number; draws: number; seasons: number; isMine: boolean })[]
+}
+
+export async function getDynasty(viewer: AccountDocument, leagueId: string): Promise<DynastyView> {
+  const league = await loadVisibleLeague(viewer, leagueId)
+  if (!league.dynasty) throw new NotFound('This league isn’t a dynasty')
+  const seasons = await LeagueModel.find({ 'dynasty.rootId': league.dynasty.rootId }).sort({ 'dynasty.number': 1 })
+  const parties = await PartyModel.find({ leagueId: trusted({ $in: seasons.map(season => season._id) }) })
+  const partyById = new Map(parties.map(party => [party.id, party]))
+  // A party's line: follow previousPartyId back to the season it first played.
+  const lineOf = (id: string): string => {
+    let party = partyById.get(id)
+    let root = id
+    while (party?.previousPartyId) {
+      root = party.previousPartyId.toString()
+      party = partyById.get(root)
+    }
+    return root
+  }
+  const rows = new Map<string, DynastyView['standings'][number] & { damage: number; latest: number }>()
+  const history: DynastyView['history'] = []
+  for (const season of seasons) {
+    const standings = season.resolvedWeeks > 0 ? await computeStandings(season) : []
+    const champion = season.status === 'complete' ? standings[0] : undefined
+    history.push({
+      number: season.dynasty?.number ?? 0,
+      leagueId: season.id,
+      status: season.status,
+      champion: champion ? { name: champion.name, crest: { emblem: champion.crest.emblem, banner: champion.crest.banner } } : null
+    })
+    for (const party of parties.filter(entry => entry.leagueId.equals(season._id))) {
+      const line = lineOf(party.id)
+      const row = rows.get(line) ?? { name: party.name, crest: { emblem: party.crest.emblem, banner: party.crest.banner }, titles: 0, wins: 0, losses: 0, draws: 0, seasons: 0, isMine: false, damage: 0, latest: 0 }
+      const number = season.dynasty?.number ?? 0
+      if (number >= row.latest) {
+        Object.assign(row, { name: party.name, crest: { emblem: party.crest.emblem, banner: party.crest.banner }, isMine: party.accountId.equals(viewer._id), latest: number })
+      }
+      const standing = standings.find(entry => entry.partyId === party.id)
+      if (standing) {
+        row.wins += standing.wins
+        row.losses += standing.losses
+        row.draws += standing.draws
+        row.damage += standing.totalDamage
+      }
+      if (season.resolvedWeeks > 0) row.seasons++
+      if (champion?.partyId === party.id) row.titles++
+      rows.set(line, row)
+    }
+  }
+  const points = (row: { wins: number; draws: number }) => row.wins + row.draws / 2
+  const standings = [...rows.values()]
+    .sort((a, b) => b.titles - a.titles || points(b) - points(a) || b.damage - a.damage)
+    .map(({ damage: _damage, latest: _latest, ...row }) => row)
+  return { seasons: league.dynasty.seasons, current: league.dynasty.number, history, standings }
 }
