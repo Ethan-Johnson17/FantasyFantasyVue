@@ -33,6 +33,18 @@ export interface DraftPick {
   overall: number
   partyId: string
   heroId: string
+  /** Dynasty: a hero kept from last season, placed in this pick */
+  keeper?: boolean
+}
+
+export interface DraftOptions {
+  /** A fixed first-round order (Dynasty: last season's reverse standings); otherwise shuffled */
+  order?: readonly string[]
+  /**
+   * Dynasty keepers by party: they fill that party's first picks (rounds 1, 2, 3...), so every party ends with the
+   * same number of heroes. Keepers aren't in `heroes`.
+   */
+  keepers?: ReadonlyMap<string, readonly DraftHero[]>
 }
 
 export interface DraftResult {
@@ -54,9 +66,11 @@ export function runSnakeDraft(
   parties: readonly DraftParty[],
   heroes: readonly DraftHero[],
   rng: Rng,
-  rules: DraftRules
+  rules: DraftRules,
+  options: DraftOptions = {}
 ): DraftResult {
-  const order = rng.shuffle(parties.map(party => party.id))
+  const order = options.order ? [...options.order] : rng.shuffle(parties.map(party => party.id))
+  const keepers = new Map([...(options.keepers ?? new Map<string, readonly DraftHero[]>())].map(([id, kept]) => [id, [...kept]]))
   const rankings = new Map(parties.map(party => [party.id, party.ranking]))
   const rosters = new Map(parties.map(party => [party.id, [] as HeroClass[]]))
   const available = new Map(heroes.map(hero => [hero.id, hero]))
@@ -67,6 +81,13 @@ export function runSnakeDraft(
     const turnOrder = round % 2 === 1 ? order : [...order].reverse()
     for (const partyId of turnOrder) {
       const roster = rosters.get(partyId) ?? []
+      // A keeper takes this pick: the party already has them.
+      const kept = keepers.get(partyId)?.shift()
+      if (kept) {
+        roster.push(kept.heroClass)
+        picks.push({ round, overall: picks.length + 1, partyId, heroId: kept.id, keeper: true })
+        continue
+      }
       const allowed = (hero: DraftHero) => isAllowed(hero.heroClass, partyId, roster, rosters, available, rules)
       const ranked = (rankings.get(partyId) ?? []).map(id => available.get(id)).find(hero => hero && allowed(hero))
       const choice = ranked ?? byValue.find(hero => available.has(hero.id) && allowed(hero))

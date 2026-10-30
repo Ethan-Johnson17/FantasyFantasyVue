@@ -17,9 +17,13 @@ export interface HeroAppearance {
 /** The original generator's stat roll: 1, 2, or 3, with 2 twice as likely. */
 const statRoll = (rng: Rng) => Math.round(rng.next() * 2) + 1
 
-/** Gives each pool entry a fantasy identity. Names are unique within the pool. */
-export function generateAppearances(entries: readonly PoolEntry[], rng: Rng): (PoolEntry & HeroAppearance)[] {
-  const usedNames = new Set<string>()
+/** Gives each pool entry a fantasy identity. Names are unique within the pool and differ from `takenNames`. */
+export function generateAppearances(
+  entries: readonly PoolEntry[],
+  rng: Rng,
+  takenNames: Iterable<string> = []
+): (PoolEntry & HeroAppearance)[] {
+  const usedNames = new Set<string>(takenNames)
   return entries.map(entry => {
     const traits = CLASS_TRAITS[entry.heroClass]
     const gender: Gender = rng.chance(traits.maleShare) ? 'male' : 'female'

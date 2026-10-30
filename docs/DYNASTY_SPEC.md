@@ -1,6 +1,6 @@
 # Dynasty Spec (Classic)
 
-> Status: **draft for review** (2026-10-29). Items marked *(default)* are proposals to confirm or change in review.
+> Status: **approved** (2026-10-29), including every *(default)*. Phase 1 (the chain and the offseason) is built.
 
 ## Goals
 
@@ -92,8 +92,8 @@ rebuilt through the draft.
 ## Hidden-player rule
 
 Several consecutive seasons give a curious player more rounded numbers to compare against public stats. Damage stays
-rounded to whole numbers and seasons stay hidden, as today. *(open)* Whether that's enough or multi-season views should
-show less (e.g. no week-by-week history from earlier seasons).
+rounded to whole numbers and seasons stay hidden, as today. Decided 2026-10-29: that's enough; earlier seasons stay
+fully viewable, with nothing extra hidden.
 
 ## Build phases
 

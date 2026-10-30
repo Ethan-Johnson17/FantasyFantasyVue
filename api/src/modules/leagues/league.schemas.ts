@@ -33,11 +33,13 @@ export const CreateLeagueSchema = z
     maxParties: z.number().int().min(MIN_PARTIES).max(MAX_PARTIES),
     // Crossover follows the NFL's weeks, so its cadence is always weekly.
     mode: z.enum(LEAGUE_MODES).default('classic'),
+    // Classic only: play a dynasty of this many chained hidden seasons (docs/DYNASTY_SPEC.md)
+    dynastySeasons: z.union([z.literal(3), z.literal(5)]).optional(),
     party: PartyInputSchema
   })
   .strict()
 
-export const UpdateLeagueSchema = CreateLeagueSchema.omit({ party: true, mode: true })
+export const UpdateLeagueSchema = CreateLeagueSchema.omit({ party: true, mode: true, dynastySeasons: true })
   .partial()
   .strict()
   .refine(update => Object.keys(update).length > 0, 'provide at least one field to change')
@@ -94,3 +96,6 @@ export function parseId(id: string | undefined): string {
   if (!id || !/^[0-9a-f]{24}$/i.test(id)) throw new NotFound()
   return id
 }
+export const KeepersSchema = z
+  .object({ heroIds: z.array(ObjectIdSchema.transform(id => id.toLowerCase())).max(10) })
+  .strict()

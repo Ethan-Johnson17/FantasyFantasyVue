@@ -68,6 +68,8 @@ export interface LeagueSummaryView {
   seasonWeeks: number
   /** When the next game week resolves, once the season has started */
   nextResolvesAt: Date | null
+  /** Dynasty only: which season of the chain this is, and the seasons before and after it */
+  dynasty: { seasons: number; number: number; previousLeagueId: string | null; nextLeagueId: string | null } | null
   createdAt: Date
 }
 
@@ -123,7 +125,8 @@ export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueVi
   const parties = await PartyModel.find({ accountId: viewer._id })
   for (const party of parties) await advanceLeague(party.leagueId.toString())
   const partyByLeague = new Map(parties.map(party => [party.leagueId.toString(), party]))
-  const leagues = await LeagueModel.find({ _id: trusted({ $in: parties.map(party => party.leagueId) }) }).sort({
+  // A dynasty shows as its latest season; earlier seasons stay reachable from it.
+  const leagues = await LeagueModel.find({ _id: trusted({ $in: parties.map(party => party.leagueId) }), 'dynasty.nextId': null }).sort({
     updatedAt: -1
   })
   const profiles = await loadProfiles(leagues.map(league => league.hostId))
@@ -177,8 +180,9 @@ export interface CreateOptions {
 }
 
 export async function createLeague(host: AccountDocument, input: CreateLeagueInput, options: CreateOptions): Promise<LeagueDetailView> {
-  const { party, ...requested } = input
+  const { party, dynastySeasons, ...requested } = input
   const crossover = requested.mode === 'crossover'
+  if (crossover && dynastySeasons) throw new BadRequest('Dynasty leagues are Classic for now')
   if (crossover) {
     if (!options.crossoverEnabled) throw new Conflict('Crossover leagues aren’t available yet')
     // Refuse up front when the NFL season is nearly over (or hasn't been scheduled), not only at the draft.
@@ -189,8 +193,11 @@ export async function createLeague(host: AccountDocument, input: CreateLeagueInp
   for (let attempt = 1; ; attempt++) {
     try {
       const leagueId = await inTransaction(async session => {
+        const _id = new mongoose.Types.ObjectId()
+        // A dynasty's first season is the root of its chain.
+        const dynasty = dynastySeasons ? { seasons: dynastySeasons, number: 1, rootId: _id, previousId: null, nextId: null } : null
         const [league] = await LeagueModel.create(
-          [{ ...settings, hostId: host._id, partyCount: 1, pin: generatePin() }],
+          [{ _id, ...settings, dynasty, hostId: host._id, partyCount: 1, pin: generatePin() }],
           { session }
         )
         if (!league) throw new Error('League was not created')
@@ -372,6 +379,14 @@ function toSummary(
     resolvedWeeks: league.resolvedWeeks,
     seasonWeeks: seasonLength(league),
     nextResolvesAt: league.status === 'active' ? resolvesAt(league, league.resolvedWeeks + 1) : null,
+    dynasty: league.dynasty
+      ? {
+          seasons: league.dynasty.seasons,
+          number: league.dynasty.number,
+          previousLeagueId: league.dynasty.previousId?.toString() ?? null,
+          nextLeagueId: league.dynasty.nextId?.toString() ?? null
+        }
+      : null,
     createdAt: league.createdAt
   }
 }

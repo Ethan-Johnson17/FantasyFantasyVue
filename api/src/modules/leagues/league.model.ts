@@ -25,7 +25,9 @@ const draftPickSchema = new Schema(
     round: { type: Number, required: true },
     overall: { type: Number, required: true },
     partyId: { type: Schema.Types.ObjectId, ref: 'Party', required: true },
-    heroId: { type: Schema.Types.ObjectId, ref: 'Hero', required: true }
+    heroId: { type: Schema.Types.ObjectId, ref: 'Hero', required: true },
+    // Dynasty: a hero the party kept from last season, counted as this pick
+    keeper: { type: Boolean, default: false }
   },
   { _id: false }
 )
@@ -80,6 +82,21 @@ const leagueSchema = new Schema(
     resolvedWeeks: { type: Number, required: true, default: 0 },
     // When the season finished or the league was canceled; starts the chat's retention clock
     endedAt: { type: Date },
+    // Dynasty (docs/DYNASTY_SPEC.md): this league is season `number` of a chain of `seasons` hidden seasons. Each season
+    // is its own league; `rootId` is the first season's id, shared by every season of the chain.
+    dynasty: {
+      type: new Schema(
+        {
+          seasons: { type: Number, required: true, enum: [3, 5] },
+          number: { type: Number, required: true, min: 1 },
+          rootId: { type: Schema.Types.ObjectId, ref: 'League', required: true },
+          previousId: { type: Schema.Types.ObjectId, ref: 'League', default: null },
+          nextId: { type: Schema.Types.ObjectId, ref: 'League', default: null }
+        },
+        { _id: false }
+      ),
+      default: null
+    },
     // Crossover only, set when the draft runs: the NFL week each game week uses and when it goes final
     nflWeeks: {
       type: [new Schema({ nflWeek: { type: Number, required: true }, finalAt: { type: Date, required: true } }, { _id: false })],

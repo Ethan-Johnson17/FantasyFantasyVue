@@ -15,15 +15,23 @@ export const LAST_LEAGUE_SEASON = 2025
 /** Veterans need this many games last season for a meaningful points-per-game. */
 export const MIN_PREVIOUS_GAMES = 4
 
-/** Picks a random hidden season that has stats for both it and the previous season. */
-export async function pickSeason(rng: Rng): Promise<number> {
+/**
+ * Picks a random hidden season that has stats for it and the previous season. A Dynasty of `chainLength` seasons
+ * needs every season of its chain to qualify too, so it starts early enough to finish (docs/DYNASTY_SPEC.md).
+ */
+export async function pickSeason(rng: Rng, chainLength = 1): Promise<number> {
   const [playerSeasons, defenseSeasons] = await Promise.all([
     PlayerWeekStatModel.distinct('season'),
     DefenseWeekStatModel.distinct('season')
   ])
   const imported = new Set(playerSeasons.filter(season => defenseSeasons.includes(season)))
   const eligible = [...imported]
-    .filter(season => season >= FIRST_LEAGUE_SEASON && season <= LAST_LEAGUE_SEASON && imported.has(season - 1))
+    .filter(
+      season =>
+        season >= FIRST_LEAGUE_SEASON &&
+        season + chainLength - 1 <= LAST_LEAGUE_SEASON &&
+        Array.from({ length: chainLength + 1 }, (_, i) => season - 1 + i).every(year => imported.has(year))
+    )
     .sort((a, b) => a - b)
   if (eligible.length === 0) throw new Error('No eligible seasons imported; run import:stats first')
   return rng.pick(eligible)
