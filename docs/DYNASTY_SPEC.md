@@ -1,6 +1,6 @@
 # Dynasty Spec (Classic)
 
-> Status: **approved** (2026-10-29), including every *(default)*. Phases 1 (the chain and the offseason) and 2 (XP) are built.
+> Status: **approved** (2026-10-29), including every *(default)*. Phases 1 (the chain and the offseason), 2 (XP) and 3 (members) are built.
 
 ## Goals
 
@@ -87,10 +87,13 @@ earned trait isn't in the simulation; its effect, through synergies, is small to
 ## Members and parties
 
 - Members stay in the dynasty from season to season with the same party.
-- **Leaving:** in the offseason a member can leave. Their party becomes **open**: the host can share its PIN link so a
-  new member **takes it over**, keeping its name (renamable), crest, history, keepers and XP. *(default)* If nobody has
-  taken it when the host schedules the draft, its keepers return to the pool and the party leaves the dynasty.
-- **Joining:** *(default)* new parties can join in the offseason up to the league's maximum, with no keepers.
+- **Leaving:** in the offseason a member can leave. Their party becomes **open**: it keeps its place in the league,
+  and anyone with the PIN can **take it over** when joining, keeping its history, keepers and XP under the name and crest
+  they choose (the join screen suggests the old ones). The same happens when the host removes a carried-over party or
+  its owner deletes their account. If nobody has taken it when the host schedules the draft, its keepers return to the
+  pool and the party leaves the dynasty. A party new this season simply leaves, as in Classic.
+- **Joining:** new parties can join in the offseason up to the league's maximum, with no keepers. Open parties hold
+  their places, so fresh joins can't take them.
 - Account deletion works as today: the party stays as "Former adventurer" and can be taken over.
 
 ## What players see

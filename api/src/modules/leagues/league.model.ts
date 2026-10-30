@@ -97,6 +97,19 @@ const leagueSchema = new Schema(
       ),
       default: null
     },
+    // Dynasty, between seasons: parties whose owner left, waiting for a new member to take them over (with their
+    // history and keepers). Each holds its place in the league; any still open when the draft is scheduled are dropped.
+    openParties: {
+      type: [
+        new Schema({
+          previousPartyId: { type: Schema.Types.ObjectId, ref: 'Party', required: true },
+          name: { type: String, required: true },
+          crest: { type: new Schema({ emblem: { type: String, required: true }, banner: { type: String, required: true } }, { _id: false }), required: true },
+          keepers: { type: [{ type: Schema.Types.ObjectId, ref: 'Hero' }], default: [] }
+        })
+      ],
+      default: []
+    },
     // Crossover only, set when the draft runs: the NFL week each game week uses and when it goes final
     nflWeeks: {
       type: [new Schema({ nflWeek: { type: Number, required: true }, finalAt: { type: Date, required: true } }, { _id: false })],

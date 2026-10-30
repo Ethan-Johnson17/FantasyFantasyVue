@@ -51,7 +51,8 @@ export interface ApiClient {
   previewLeague(pin: string): Promise<LeagueSummary>
   /** Public leagues with room that I'm not in, newest first; pages start at 1 */
   listPublicLeagues(page: number): Promise<LeagueSummary[]>
-  joinLeague(pin: string, party: PartyInput): Promise<LeagueDetail>
+  /** `takeOver`: Dynasty, between seasons: an open party to take over */
+  joinLeague(pin: string, party: PartyInput, takeOver?: string): Promise<LeagueDetail>
   scheduleDraft(leagueId: string, draftAt: Date): Promise<LeagueDetail>
   cancelLeague(leagueId: string): Promise<LeagueDetail>
   leaveLeague(leagueId: string): Promise<void>
@@ -127,7 +128,7 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     createLeague: input => request('POST', '/api/leagues', input),
     previewLeague: pin => request('GET', `/api/leagues/pin/${segment(pin)}`),
     listPublicLeagues: page => request('GET', `/api/leagues/public?page=${String(page)}`),
-    joinLeague: (pin, party) => request('POST', '/api/leagues/join', { pin, party }),
+    joinLeague: (pin, party, takeOver) => request('POST', '/api/leagues/join', { pin, party, ...(takeOver ? { takeOver } : {}) }),
     scheduleDraft: (id, draftAt) => request('POST', `/api/leagues/${segment(id)}/draft`, { draftAt: draftAt.toISOString() }),
     cancelLeague: id => request('POST', `/api/leagues/${segment(id)}/cancel`),
     leaveLeague: id => request('POST', `/api/leagues/${segment(id)}/leave`),
