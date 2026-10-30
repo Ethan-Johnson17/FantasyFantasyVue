@@ -18,6 +18,7 @@ import {
   PageQuerySchema,
   parseId,
   PinSchema,
+  KeepersSchema,
   QuestPartySchema,
   RankingsSchema,
   ScheduleDraftSchema,
@@ -25,6 +26,7 @@ import {
   UpdatePartySchema,
   WeekParamSchema
 } from './league.schemas.js'
+import * as dynasty from '../dynasty/dynasty.service.js'
 import * as leagues from './league.service.js'
 
 export const PIN_ATTEMPTS_PER_MINUTE = 20
@@ -111,6 +113,17 @@ export function leagueRouter({ crossoverEnabled }: { crossoverEnabled: boolean }
     .put('/:id/lineup', async (req, res) => {
       const lineup = LineupSchema.parse(req.body)
       res.json(await season.setLineup(currentAccount(req), parseId(req.params.id), lineup))
+    })
+    .post('/:id/next-season', async (req, res) => {
+      const nextId = await dynasty.startNextSeason(currentAccount(req), parseId(req.params.id))
+      res.status(201).json(await leagues.getLeague(currentAccount(req), nextId))
+    })
+    .get('/:id/keepers', async (req, res) => {
+      res.json(await dynasty.getKeepers(currentAccount(req), parseId(req.params.id)))
+    })
+    .put('/:id/keepers', async (req, res) => {
+      const { heroIds } = KeepersSchema.parse(req.body)
+      res.json(await dynasty.setKeepers(currentAccount(req), parseId(req.params.id), heroIds))
     })
     .put('/:id/quest-party', async (req, res) => {
       const { heroIds } = QuestPartySchema.parse(req.body)

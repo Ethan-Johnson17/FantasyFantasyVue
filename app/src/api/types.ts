@@ -47,6 +47,8 @@ export interface LeagueSummary {
   seasonWeeks?: number
   /** When the next game week resolves, once the season has started */
   nextResolvesAt?: string | null
+  /** Dynasty only: which season of the chain this is, and the seasons before and after it */
+  dynasty?: { seasons: number; number: number; previousLeagueId: string | null; nextLeagueId: string | null } | null
   createdAt: string
 }
 

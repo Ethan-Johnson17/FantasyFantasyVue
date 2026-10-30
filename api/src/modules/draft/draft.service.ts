@@ -16,6 +16,7 @@ import { crossoverWeeks, crossoverWindow } from '../season/nflWeeks.js'
 import { roundRobin } from '../season/schedule.js'
 import { loadPoolCandidates, pickSeason } from './candidates.js'
 import { loadCrossoverCandidates, type PlayerCard } from './crossoverCandidates.js'
+import { buildDynastyPool, dynastyDraftOptions, isLaterDynastySeason } from '../dynasty/dynasty.service.js'
 import { DraftRankingModel } from './ranking.model.js'
 import { runSnakeDraft } from './snakeDraft.js'
 
@@ -76,11 +77,27 @@ export async function scheduleDraft(host: AccountDocument, leagueId: string, dra
   const seed = newSeed()
   const ruleset = getRuleset(league.rulesetVersion)
   // Classic: a hidden past season and its unnamed players. Crossover: the season being played, shown openly.
-  const season = window ? window.season : await pickSeason(createRng(seed, 'season'))
-  const { candidates, cards } = window
-    ? await loadCrossoverCandidates(season, ruleset)
-    : { candidates: await loadPoolCandidates(season, ruleset), cards: new Map<string, PlayerCard>() }
-  const pool = generateAppearances(selectHeroPool(candidates, league.partyCount, ruleset.pool), createRng(seed, 'pool'))
+  // Dynasty: the first season is drawn so the whole chain fits; later seasons were set when the season opened.
+  const laterDynasty = isLaterDynastySeason(league)
+  const stored = laterDynasty ? (await LeagueModel.findById(league._id).select('+season'))?.season : null
+  const season = window
+    ? window.season
+    : laterDynasty && stored
+      ? stored
+      : await pickSeason(createRng(seed, 'season'), league.dynasty?.seasons ?? 1)
+  let pool: (Awaited<ReturnType<typeof buildDynastyPool>>['draftable'][number])[]
+  let cards = new Map<string, PlayerCard>()
+  let kept: Record<string, unknown>[] = []
+  if (window) {
+    const loaded = await loadCrossoverCandidates(season, ruleset)
+    cards = loaded.cards
+    pool = generateAppearances(selectHeroPool(loaded.candidates, league.partyCount, ruleset.pool), createRng(seed, 'pool'))
+  } else if (laterDynasty) {
+    // Kept heroes carry over into their party; everyone else is in the pool.
+    ;({ draftable: pool, kept } = await buildDynastyPool(league, season, ruleset, createRng(seed, 'pool')))
+  } else {
+    pool = generateAppearances(selectHeroPool(await loadPoolCandidates(season, ruleset), league.partyCount, ruleset.pool), createRng(seed, 'pool'))
+  }
 
   await inTransaction(async session => {
     // Matching partyCount guarantees nobody joined or left while the pool was being built.
@@ -99,6 +116,7 @@ export async function scheduleDraft(host: AccountDocument, leagueId: string, dra
       })),
       { session }
     )
+    if (kept.length) await HeroModel.insertMany(kept, { session })
   })
 }
 
@@ -117,11 +135,14 @@ export async function runDueDraft(leagueId: string): Promise<void> {
       HeroModel.find({ leagueId: league._id }).session(session)
     ])
     const rankingByParty = new Map(rankings.map(ranking => [ranking.partyId.toString(), ranking.heroIds.map(String)]))
+    // Dynasty: kept heroes are already in their parties and fill their first picks, in last season's reverse order.
+    const options = isLaterDynastySeason(league) ? await dynastyDraftOptions(league, parties, heroes) : {}
     const { order, picks } = runSnakeDraft(
       parties.map(party => ({ id: party.id, ranking: rankingByParty.get(party.id) ?? [] })),
-      heroes.map(hero => ({ id: hero.id, heroClass: hero.heroClass, value: expectedLevel(hero) })),
+      heroes.filter(hero => !hero.partyId).map(hero => ({ id: hero.id, heroClass: hero.heroClass, value: expectedLevel(hero) })),
       createRng(league.seed, 'draft'),
-      getRuleset(league.rulesetVersion).lineup
+      getRuleset(league.rulesetVersion).lineup,
+      options
     )
 
     await HeroModel.bulkWrite(

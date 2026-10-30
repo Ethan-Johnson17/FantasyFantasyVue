@@ -36,6 +36,9 @@ const partySchema = new Schema(
     },
     // The Champion: stays named from week to week until changed, withdrawn, or benched
     champion: { type: Schema.Types.ObjectId, ref: 'Hero', default: null },
+    // Dynasty: the same party last season, and the heroes from that roster it keeps this season (up to DYNASTY_KEEPERS)
+    previousPartyId: { type: Schema.Types.ObjectId, ref: 'Party', default: null },
+    keepers: { type: [{ type: Schema.Types.ObjectId, ref: 'Hero' }], default: undefined },
     // Crossover only: the heroes who fight the week's encounter (the Quest board), any class, from the whole roster
     questParty: { type: [{ type: Schema.Types.ObjectId, ref: 'Hero' }], default: undefined },
     // The newest chat message this party has seen, for the unread badge

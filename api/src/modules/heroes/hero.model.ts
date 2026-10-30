@@ -24,6 +24,8 @@ const heroSchema = new Schema(
     },
     // Derived from the previous season; empty for mystery recruits
     traits: { type: [{ type: String, enum: HERO_TRAITS }], default: [] },
+    // Dynasty: the same hero last season, when a party kept them
+    previousHeroId: { type: Schema.Types.ObjectId, ref: 'Hero', default: null },
     // Crossover only: the real player shown with the hero. Always null in Classic, whose players stay hidden.
     player: {
       type: new Schema(
