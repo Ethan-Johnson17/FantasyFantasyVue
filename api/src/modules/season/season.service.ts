@@ -18,6 +18,7 @@ import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models
 import { decideBattle, decideMonsterBattle, monsterDamage, scoreParty, type Outcome } from './battle.js'
 import { monsterName } from './monsters.js'
 import { nflWeekOf, resolvesAt, seasonLength, weeksDueByTime, weeksReady } from './calendar.js'
+import { xpMultiplier } from '../dynasty/xp.js'
 import { encounterFor, encounterMultiplier, type Encounter } from './encounters.js'
 import { heroGames, lockedHeroes, type HeroGame } from './nflWeeks.js'
 import { critOf, type Crit } from './crits.js'
@@ -176,7 +177,8 @@ function buildSide(
     const slot = slotByHero.get(hero.id) ?? 'Bench'
     const into = swappedInto.get(hero.id) ?? null
     const earned = pointsOf(hero.id)
-    const damage = earned.points * classMultipliers[hero.heroClass]
+    // Dynasty: a kept hero's XP adds a small bonus (0 for everyone else, so Classic is unchanged).
+    const damage = earned.points * classMultipliers[hero.heroClass] * xpMultiplier(hero.xp)
     // Starters count their class damage, swapped-in bench heroes count it at the swap penalty, the rest count 0.
     const counted = slot !== 'Bench' ? round2(damage) : into ? round2(damage * autoSwapMultiplier) : 0
     const fights = (slot !== 'Bench' && !earned.resting) || into !== null

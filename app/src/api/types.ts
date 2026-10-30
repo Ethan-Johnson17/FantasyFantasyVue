@@ -120,6 +120,10 @@ export interface Hero {
   levelRange: { min: number; max: number } | null
   traits: HeroTrait[]
   partyId: string | null
+  /** Dynasty only: XP carried into this season, its tier and damage bonus */
+  xp?: { xp: number; tier: number; bonus: number; nextTierAt: number | null }
+  /** Dynasty only: the trait earned at the top XP tier */
+  earnedTrait?: HeroTrait
   /** Crossover only: the real player. Classic heroes never have one. */
   player?: { name: string; team: string; position: string }
   /** Recent form; included in the league's hero list */

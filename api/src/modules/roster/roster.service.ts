@@ -48,16 +48,17 @@ export async function claimFreeAgent(
     )
     if (upToDate.modifiedCount === 0) throw new Conflict('A battle is being resolved. Try again in a moment.')
 
+    // Dynasty XP stays with the party that earned it: a hero who changes hands starts again (modules/dynasty/xp.ts).
     const dropped = await HeroModel.findOneAndUpdate(
       { _id: dropHeroId, leagueId: league._id, partyId: party._id },
-      { $set: { partyId: null } },
+      { $set: { partyId: null, xp: 0, earnedTrait: null } },
       { session }
     )
     if (!dropped) throw new BadRequest('You can only drop a hero from your own party')
     // First come, first served: only succeeds while the hero is still unclaimed.
     const claimed = await HeroModel.findOneAndUpdate(
       { _id: heroId, leagueId: league._id, partyId: null },
-      { $set: { partyId: party._id } },
+      { $set: { partyId: party._id, xp: 0, earnedTrait: null } },
       { session, new: true }
     )
     if (!claimed) {

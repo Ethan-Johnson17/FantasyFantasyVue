@@ -1,6 +1,6 @@
 # Dynasty Spec (Classic)
 
-> Status: **approved** (2026-10-29), including every *(default)*. Phase 1 (the chain and the offseason) is built.
+> Status: **approved** (2026-10-29), including every *(default)*. Phases 1 (the chain and the offseason) and 2 (XP) are built.
 
 ## Goals
 
@@ -59,17 +59,30 @@ Heroes keep their name and look across seasons: the same hero, a year older.
 - **Earning XP.** *(default)* A hero earns XP equal to the damage they dealt for their party in a season (counted
   damage, so bench weeks earn nothing). XP builds up across seasons **while the hero stays with the same party**
   (kept); a hero who is dropped, released or redrafted by someone else starts again at 0.
-- **Damage bonus.** XP sets a tier, and each tier adds a small bonus to the hero's damage the next season: tiers 1–4
-  add **+1% / +2% / +3% / +4%** (capped at +4%). *(default thresholds, set by simulation: roughly a season as a regular
-  starter for tier 1, two strong seasons for tier 4.)*
-- **Earned trait.** Reaching **tier 4** earns the hero one new trait the next season (Steadfast, Wild or Mighty; the one
-  they're closest to qualifying for, never conflicting with one they have). At most one earned trait per hero.
-- XP, tiers and earned traits are shown on the hero page and the keeper screen. They're game numbers, not stats, so they
+- **Damage bonus.** XP sets a tier, and each tier adds to the hero's damage that season: tiers 1–4 at **150, 300, 450
+  and 600 XP** add **+1% / +2% / +3% / +4%** (capped at +4%). A strong season as a starter (about 330 XP) reaches tier 2;
+  tier 4 takes about two strong seasons. Crits are still judged on class damage before the bonus.
+- **Earned trait.** Reaching **tier 4** earns the hero one trait (Steadfast, Wild or Mighty: the one they're closest to
+  qualifying for among their class that season, never one that conflicts with a trait they have). They keep it for as
+  long as the party keeps them; if a later season gives them the opposite temperament, their own trait wins that season.
+  At most one earned trait per hero.
+- **Changing hands resets it.** A hero dropped, claimed or redrafted starts again at 0 XP with no earned trait.
+- XP, tiers and earned traits are shown on the hero list and the keeper screen. They're game numbers, not stats, so they
   reveal nothing about the real player.
 
-**Balancing goal**, checked by simulation on 2012–2025 chains before the values are locked: keeping and building XP
-beats ignoring it by a few points of win rate, but a party with three tier-4 keepers doesn't run away from a party that
-rebuilt through the draft.
+**Balancing (2026-10-29).** Simulated on real 3-season chains starting 2013–2023 (4 seeds each, six parties, two parties
+per plan, seasons 2 and 3 counted):
+
+| XP thresholds (tiers 1–4) | Keep nobody | Keep best by Level | Keep for XP first | Keepers reaching tier 4 |
+| --- | --- | --- | --- | --- |
+| XP off | 50.8% | 49.6% | 49.6% | – |
+| 200 / 400 / 600 / 800 | 48.7% | 51.0% | 50.2% | 5% |
+| **150 / 300 / 450 / 600 (chosen)** | **49.8%** | **51.3%** | **48.9%** | **15%** |
+| 100 / 200 / 300 / 400 | 48.9% | 52.1% | 49.0% | 36% |
+
+Keepers on their own are a fair trade: they cost a party's first picks and, without XP, gain nothing. XP gives keeping a
+small edge, as intended for a "smaller" bonus, and chasing XP over real strength doesn't pay, so no plan runs away. The
+earned trait isn't in the simulation; its effect, through synergies, is small too.
 
 ## Members and parties
 
