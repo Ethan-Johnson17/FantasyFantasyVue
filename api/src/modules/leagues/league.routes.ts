@@ -66,8 +66,8 @@ export function leagueRouter({ crossoverEnabled }: { crossoverEnabled: boolean }
       res.json(await leagues.previewLeagueByPin(currentAccount(req), PinSchema.parse(req.params.pin)))
     })
     .post('/join', limitPinAttempts, async (req, res) => {
-      const { pin, party } = JoinLeagueSchema.parse(req.body)
-      res.status(201).json(await leagues.joinLeague(currentAccount(req), pin, party))
+      const { pin, party, takeOver } = JoinLeagueSchema.parse(req.body)
+      res.status(201).json(await leagues.joinLeague(currentAccount(req), pin, party, takeOver))
     })
     .get('/:id', async (req, res) => {
       res.json(await leagues.getLeague(currentAccount(req), parseId(req.params.id)))

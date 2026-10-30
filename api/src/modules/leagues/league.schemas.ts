@@ -44,7 +44,14 @@ export const UpdateLeagueSchema = CreateLeagueSchema.omit({ party: true, mode: t
   .strict()
   .refine(update => Object.keys(update).length > 0, 'provide at least one field to change')
 
-export const JoinLeagueSchema = z.object({ pin: PinSchema, party: PartyInputSchema }).strict()
+export const JoinLeagueSchema = z
+  .object({
+    pin: PinSchema,
+    party: PartyInputSchema,
+    // Dynasty, between seasons: take over this open party (its history and keepers), named and crested as `party`
+    takeOver: z.string().regex(/^[0-9a-f]{24}$/i, 'must be an open party id').optional()
+  })
+  .strict()
 
 export const UpdatePartySchema = PartyInputSchema.extend({ autoSwap: z.boolean() })
   .partial()

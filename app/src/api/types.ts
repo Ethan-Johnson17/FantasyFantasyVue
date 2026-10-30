@@ -49,6 +49,8 @@ export interface LeagueSummary {
   nextResolvesAt?: string | null
   /** Dynasty only: which season of the chain this is, and the seasons before and after it */
   dynasty?: { seasons: number; number: number; previousLeagueId: string | null; nextLeagueId: string | null } | null
+  /** Dynasty, between seasons: parties waiting for a new member to take them over */
+  openParties?: { id: string; name: string; crest: Crest }[]
   createdAt: string
 }
 

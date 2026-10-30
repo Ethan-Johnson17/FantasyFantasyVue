@@ -441,3 +441,101 @@ describe('experience', () => {
     expect(oldParty).toBeDefined()
   })
 })
+
+describe('members between seasons', () => {
+  const carol = as('auth0|carol')
+  const dave = as('auth0|dave')
+  const pinOf = async (id: string) => (await LeagueModel.findById(id))!.pin
+
+  /** A finished first season, the next opened, and Alice keeping two heroes. */
+  async function offseasonWithKeepers() {
+    const id = await createDynasty()
+    await draft(id)
+    await finish(id)
+    const nextId = await nextSeason(id)
+    const { options } = (await alice.get(`/api/leagues/${nextId}/keepers`)).body as Keepers
+    const keepers = options.filter(option => !option.retired).slice(0, 2).map(option => option.heroId)
+    await alice.put(`/api/leagues/${nextId}/keepers`, { heroIds: keepers })
+    return { id, nextId, keepers }
+  }
+  const openParties = async (id: string) => ((await host.get(`/api/leagues/${id}`)).body as { openParties: { id: string; name: string }[] }).openParties
+
+  it('opens a departing member’s party for someone to take over, keepers and all', async () => {
+    const { nextId } = await offseasonWithKeepers()
+    expect((await alice.post(`/api/leagues/${nextId}/leave`)).status).toBe(204)
+    expect((await alice.get(`/api/leagues/${nextId}`)).status).toBe(404)
+    expect((await LeagueModel.findById(nextId))?.partyCount).toBe(2)
+    expect((await openParties(nextId)).map(open => open.name)).toEqual(['Member 0'])
+    // The PIN preview shows it to whoever's invited.
+    const preview = (await carol.get(`/api/leagues/pin/${await pinOf(nextId)}`)).body as { openParties: { name: string }[] }
+    expect(preview.openParties.map(open => open.name)).toEqual(['Member 0'])
+  })
+
+  it('lets a new member take it over, renamed if they like, with its history and keepers', async () => {
+    const { id, nextId, keepers } = await offseasonWithKeepers()
+    await alice.post(`/api/leagues/${nextId}/leave`)
+    const [open] = await openParties(nextId)
+    const res = await carol.post('/api/leagues/join', { pin: await pinOf(nextId), party: { name: 'New Blood', crest }, takeOver: open!.id })
+    expect(res.status).toBe(201)
+
+    const party = (await PartyModel.findOne({ leagueId: nextId, name: 'New Blood' }))!
+    const previous = (await PartyModel.findOne({ leagueId: id, name: 'Member 0' }))!
+    expect(party.previousPartyId?.equals(previous._id)).toBe(true)
+    expect(party.keepers?.map(String).sort()).toEqual([...keepers].sort())
+    expect(await openParties(nextId)).toEqual([])
+    expect((await LeagueModel.findById(nextId))?.partyCount).toBe(3)
+    // Carol now manages its keepers.
+    const view = (await carol.get(`/api/leagues/${nextId}/keepers`)).body as Keepers
+    expect(view.options.filter(option => option.kept).map(option => option.heroId).sort()).toEqual([...keepers].sort())
+    // Only once.
+    const again = await dave.post('/api/leagues/join', { pin: await pinOf(nextId), party: { name: 'Late', crest }, takeOver: open!.id })
+    expect(again.status).toBe(409)
+    expect(again.body.error.message).toBe('That party has already been taken over')
+  })
+
+  it('keeps the open party’s place from fresh joins', async () => {
+    const { nextId } = await offseasonWithKeepers()
+    await LeagueModel.updateOne({ _id: nextId }, { $set: { maxParties: 3 } })
+    await alice.post(`/api/leagues/${nextId}/leave`)
+    const pin = await pinOf(nextId)
+    expect((await dave.post('/api/leagues/join', { pin, party: { name: 'Fresh', crest } })).status).toBe(409)
+    expect((await host.patch(`/api/leagues/${nextId}`, { maxParties: 2 })).status).toBe(409)
+    const [open] = await openParties(nextId)
+    expect((await carol.post('/api/leagues/join', { pin, party: { name: 'Member 0', crest }, takeOver: open!.id })).status).toBe(201)
+  })
+
+  it('opens a party the host removes, and one whose owner deletes their account', async () => {
+    const { nextId } = await offseasonWithKeepers()
+    const bobParty = (await PartyModel.findOne({ leagueId: nextId, name: 'Member 1' }))!
+    expect((await host.delete(`/api/leagues/${nextId}/parties/${bobParty.id}`)).status).toBe(200)
+    expect((await alice.delete('/api/account')).status).toBe(204)
+    expect((await openParties(nextId)).map(open => open.name).sort()).toEqual(['Member 0', 'Member 1'])
+  })
+
+  it('lets a party new this season just leave', async () => {
+    const { nextId } = await offseasonWithKeepers()
+    await dave.post('/api/leagues/join', { pin: await pinOf(nextId), party: { name: 'Fresh', crest } })
+    expect((await dave.post(`/api/leagues/${nextId}/leave`)).status).toBe(204)
+    expect(await openParties(nextId)).toEqual([])
+  })
+
+  it('closes parties nobody took over when the draft is scheduled, returning their keepers to the pool', async () => {
+    const { nextId, keepers } = await offseasonWithKeepers()
+    await alice.post(`/api/leagues/${nextId}/leave`)
+    expect((await host.post(`/api/leagues/${nextId}/draft`, { draftAt: new Date(Date.now() + 3_600_000).toISOString() })).status).toBe(200)
+    expect(await openParties(nextId)).toEqual([])
+    // Alice's keepers' players are back in the draft pool, owned by nobody.
+    const originals = await HeroModel.find({ _id: trusted({ $in: keepers }) }).select('+source')
+    for (const original of originals) {
+      const now = await HeroModel.find({ leagueId: nextId, 'source.kind': original.source.kind, 'source.id': original.source.id })
+      expect(now.length).toBeLessThanOrEqual(1)
+      if (now[0]) expect(now[0].partyId).toBeNull()
+    }
+  })
+
+  it('works as before in a dynasty’s first season', async () => {
+    const id = await createDynasty()
+    expect((await alice.post(`/api/leagues/${id}/leave`)).status).toBe(204)
+    expect(await openParties(id)).toEqual([])
+  })
+})

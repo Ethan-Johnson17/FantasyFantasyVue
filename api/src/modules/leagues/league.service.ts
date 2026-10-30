@@ -70,6 +70,8 @@ export interface LeagueSummaryView {
   nextResolvesAt: Date | null
   /** Dynasty only: which season of the chain this is, and the seasons before and after it */
   dynasty: { seasons: number; number: number; previousLeagueId: string | null; nextLeagueId: string | null } | null
+  /** Dynasty, between seasons: parties waiting for a new member to take them over (join with `takeOver`) */
+  openParties: { id: string; name: string; crest: Crest }[]
   createdAt: Date
 }
 
@@ -213,17 +215,39 @@ export async function createLeague(host: AccountDocument, input: CreateLeagueInp
   }
 }
 
-export async function joinLeague(member: AccountDocument, pin: string, party: PartyInput): Promise<LeagueDetailView> {
+/**
+ * Joins a league by PIN with a new party, or (Dynasty, between seasons) takes over an open party: its history and
+ * keepers carry on under the new member, with the name and crest they chose.
+ */
+export async function joinLeague(member: AccountDocument, pin: string, party: PartyInput, takeOver?: string): Promise<LeagueDetailView> {
   const leagueId = await inTransaction(async session => {
-    // Claim a slot atomically: only succeeds while forming and below capacity.
-    const league = await LeagueModel.findOneAndUpdate(
-      { pin, status: 'forming', $expr: trusted({ $lt: ['$partyCount', '$maxParties'] }) },
-      { $inc: { partyCount: 1 } },
-      { session, returnDocument: 'after' }
-    )
-    if (!league) throw await explainJoinFailure(pin, session)
+    // Claim a slot atomically: only succeeds while forming and below capacity. Open parties hold their places, so a
+    // new party needs room beyond them; a takeover claims the open party itself.
+    const league = takeOver
+      ? await LeagueModel.findOneAndUpdate(
+          { pin, status: 'forming', 'openParties._id': takeOver },
+          { $pull: { openParties: { _id: takeOver } }, $inc: { partyCount: 1 } },
+          { session, returnDocument: 'before' }
+        )
+      : await LeagueModel.findOneAndUpdate(
+          { pin, status: 'forming', $expr: trusted({ $lt: [{ $add: ['$partyCount', { $size: '$openParties' }] }, '$maxParties'] }) },
+          { $inc: { partyCount: 1 } },
+          { session, returnDocument: 'after' }
+        )
+    if (!league) throw await explainJoinFailure(pin, session, takeOver)
+    const open = takeOver ? league.openParties.find(entry => entry._id.toString() === takeOver) : undefined
     try {
-      await PartyModel.create([{ ...party, leagueId: league._id, accountId: member._id }], { session })
+      await PartyModel.create(
+        [
+          {
+            ...party,
+            leagueId: league._id,
+            accountId: member._id,
+            ...(open ? { previousPartyId: open.previousPartyId, keepers: [...open.keepers] } : {})
+          }
+        ],
+        { session }
+      )
     } catch (error) {
       throw toPartyConflict(error)
     }
@@ -241,7 +265,9 @@ export async function updateLeague(
   if (league.mode === 'crossover' && input.cadence !== undefined && input.cadence !== 'weekly') {
     throw new BadRequest('Crossover leagues follow the NFL’s weeks, so they’re always weekly')
   }
-  const capacityGuard = input.maxParties === undefined ? {} : { partyCount: trusted({ $lte: input.maxParties }) }
+  // Open parties (Dynasty, between seasons) hold their places too.
+  const capacityGuard =
+    input.maxParties === undefined ? {} : { $expr: trusted({ $lte: [{ $add: ['$partyCount', { $size: '$openParties' }] }, input.maxParties] }) }
   const updated = await LeagueModel.findOneAndUpdate(
     { _id: leagueId, status: 'forming', ...capacityGuard },
     { $set: input },
@@ -308,11 +334,19 @@ export async function updateParty(owner: AccountDocument, partyId: string, input
 // ---------------------------------------------------------------------------
 // Helpers
 
+/**
+ * Takes a party out of a forming league. Between dynasty seasons, a party carried over from last season isn't lost: it
+ * becomes an open party, with its history and keepers, for a new member to take over.
+ */
 export async function removePartyFromLeague(league: LeagueDocument, party: PartyDocument): Promise<void> {
+  const reopen = !!league.dynasty && league.dynasty.number > 1 && party.previousPartyId
   await inTransaction(async session => {
+    const opened = reopen
+      ? { $push: { openParties: { previousPartyId: party.previousPartyId, name: party.name, crest: { emblem: party.crest.emblem, banner: party.crest.banner }, keepers: [...(party.keepers ?? [])] } } }
+      : {}
     const released = await LeagueModel.updateOne(
       { _id: league._id, status: 'forming' },
-      { $inc: { partyCount: -1 } },
+      { $inc: { partyCount: -1 }, ...opened },
       { session }
     )
     if (released.modifiedCount === 0) throw notForming()
@@ -321,10 +355,11 @@ export async function removePartyFromLeague(league: LeagueDocument, party: Party
   })
 }
 
-async function explainJoinFailure(pin: string, session: ClientSession): Promise<Error> {
+async function explainJoinFailure(pin: string, session: ClientSession, takeOver?: string): Promise<Error> {
   const league = await LeagueModel.findOne({ pin }).session(session)
   if (!league) return new NotFound('No league found with that PIN')
   if (league.status !== 'forming') return new Conflict('This league is no longer accepting parties')
+  if (takeOver) return new Conflict('That party has already been taken over')
   return new Conflict('This league is full')
 }
 
@@ -387,6 +422,7 @@ function toSummary(
           nextLeagueId: league.dynasty.nextId?.toString() ?? null
         }
       : null,
+    openParties: league.openParties.map(open => ({ id: open._id.toString(), name: open.name, crest: { emblem: open.crest.emblem, banner: open.crest.banner } as Crest })),
     createdAt: league.createdAt
   }
 }

@@ -108,7 +108,8 @@ export async function scheduleDraft(host: AccountDocument, leagueId: string, dra
     // Matching partyCount guarantees nobody joined or left while the pool was being built.
     const claimed = await LeagueModel.updateOne(
       { _id: league._id, status: 'forming', partyCount: league.partyCount },
-      { $set: { status: 'drafting', draftAt, season, seed } },
+      // Open dynasty parties nobody took over leave the league now; their keepers return to the pool.
+      { $set: { status: 'drafting', draftAt, season, seed, openParties: [] } },
       { session }
     )
     if (claimed.modifiedCount === 0) throw new Conflict('The league changed while scheduling; please try again')
