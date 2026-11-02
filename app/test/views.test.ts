@@ -47,6 +47,7 @@ describe('HostLeagueView', () => {
       cadence: 'weekly',
       maxParties: 4,
       mode: 'classic',
+      playoffs: true,
       party: { name: 'Dragon Slayers', crest: { emblem: 'tower', banner: 'crimson' } }
     })
     expect(router.currentRoute.value.fullPath).toBe('/leagues/new-league')

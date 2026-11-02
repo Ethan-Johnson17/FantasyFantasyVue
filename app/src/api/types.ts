@@ -47,6 +47,8 @@ export interface LeagueSummary {
   seasonWeeks?: number
   /** When the next game week resolves, once the season has started */
   nextResolvesAt?: string | null
+  /** Classic with playoffs: the bracket's size, and its rounds (weeks after the 14-week regular season); null without */
+  playoffs?: PlayoffFormat | null
   /** Dynasty only: which season of the chain this is, and the seasons before and after it */
   dynasty?: { seasons: number; number: number; previousLeagueId: string | null; nextLeagueId: string | null } | null
   /** Dynasty, between seasons: parties waiting for a new member to take them over */
@@ -99,6 +101,8 @@ export interface CreateLeagueInput {
   mode?: LeagueMode
   /** Classic only: play a dynasty of this many seasons */
   dynastySeasons?: 3 | 5
+  /** Classic: a playoff bracket decides the champion (on unless false; false: the best record wins) */
+  playoffs?: boolean
   party: PartyInput
 }
 
@@ -299,6 +303,38 @@ export interface PartyRef {
 
 export type Outcome = 'home' | 'away' | 'draw'
 
+/** Regular-season battles count in the standings; playoff weeks hold bracket games and consolation battles. */
+export type MatchupKind = 'regular' | 'playoff' | 'consolation'
+
+export interface PlayoffFormat {
+  /** Parties in the bracket */
+  spots: number
+  /** Playoff weeks after the regular season */
+  rounds: number
+}
+
+export interface PlayoffSeed extends PartyRef {
+  seed: number
+}
+
+/** The playoff bracket (GET /api/leagues/:id/playoffs). */
+export interface Playoffs {
+  format: PlayoffFormat
+  /** The regular season isn't over, so the seeds can still change */
+  provisional: boolean
+  seeds: PlayoffSeed[]
+  rounds: {
+    round: number
+    week: number
+    name: string
+    /** Empty while earlier rounds are still to be played */
+    games: { high: PlayoffSeed & { total: number | null }; low: PlayoffSeed & { total: number | null }; winner: string | null }[]
+    /** The top seeds resting on a bye */
+    byes: PlayoffSeed[]
+  }[]
+  champion: PartyRef | null
+}
+
 export interface ScheduleWeek {
   week: number
   /** Crossover only: the real NFL week this game week follows */
@@ -307,6 +343,7 @@ export interface ScheduleWeek {
   matchups: {
     home: PartyRef
     away: PartyRef | null
+    kind?: MatchupKind
     /** Classic: one battle. Crossover: totals and outcome are the Quest board; the gridiron fields the other board. */
     result: {
       homeTotal: number
@@ -356,6 +393,7 @@ export interface WeekResult {
     outcome: Outcome
     /** Crossover only: the Gridiron board */
     gridironOutcome?: Outcome | null
+    kind?: MatchupKind
   }[]
   /** Crossover only: the week's encounter */
   encounter?: Encounter | null

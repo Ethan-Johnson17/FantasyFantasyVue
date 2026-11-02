@@ -35,11 +35,13 @@ export const CreateLeagueSchema = z
     mode: z.enum(LEAGUE_MODES).default('classic'),
     // Classic only: play a dynasty of this many chained hidden seasons (docs/DYNASTY_SPEC.md)
     dynastySeasons: z.union([z.literal(3), z.literal(5)]).optional(),
+    // Classic: a playoff bracket decides the champion (false: the best record wins). Crossover has none yet.
+    playoffs: z.boolean().default(true),
     party: PartyInputSchema
   })
   .strict()
 
-export const UpdateLeagueSchema = CreateLeagueSchema.omit({ party: true, mode: true, dynastySeasons: true })
+export const UpdateLeagueSchema = CreateLeagueSchema.omit({ party: true, mode: true, dynastySeasons: true, playoffs: true })
   .partial()
   .strict()
   .refine(update => Object.keys(update).length > 0, 'provide at least one field to change')

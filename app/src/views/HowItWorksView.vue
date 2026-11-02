@@ -212,6 +212,23 @@ function back() {
       </ul>
     </section>
 
+    <section id="playoffs" class="section">
+      <h2 class="section-title">Playoffs</h2>
+      <ul class="points">
+        <li>
+          Classic leagues end with playoffs unless the host chose “Best record”. The regular season is 14 weeks; then a
+          bracket plays one round a week.
+        </li>
+        <li>
+          The bracket grows with the league: 2–3 parties play a final, 4–7 send their top 4 to the semifinals, and 8–12
+          send their top 6, with the top 2 seeds resting on a bye before the semifinals.
+        </li>
+        <li>Seeds follow the regular-season standings. The higher seed always plays the lowest seed left, and goes through on a draw.</li>
+        <li>Everyone outside the bracket plays consolation battles. They, like the playoff games, don't change the standings.</li>
+        <li>The final's winner is the champion.</li>
+      </ul>
+    </section>
+
     <section v-if="crossover" id="crossover" class="section">
       <h2 class="section-title">Crossover</h2>
       <p>

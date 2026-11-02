@@ -40,7 +40,7 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
 
 - Hero attributes affect scoring (small multiplier on primary attribute)
 - Live snake draft with pick timer and auto-pick fallback
-- Playoff bracket (NFL weeks 15–17)
+- ~~Playoff bracket (NFL weeks 15–17)~~ Built 2026-11-01 for Classic and Dynasty ([docs/CLASSIC_SCORING.md](docs/CLASSIC_SCORING.md#playoffs-decided-2026-10-31)); Crossover playoffs are still to come
 - Simulated turn-based combat (seeded RNG) as an alternative to score-based battles
 - Kicker class
 - "How it works" page explaining Levels, classes, and that hero strength follows a real season (main screens stay pure fantasy, with no mention of real players or the NFL)
@@ -51,7 +51,7 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
 
 ## Future ideas
 
-- **Dynasty leagues (next, spec in [docs/DYNASTY_SPEC.md](docs/DYNASTY_SPEC.md)):** Classic leagues play a chain of 3 or 5 hidden seasons; parties keep 3 heroes (their first picks), heroes are re-leveled each season and grow with XP (a small damage bonus and an earned trait). Hero identities are never revealed, across seasons too.
+- **Dynasty leagues (built 2026-10-30, spec in [docs/DYNASTY_SPEC.md](docs/DYNASTY_SPEC.md)):** Classic leagues play a chain of 3 or 5 hidden seasons; parties keep 3 heroes (their first picks), heroes are re-leveled each season and grow with XP (a small damage bonus and an earned trait). Hero identities are never revealed, across seasons too.
 - **Daily standings refresh:** a free scheduled trigger (for example GitHub Actions) that advances leagues even when
   nobody opens them. Leagues already advance on demand, so this only needs adding once the API is hosted.
 

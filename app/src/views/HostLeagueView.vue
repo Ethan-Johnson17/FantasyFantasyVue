@@ -46,6 +46,12 @@ const lengths: { value: 1 | 3 | 5; label: string; hint: string }[] = [
   { value: 5, label: 'Dynasty · 5', hint: 'The long haul' }
 ]
 const length = ref<1 | 3 | 5>(1)
+// Classic only: a playoff bracket after the regular season, or the best record wins (docs/CLASSIC_SCORING.md).
+const playoffs = ref(true)
+const champions: { value: boolean; label: string; hint: string }[] = [
+  { value: true, label: 'Playoffs', hint: 'A bracket after week 14' },
+  { value: false, label: 'Best record', hint: 'First place after week 14' }
+]
 
 const modes: { value: LeagueMode; label: string; hint: string }[] = [
   { value: 'classic', label: 'Classic', hint: 'Heroes hide the real players behind them. Plays any time.' },
@@ -59,8 +65,9 @@ async function submit() {
   submitting.value = true
   error.value = null
   try {
-    const dynasty = form.mode !== 'crossover' && length.value !== 1 ? { dynastySeasons: length.value } : {}
-    const league = await api.createLeague({ ...form, ...dynasty })
+    const classic = form.mode !== 'crossover'
+    const dynasty = classic && length.value !== 1 ? { dynastySeasons: length.value } : {}
+    const league = await api.createLeague({ ...form, ...dynasty, ...(classic ? { playoffs: playoffs.value } : {}) })
     await router.push(`/leagues/${league.id}`)
   } catch (caught) {
     error.value = caught
@@ -132,6 +139,20 @@ async function submit() {
         <span v-if="length !== 1" class="muted hint">
           A dynasty plays {{ length }} seasons in a row. Between seasons each party keeps up to 3 heroes, who level up or
           down with their real form and grow with experience.
+        </span>
+      </fieldset>
+
+      <fieldset v-if="form.mode !== 'crossover'" class="choice">
+        <legend class="field-label">Champion</legend>
+        <div class="pair">
+          <label v-for="option in champions" :key="String(option.value)" class="option" :class="{ on: playoffs === option.value }">
+            <span class="option-title"><input v-model="playoffs" type="radio" name="playoffs" :value="option.value" />{{ option.label }}</span>
+            <span class="muted hint">{{ option.hint }}</span>
+          </label>
+        </div>
+        <span v-if="playoffs" class="muted hint">
+          The best 2, 4 or 6 parties, by how many join, play a bracket over up to 3 more weeks. Everyone else plays
+          consolation battles.
         </span>
       </fieldset>
 

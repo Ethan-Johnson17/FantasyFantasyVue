@@ -39,13 +39,15 @@ beforeEach(async () => {
   await seedDynasty()
 })
 
-async function createDynasty(seasons = 3) {
+async function createDynasty(seasons = 3, { playoffs = false }: { playoffs?: boolean } = {}) {
   const res = await host.post('/api/leagues', {
     name: 'Long Haul',
     visibility: 'private',
     cadence: 'daily',
     maxParties: 6,
     dynastySeasons: seasons,
+    // The dynasty rules are tested on 14-week seasons, unless a test asks for playoffs.
+    playoffs,
     party: { name: 'Host Party', crest }
   })
   expect(res.status).toBe(201)
@@ -63,9 +65,9 @@ async function draft(id: string) {
   await host.get(`/api/leagues/${id}`)
 }
 
-/** Plays the whole season. */
-async function finish(id: string) {
-  await makeWeeksDue(id, 14)
+/** Plays the whole season: 14 weeks, plus the final with playoffs (three parties play a two-party final). */
+async function finish(id: string, weeks = 14) {
+  await makeWeeksDue(id, weeks)
   await host.get(`/api/leagues/${id}`)
   expect((await LeagueModel.findById(id))?.status).toBe('complete')
 }
@@ -576,6 +578,20 @@ describe('the dynasty summary', () => {
     expect(carolsLine).toMatchObject({ wins: aliceSeasonOne.wins, seasons: 1, isMine: true })
     expect(summary.standings.reduce((sum, row) => sum + row.titles, 0)).toBe(1)
     expect(summary.standings[0]!.titles).toBe(1)
+  })
+
+  it('names the playoff champion, and keeps playoffs next season', async () => {
+    const id = await createDynasty(3, { playoffs: true })
+    await draft(id)
+    await finish(id, 15)
+    // The second seed wins the final, so the champion isn't simply the best record.
+    const table = (await host.get(`/api/leagues/${id}/standings`)).body as { name: string }[]
+    await WeekResultModel.updateOne({ leagueId: id, week: 15, 'matchups.kind': 'playoff' }, { $set: { 'matchups.$.outcome': 'away' } })
+    const summary = (await host.get(`/api/leagues/${id}/dynasty`)).body as Summary
+    expect(summary.history[0]!.champion?.name).toBe(table[1]!.name)
+    expect(summary.standings.find(row => row.name === table[1]!.name)?.titles).toBe(1)
+    const next = (await host.post(`/api/leagues/${id}/next-season`)).body as { playoffs: unknown }
+    expect(next.playoffs).toEqual({ spots: 2, rounds: 1 })
   })
 
   it('is only for dynasties', async () => {

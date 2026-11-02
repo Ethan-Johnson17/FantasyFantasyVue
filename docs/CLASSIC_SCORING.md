@@ -104,8 +104,8 @@ This is more D&D-like but harder to balance and to explain. It's a good fit for 
 
 ## Step 6: League calendar
 
-- Regular season: NFL weeks 1–14 for matchups. **Standings only** for the MVP: best record wins, with total
-  damage as the tiebreaker. A playoff bracket (weeks 15–17) is post-MVP.
+- Regular season: NFL weeks 1–14 for matchups, with total damage as the standings tiebreaker. A playoff bracket in
+  weeks 15–17 then decides the champion, unless the host chose best record ([Playoffs](#playoffs-decided-2026-10-31)).
 - **The host picks the cadence** when creating the league (e.g., daily or weekly). A scheduled server job resolves
   each game week on time; historical leagues don't follow the real NFL calendar.
 
@@ -243,7 +243,28 @@ Decided 2026-10-13. Items marked *(default)* were filled in during implementatio
   because exact per-hero weekly points could be matched against public stats to identify the hidden player.
   Scoring itself always uses exact values.
 - **Standings:** a win is worth 1 and a draw ½ *(default)*. Ties in the standings go to the higher total damage. After
-  week 14 the league is `complete`.
+  week 14 the league is `complete`, or after its playoffs if it has them (below).
+
+## Playoffs (decided 2026-10-31)
+
+- **On by default** for Classic (and so Dynasty) leagues; the host can choose **Best record** instead when creating the
+  league, and can't change it afterwards. Leagues created before playoffs existed keep best record. Crossover has no
+  playoffs yet. Each Dynasty season keeps the first season's choice.
+- **The bracket scales with the league** (by parties at the draft): 2–3 parties play a **final** (1 week); 4–7 send the
+  **top 4** to semifinals and a final (2 weeks); 8–12 send the **top 6** to quarterfinals, semifinals and a final
+  (3 weeks), with seeds 1 and 2 resting on a **bye** in the quarterfinals. The season is 15, 16 or 17 weeks; playoff
+  weeks score from the hidden season's NFL weeks 15–17.
+- **Seeding:** the regular-season standings. Each round, the best seed left plays the worst seed left (1 v 4, 2 v 3;
+  top 6: 3 v 6, 4 v 5, then 1 and 2 meet the lowest and highest seeds through). A round is scheduled only once the
+  round before it is played.
+- **Draws:** the higher seed goes through.
+- **Consolation battles:** every party outside the round's games (except the byes) plays one, paired in standings
+  order; an odd one out fights the dungeon monster. They count for nothing.
+- **Standings count the regular season only:** playoff and consolation results don't change them. The finale's
+  **champion is the final's winner**, which is also who a Dynasty records as that season's champion. Awards still
+  cover every week.
+- Implemented in `api/src/modules/season/bracket.ts` (the pure bracket) and `season.service.ts`
+  (`schedulePlayoffWeek`, `seasonChampion`); the bracket is served at `GET /api/leagues/:id/playoffs`.
 
 ## Strategy layer (decided 2026-10-15)
 

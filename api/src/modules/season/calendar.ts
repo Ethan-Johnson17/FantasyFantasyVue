@@ -1,5 +1,6 @@
 import { CADENCE_MS, type LeagueDocument } from '../leagues/league.model.js'
 import { nflWeekReady } from './nflWeeks.js'
+import { playoffFormat } from './bracket.js'
 import { SEASON_WEEKS } from './schedule.js'
 
 /*
@@ -9,11 +10,12 @@ import { SEASON_WEEKS } from './schedule.js'
  * Tuesday morning after its games, once the data for every game is in.
  */
 
-type CalendarLeague = Pick<LeagueDocument, 'mode' | 'weekOneAt' | 'cadence' | 'nflWeeks'>
+type CalendarLeague = Pick<LeagueDocument, 'mode' | 'weekOneAt' | 'cadence' | 'nflWeeks' | 'playoffs' | 'partyCount'>
 
-/** Game weeks in the league's season. */
+/** Game weeks in the league's season: Classic adds its playoff rounds to the 14-week regular season. */
 export function seasonLength(league: CalendarLeague): number {
-  return league.mode === 'crossover' ? (league.nflWeeks?.length ?? 0) : SEASON_WEEKS
+  if (league.mode === 'crossover') return league.nflWeeks?.length ?? 0
+  return SEASON_WEEKS + (league.playoffs ? playoffFormat(league.partyCount).rounds : 0)
 }
 
 /** The NFL week whose stats a game week uses. Week 0 is the week before the league's first. */

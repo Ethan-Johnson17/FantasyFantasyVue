@@ -13,7 +13,7 @@ import { LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
 import { PartyModel, type PartyDocument } from '../leagues/party.model.js'
 import { generatePin } from '../leagues/pin.js'
 import { getRuleset, type Ruleset } from '../scoring/rulesets.js'
-import { computeStandings } from '../season/season.service.js'
+import { computeStandings, seasonChampion } from '../season/season.service.js'
 import { LAST_MATCHUP_WEEK } from '../draft/candidates.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models.js'
 import { WeekResultModel } from '../season/weekResult.model.js'
@@ -78,6 +78,7 @@ export async function startNextSeason(host: AccountDocument, leagueId: string): 
               cadence: previous.cadence,
               maxParties: Math.max(previous.maxParties, parties.length),
               mode: 'classic',
+              playoffs: previous.playoffs,
               rulesetVersion: previous.rulesetVersion,
               partyCount: parties.length,
               pin: generatePin(),
@@ -399,7 +400,7 @@ export async function getDynasty(viewer: AccountDocument, leagueId: string): Pro
   const history: DynastyView['history'] = []
   for (const season of seasons) {
     const standings = season.resolvedWeeks > 0 ? await computeStandings(season) : []
-    const champion = season.status === 'complete' ? standings[0] : undefined
+    const champion = season.status === 'complete' ? await seasonChampion(season, standings) : undefined
     history.push({
       number: season.dynasty?.number ?? 0,
       leagueId: season.id,

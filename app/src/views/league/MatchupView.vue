@@ -8,6 +8,7 @@ import MatchupPreview from '../../components/matchup/MatchupPreview.vue'
 import MatchupResult from '../../components/matchup/MatchupResult.vue'
 import { useLeague } from '../../league'
 import { mySeason, type MyWeek } from '../../mySeason'
+import { roundName, stageOf } from '../../playoffs'
 import { seasonWeeksOf } from '../../time'
 import CrossoverPreview from '../../components/matchup/CrossoverPreview.vue'
 import CrossoverResult from '../../components/matchup/CrossoverResult.vue'
@@ -36,30 +37,49 @@ const week = computed(() => {
 const played = computed(() => week.value <= (league.value?.resolvedWeeks ?? 0))
 const label = computed(() => (played.value ? 'Played' : week.value === currentWeek.value ? 'Next battle' : 'Upcoming'))
 
+const schedule = ref<ScheduleWeek[]>([])
+const season = computed(() => mySeason(schedule.value, myParty.value?.id))
+const thisEntry = computed(() => season.value.find(entry => entry.week === week.value) ?? null)
+/** Playoffs: my party rests this week, so there's no battle to show */
+const onBye = computed(() => !!thisEntry.value?.bye)
+/** Playoff weeks: the round, or "Consolation" for a battle outside the bracket */
+const stage = computed(() =>
+  thisEntry.value ? stageOf(league.value?.playoffs, week.value, thisEntry.value.kind ?? undefined) : roundName(league.value?.playoffs, week.value)
+)
+
 const result = ref<WeekResult | null>(null)
 const preview = ref<Matchup | null>(null)
 const error = ref<unknown>(null)
 const loading = ref(false)
 
+let loads = 0
 async function load() {
+  // Only the latest load counts: a week change (or a bye showing) can overtake one still in flight.
+  const current = ++loads
   const id = league.value?.id
   if (!id || !scheduled.value) return
-  loading.value = true
   error.value = null
   result.value = null
   preview.value = null
+  // Reloaded once the schedule shows a bye, clearing anything fetched for that week before it did.
+  if (onBye.value) return
+  loading.value = true
   try {
-    if (played.value) result.value = await api.getWeekResult(id, week.value)
-    else preview.value = await api.getMatchup(id, week.value)
+    if (played.value) {
+      const fetched = await api.getWeekResult(id, week.value)
+      if (current === loads) result.value = fetched
+    } else {
+      const fetched = await api.getMatchup(id, week.value)
+      if (current === loads) preview.value = fetched
+    }
   } catch (caught) {
-    error.value = caught
+    if (current === loads) error.value = caught
   } finally {
-    loading.value = false
+    if (current === loads) loading.value = false
   }
 }
-watch([week, () => league.value?.resolvedWeeks], load, { immediate: true })
+watch([week, () => league.value?.resolvedWeeks, onBye], load, { immediate: true })
 
-const schedule = ref<ScheduleWeek[]>([])
 watch(
   () => league.value?.resolvedWeeks,
   async () => {
@@ -73,12 +93,18 @@ watch(
   },
   { immediate: true }
 )
-const season = computed(() => mySeason(schedule.value, myParty.value?.id))
 /** Crossover: the real NFL week shown under the game week */
 const nflWeek = computed(() => schedule.value.find(entry => entry.week === week.value)?.nflWeek ?? null)
 
 const OUTCOME_MARK = { win: 'W', loss: 'L', draw: 'D' } as const
 function chipLabel(entry: MyWeek): string {
+  const round = stageOf(league.value?.playoffs, entry.week, entry.kind ?? undefined)
+  if (entry.bye) return `Week ${String(entry.week)}: bye`
+  if (round) return `${round}, ${weekLabel(entry)}`
+  return weekLabel(entry)
+}
+
+function weekLabel(entry: MyWeek): string {
   const versus = entry.opponent ? ` vs ${entry.opponent}` : ''
   if (entry.boards) {
     return `Week ${String(entry.week)}: ${entry.outcome ?? ''}${versus}, boards ${chipMark(entry)}`
@@ -93,6 +119,7 @@ function chipLabel(entry: MyWeek): string {
 function chipMark(entry: MyWeek): string {
   if (entry.boards) return `${boardCount(entry.boards.mine)}–${boardCount(entry.boards.theirs)}`
   if (entry.outcome) return OUTCOME_MARK[entry.outcome]
+  if (entry.bye) return 'Bye'
   return entry.monster ? '☠' : entry.week === currentWeek.value ? '•' : ''
 }
 const boardCount = (value: number) => (Number.isInteger(value) ? String(value) : `${String(Math.floor(value))}½`)
@@ -114,6 +141,7 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/matchup/$
       <div class="week-label" aria-live="polite">
         <span class="week-number">Week {{ week }} of {{ seasonWeeks }}</span>
         <span v-if="nflWeek" class="muted small">NFL week {{ nflWeek }}</span>
+        <span v-if="stage" class="stage small">{{ stage }}</span>
         <span class="week-state small" :class="{ next: label === 'Next battle' }">{{ label }}</span>
       </div>
       <RouterLink v-if="week < seasonWeeks" :to="linkTo(week + 1)" class="step" :aria-label="`Week ${week + 1}`">›</RouterLink>
@@ -124,7 +152,10 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/matchup/$
         <RouterLink
           :to="linkTo(entry.week)"
           class="chip"
-          :class="[entry.outcome ?? '', { selected: entry.week === week, next: !entry.played && entry.week === currentWeek, monster: entry.monster }]"
+          :class="[
+            entry.outcome ?? '',
+            { selected: entry.week === week, next: !entry.played && entry.week === currentWeek, monster: entry.monster, playoff: entry.kind === 'playoff' || entry.bye }
+          ]"
           :aria-label="chipLabel(entry)"
           :aria-current="entry.week === week ? 'page' : undefined"
         >
@@ -134,6 +165,8 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/matchup/$
       </li>
     </ol>
 
+    <p v-if="onBye" class="card muted">Your party rests on a bye this week, through to the next round.</p>
+    <p v-else-if="stage === 'Consolation'" class="note small">A consolation battle: it counts for pride, not the title or the standings.</p>
     <FormError :error="error" />
     <p v-if="loading" class="muted" aria-busy="true">Loading…</p>
 
@@ -227,6 +260,14 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/matchup/$
 }
 .chip.draw {
   color: var(--text);
+}
+/* Playoff weeks: a gold rule along the top */
+.chip.playoff {
+  border-top: 3px solid var(--gold);
+}
+.stage {
+  color: var(--gold);
+  font-weight: 700;
 }
 .chip.next {
   color: var(--gold);
