@@ -1,22 +1,27 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useApi } from '../../api/inject'
-import type { Award, Finale } from '../../api/types'
+import type { Award, Finale, PartyRef, Playoffs } from '../../api/types'
 import CrestShield from '../../components/CrestShield.vue'
 import FormError from '../../components/FormError.vue'
 import { useLeague } from '../../league'
 
-/* The season finale: the champion, the podium, awards, and final standings. No reveal. */
+/*
+ * The season finale: the champion, the podium, awards, and final standings. No reveal. With playoffs the champion
+ * won the final, the podium is the two finalists, and the standings are the regular season's.
+ */
 
 const api = useApi()
 const { league } = useLeague()
 const finale = ref<Finale | null>(null)
+const playoffs = ref<Playoffs | null>(null)
 const error = ref<unknown>(null)
 
 onMounted(async () => {
   if (!league.value) return
   try {
-    finale.value = await api.getFinale(league.value.id)
+    const id = league.value.id
+    ;[finale.value, playoffs.value] = await Promise.all([api.getFinale(id), league.value.playoffs ? api.getPlayoffs(id) : null])
   } catch (caught) {
     error.value = caught
   }
@@ -34,14 +39,22 @@ const number = (value: number) => Math.round(value).toLocaleString()
 const myLine = computed(() => {
   const value = finale.value
   if (!value?.myFinish) return null
-  if (value.myFinish.rank === 1) return 'Your party are the champions!'
+  if (value.myFinish.partyId === value.champion.partyId) return 'Your party are the champions!'
   const row = value.standings[value.myFinish.rank - 1]
-  return `You finished ${ordinal(value.myFinish.rank)} of ${String(value.standings.length)}${row ? ` · ${record(row)}` : ''}`
+  const finish = `${ordinal(value.myFinish.rank)} of ${String(value.standings.length)}${row ? ` · ${record(row)}` : ''}`
+  return league.value?.playoffs ? `You finished the regular season ${finish}` : `You finished ${finish}`
 })
 
-/** Second, first, third: the classic podium order. */
+/** Playoffs: the final, once played */
+const final = computed(() => {
+  const game = playoffs.value?.rounds.at(-1)?.games[0]
+  if (!game?.winner) return null
+  return game.winner === game.high.partyId ? { first: game.high, second: game.low } : { first: game.low, second: game.high }
+})
+
+/** Second, first, third: the classic podium order. With playoffs, the two finalists. */
 const podium = computed(() => {
-  const [first, second, third] = finale.value?.standings ?? []
+  const [first, second, third]: (PartyRef | undefined)[] = final.value ? [final.value.first, final.value.second] : (finale.value?.standings ?? [])
   return [
     second && { row: second, place: 2 },
     first && { row: first, place: 1 },
@@ -102,7 +115,7 @@ function describe(award: Award): { icon: string; title: string; subject: string;
       <CrestShield :crest="finale.champion.crest" :size="88" />
       <h1 class="champion-name">{{ finale.champion.name }}</h1>
       <p class="champion-line">Champions of {{ league?.name }} · {{ record(finale.champion) }}</p>
-      <p v-if="myLine" class="my-line" :class="{ won: finale.myFinish?.rank === 1 }">{{ myLine }}</p>
+      <p v-if="myLine" class="my-line" :class="{ won: finale.myFinish?.partyId === finale.champion.partyId }">{{ myLine }}</p>
     </section>
 
     <ol v-if="podium.length > 1" class="podium" aria-label="Podium">
@@ -125,7 +138,7 @@ function describe(award: Award): { icon: string; title: string; subject: string;
       </li>
     </ul>
 
-    <h2 class="section-title">Final standings</h2>
+    <h2 class="section-title">{{ league?.playoffs ? 'Regular season' : 'Final standings' }}</h2>
     <table class="standings">
       <thead>
         <tr>

@@ -1,4 +1,4 @@
-import type { ScheduleWeek } from './api/types'
+import type { MatchupKind, ScheduleWeek } from './api/types'
 
 /* My battle each week of the season, described from my side. */
 
@@ -13,6 +13,10 @@ export interface MyWeek {
   theirTotal: number | null
   /** Crossover: boards won each side, e.g. 2-0 or 1-1; null in Classic and before the battle */
   boards: { mine: number; theirs: number } | null
+  /** Playoff weeks: a bracket game or a consolation battle; null on a bye */
+  kind: MatchupKind | null
+  /** Playoffs: my party rests that week, through to the next round */
+  bye: boolean
 }
 
 export function mySeason(schedule: readonly ScheduleWeek[], myPartyId: string | undefined): MyWeek[] {
@@ -40,7 +44,10 @@ export function mySeason(schedule: readonly ScheduleWeek[], myPartyId: string | 
       outcome: !result ? null : (boardOutcome ?? (result.outcome === 'draw' ? 'draw' : (result.outcome === 'home') === amHome ? 'win' : 'loss')),
       myTotal: result ? (amHome ? result.homeTotal : result.awayTotal) : null,
       theirTotal: result ? (amHome ? result.awayTotal : result.homeTotal) : null,
-      boards
+      boards,
+      kind: mine ? (mine.kind ?? 'regular') : null,
+      // Only the top seeds of a playoff week sit out; the regular season has a battle for everyone.
+      bye: !mine && week.matchups.some(m => m.kind && m.kind !== 'regular')
     }
   })
 }

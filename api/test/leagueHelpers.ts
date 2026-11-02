@@ -25,13 +25,17 @@ export type Player = ReturnType<typeof as>
 export const host = as('auth0|host')
 export const DAY = CADENCE_MS.daily
 
-/** A daily league hosted by `host`, with `members` joined and the draft already run. */
-export async function draftedLeague(members: readonly Player[]) {
+/**
+ * A daily league hosted by `host`, with `members` joined and the draft already run. Without playoffs unless asked,
+ * so the season is the 14-week regular season (playoffs: playoffs.test.ts).
+ */
+export async function draftedLeague(members: readonly Player[], { playoffs = false }: { playoffs?: boolean } = {}) {
   const created = await host.post('/api/leagues', {
     name: 'Season League',
     visibility: 'private',
     cadence: 'daily',
     maxParties: 6,
+    playoffs,
     party: { name: 'Host Party', crest: { emblem: 'crown', banner: 'crimson' } }
   })
   const { id, pin } = created.body as { id: string; pin: string }

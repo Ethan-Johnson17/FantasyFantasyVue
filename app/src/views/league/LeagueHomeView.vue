@@ -2,10 +2,12 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../../api/inject'
-import type { ScheduleWeek, Standing } from '../../api/types'
+import type { Playoffs, ScheduleWeek, Standing } from '../../api/types'
 import CrestShield from '../../components/CrestShield.vue'
 import FormError from '../../components/FormError.vue'
+import PlayoffBracket from '../../components/PlayoffBracket.vue'
 import { useLeague } from '../../league'
+import { roundName } from '../../playoffs'
 import { nextBattleAt, seasonWeeksOf, timeUntil } from '../../time'
 
 const api = useApi()
@@ -14,6 +16,7 @@ const { league, myParty, reload } = useLeague()
 
 const standings = ref<Standing[]>([])
 const schedule = ref<ScheduleWeek[]>([])
+const playoffs = ref<Playoffs | null>(null)
 const busy = ref(false)
 const error = ref<unknown>(null)
 const copied = ref(false)
@@ -39,6 +42,14 @@ const currentWeek = computed(() => {
   return Math.min(league.value.resolvedWeeks + 1, seasonWeeks.value)
 })
 const thisWeek = computed(() => schedule.value.find(week => week.week === currentWeek.value) ?? null)
+/** Playoff weeks: the round being played */
+const thisRound = computed(() => (currentWeek.value === null ? null : roundName(league.value?.playoffs, currentWeek.value)))
+/** Playoffs: my party sits this week out, through to the next round */
+const myBye = computed(
+  () => !!thisRound.value && !!myParty.value && !!thisWeek.value && !thisWeek.value.matchups.some(m => isMine(m.home.partyId) || isMine(m.away?.partyId ?? ''))
+)
+/** The playoff final's winner, or without playoffs the best record */
+const champion = computed(() => (league.value?.playoffs ? playoffs.value?.champion : standings.value[0]) ?? null)
 const nextBattle = computed(() => {
   const value = league.value
   if (value?.status !== 'active' || !value.weekOneAt) return ''
@@ -50,7 +61,11 @@ const inviteLink = computed(() => (league.value?.pin ? `${window.location.origin
 async function loadSeason() {
   if (!league.value || !inSeason.value) return
   const id = league.value.id
-  ;[standings.value, schedule.value] = await Promise.all([api.getStandings(id), api.getSchedule(id)])
+  ;[standings.value, schedule.value, playoffs.value] = await Promise.all([
+    api.getStandings(id),
+    api.getSchedule(id),
+    league.value.playoffs ? api.getPlayoffs(id) : null
+  ])
 }
 onMounted(loadSeason)
 watch(() => league.value?.status, loadSeason)
@@ -221,7 +236,7 @@ async function startNextSeason() {
     <template v-if="inSeason">
       <RouterLink v-if="league.status === 'complete'" :to="`/leagues/${league.id}/finale`" class="finale-banner">
         <span class="finale-eyebrow">Season complete</span>
-        <span class="finale-name">{{ standings[0]?.name ?? 'The champions' }} take the crown</span>
+        <span class="finale-name">{{ champion?.name ?? 'The champions' }} take the crown</span>
         <span class="finale-cta">See the finale and awards ›</span>
       </RouterLink>
       <h2 class="section-title spaced">Standings</h2>
@@ -234,7 +249,11 @@ async function startNextSeason() {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, index) in standings" :key="row.partyId" :class="{ mine: isMine(row.partyId) }">
+          <tr
+            v-for="(row, index) in standings"
+            :key="row.partyId"
+            :class="{ mine: isMine(row.partyId), cutoff: league.playoffs && index === league.playoffs.spots - 1 && index < standings.length - 1 }"
+          >
             <th scope="row">
               <span class="rank">{{ index + 1 }}</span>
               <CrestShield :crest="row.crest" :size="22" />
@@ -246,11 +265,19 @@ async function startNextSeason() {
           </tr>
         </tbody>
       </table>
-      <p class="muted small">Ties in the standings go to total damage.</p>
+      <p class="muted small">
+        Ties in the standings go to total damage.
+        <template v-if="league.playoffs">The top {{ league.playoffs.spots }} make the playoffs; only regular-season battles count here.</template>
+      </p>
+
+      <template v-if="playoffs">
+        <h2 class="section-title spaced">Playoffs</h2>
+        <PlayoffBracket :playoffs="playoffs" :my-party-id="myParty?.id ?? null" />
+      </template>
 
       <template v-if="thisWeek">
         <div class="row-heading">
-          <h2 class="section-title">{{ league.status === 'complete' ? 'Final week' : "This week's battles" }}</h2>
+          <h2 class="section-title">{{ thisRound ?? (league.status === 'complete' ? 'Final week' : "This week's battles") }}</h2>
           <span v-if="nextBattle" class="muted small">{{ nextBattle }}</span>
         </div>
         <ul class="battles">
@@ -264,12 +291,14 @@ async function startNextSeason() {
             <span class="muted">vs</span>
             <span v-if="matchup.away">{{ matchup.away.name }}</span>
             <span v-else class="monster-name">{{ matchup.result?.monster ?? 'Dungeon monster' }}</span>
+            <span v-if="matchup.kind === 'consolation'" class="muted small">Consolation</span>
           </li>
         </ul>
         <p v-if="thisWeek.matchups.some(m => !m.away)" class="muted small">
           The odd party out battles a monster as strong as the league average.
         </p>
-        <RouterLink v-if="league.status === 'active' && myParty" :to="`/leagues/${league.id}/matchup`" class="recap-link">
+        <p v-if="myBye" class="muted small">Your party rests on a bye this week, through to the next round.</p>
+        <RouterLink v-else-if="league.status === 'active' && myParty" :to="`/leagues/${league.id}/matchup`" class="recap-link">
           See your matchup ›
         </RouterLink>
       </template>
@@ -385,6 +414,10 @@ async function startNextSeason() {
 }
 .standings tr.mine {
   background: var(--surface-raised);
+}
+/* The playoff line: the last party in the bracket */
+.standings tr.cutoff {
+  border-bottom: 2px dashed var(--gold);
 }
 .standings tr.mine th {
   font-weight: 700;

@@ -7,6 +7,7 @@ import * as roster from '../roster/roster.service.js'
 import { advanceLeague } from '../season/advance.js'
 import { getFinale } from '../season/finale.service.js'
 import { getMatchup } from '../season/matchup.service.js'
+import { getPlayoffs } from '../season/playoffs.service.js'
 import * as season from '../season/season.service.js'
 import {
   ChampionSchema,
@@ -159,6 +160,9 @@ export function leagueRouter({ crossoverEnabled }: { crossoverEnabled: boolean }
     })
     .get('/:id/standings', async (req, res) => {
       res.json(await season.getStandings(currentAccount(req), parseId(req.params.id)))
+    })
+    .get('/:id/playoffs', async (req, res) => {
+      res.json(await getPlayoffs(currentAccount(req), parseId(req.params.id)))
     })
 }
 

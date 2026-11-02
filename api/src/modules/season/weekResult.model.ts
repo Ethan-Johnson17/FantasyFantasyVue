@@ -64,7 +64,9 @@ const matchupResultSchema = new Schema(
     // "away" means the monster when there is no away party. In Crossover, this is the Quest board.
     outcome: { type: String, required: true, enum: ['home', 'away', 'draw'] },
     // Crossover only: the Gridiron board's outcome
-    gridironOutcome: { type: String, enum: ['home', 'away', 'draw'], default: null }
+    gridironOutcome: { type: String, enum: ['home', 'away', 'draw'], default: null },
+    // Playoff weeks: a bracket game, or a consolation battle; only regular-season battles count in the standings
+    kind: { type: String, enum: ['regular', 'playoff', 'consolation'], default: 'regular' }
   },
   { _id: false }
 )

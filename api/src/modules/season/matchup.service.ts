@@ -11,11 +11,12 @@ import { PartyModel, readLineup, type PartyDocument } from '../leagues/party.mod
 import { getRuleset, type Ruleset } from '../scoring/rulesets.js'
 import { monsterName } from './monsters.js'
 import { NflGameModel } from '../stats/stats.models.js'
+import { REGULAR_SEASON_WEEKS } from './bracket.js'
 import { nflWeekOf, resolvesAt, seasonLength } from './calendar.js'
 import { critOf } from './crits.js'
 import { encounterFor, encounterMultiplier, type Encounter } from './encounters.js'
 import type { HeroGame } from './nflWeeks.js'
-import { computeStandings, heroPoints, nextWeek, restingHeroes, weekGames, type StandingView } from './season.service.js'
+import { computeStandings, heroPoints, nextWeek, restingHeroes, weekGames, type MatchupKind, type StandingView } from './season.service.js'
 import { heroForm, type HeroForm } from './form.service.js'
 import { applyStrategy, type Synergy } from './strategy.js'
 import { WeekResultModel } from './weekResult.model.js'
@@ -84,6 +85,8 @@ export interface MatchupView {
   games: { final: number; total: number } | null
   /** Crossover only: the week's encounter, known ahead so parties can plan for it */
   encounter: { name: string; weak: string[]; resists: string } | null
+  /** Playoff weeks: a bracket game, or a consolation battle that counts for nothing */
+  kind: MatchupKind
 }
 
 interface LiveWeek {
@@ -105,7 +108,10 @@ export async function getMatchup(member: AccountDocument, leagueId: string, requ
   if (!at) throw new NotFound('There is no battle that week')
   const next = { week, at }
   const scheduled = league.schedule?.find(entry => entry.week === week)
+  if (!scheduled && week > REGULAR_SEASON_WEEKS) throw new NotFound('Playoff matchups are set as the bracket plays out, one round at a time')
   const matchup = scheduled?.matchups.find(m => m.home.equals(party._id) || m.away?.equals(party._id))
+  // In the playoffs, only the top seeds on a bye have no battle.
+  if (!matchup && week > REGULAR_SEASON_WEEKS) throw new NotFound('Your party rests on a bye this week, through to the next round')
   if (!matchup) throw new NotFound('There is no battle that week')
 
   const opponentId = matchup.home.equals(party._id) ? matchup.away : matchup.home
@@ -164,7 +170,8 @@ export async function getMatchup(member: AccountDocument, leagueId: string, requ
     monster: opponent ? null : { name: encounter?.name ?? monsterName(createRng(hidden.seed, `monster-${String(next.week)}`)) },
     meetings,
     games,
-    encounter: encounter ? { name: encounter.name, weak: [...encounter.weak], resists: encounter.resists } : null
+    encounter: encounter ? { name: encounter.name, weak: [...encounter.weak], resists: encounter.resists } : null,
+    kind: matchup.kind
   }
 }
 

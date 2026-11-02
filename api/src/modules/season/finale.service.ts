@@ -5,7 +5,7 @@ import { getRuleset } from '../scoring/rulesets.js'
 import { critOf } from './crits.js'
 import { loadVisibleLeague } from '../leagues/league.access.js'
 import { PartyModel } from '../leagues/party.model.js'
-import { computeStandings, foughtLine, type StandingView } from './season.service.js'
+import { computeStandings, foughtLine, seasonChampion, type StandingView } from './season.service.js'
 import { WeekResultModel } from './weekResult.model.js'
 
 /*
@@ -55,8 +55,9 @@ export async function getFinale(viewer: AccountDocument, leagueId: string): Prom
     HeroModel.find({ leagueId: league._id }, 'name heroClass'),
     PartyModel.findOne({ leagueId: league._id, accountId: viewer._id }, '_id')
   ])
-  const champion = standings[0]
-  if (!champion) throw new Conflict('This league has no standings')
+  // The playoff final's winner, or without playoffs the best record. `standings` stays the regular-season table.
+  const champion = await seasonChampion(league, standings)
+  if (!champion) throw new Conflict('This league has no champion yet')
   const partyRef = new Map(standings.map(row => [row.partyId, { partyId: row.partyId, name: row.name, crest: row.crest }]))
   const ref = (id: { toString(): string }): PartyRef =>
     partyRef.get(id.toString()) ?? { partyId: id.toString(), name: 'Unknown', crest: champion.crest }

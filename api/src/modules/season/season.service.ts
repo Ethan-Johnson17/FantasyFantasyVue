@@ -17,6 +17,7 @@ import { scoreDefense, scoreOffense } from '../scoring/scoring.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models.js'
 import { decideBattle, decideMonsterBattle, monsterDamage, scoreParty, type Outcome } from './battle.js'
 import { monsterName } from './monsters.js'
+import { byeSeeds, gameWinner, playoffFormat, REGULAR_SEASON_WEEKS, roundGames, type PlayoffFormat } from './bracket.js'
 import { nflWeekOf, resolvesAt, seasonLength, weeksDueByTime, weeksReady } from './calendar.js'
 import { xpMultiplier } from '../dynasty/xp.js'
 import { encounterFor, encounterMultiplier, type Encounter } from './encounters.js'
@@ -56,11 +57,78 @@ export async function resolveDueWeeks(leagueId: string): Promise<void> {
   const due = await readyWeekCount(league)
   for (let week = league.resolvedWeeks + 1; week <= due; week++) {
     if (!(await resolveWeek(league, week))) return // another request is resolving
+    // Each playoff round is set from the results before it, so the next one is scheduled once this week is in.
+    if (week + 1 <= seasonLength(league)) await schedulePlayoffWeek(league, week + 1)
+  }
+}
+
+/**
+ * Schedules a playoff week (after the regular season): the bracket's games, seeded by the regular-season standings,
+ * and consolation battles for everyone else, paired in standings order (top seeds on a bye don't battle). Safe to
+ * call again: it never schedules a week twice.
+ */
+export async function schedulePlayoffWeek(league: LeagueDocument, week: number): Promise<void> {
+  if (!league.playoffs || week <= REGULAR_SEASON_WEEKS) return
+  const fresh = await LeagueModel.findById(league._id)
+  if (!fresh || fresh.schedule?.some(entry => entry.week === week)) {
+    if (fresh?.schedule) league.schedule = fresh.schedule
+    return
+  }
+  const format = playoffFormat(fresh.partyCount)
+  const round = week - REGULAR_SEASON_WEEKS
+  if (round > format.rounds) return
+  const standings = await computeStandings(fresh)
+  const seeds = standings.map(row => row.partyId)
+  const winners = await playoffWinners(fresh, format, seeds, round - 1)
+  const games = roundGames(format, seeds, round, winners)
+  // Everyone outside the round's games plays a consolation battle, except the top seeds resting on a bye.
+  const excluded = new Set([...games.flatMap(game => [game.high, game.low]), ...byeSeeds(format, seeds, round)])
+  const others = seeds.filter(id => !excluded.has(id))
+  const consolation = Array.from({ length: Math.ceil(others.length / 2) }, (_, i) => ({
+    home: others[i * 2] ?? '',
+    away: others[i * 2 + 1] ?? null,
+    kind: 'consolation' as const
+  }))
+  const matchups = [...games.map(game => ({ home: game.high, away: game.low, kind: 'playoff' as const })), ...consolation]
+  await LeagueModel.updateOne({ _id: fresh._id, 'schedule.week': trusted({ $ne: week }) }, { $push: { schedule: { week, matchups } } })
+  const updated = (await LeagueModel.findById(league._id))?.schedule
+  if (updated) league.schedule = updated
+}
+
+/** The winners of each playoff round played so far (round 1 first), from the results. */
+async function playoffWinners(league: LeagueDocument, format: PlayoffFormat, seeds: readonly string[], rounds: number): Promise<string[][]> {
+  const winners: string[][] = []
+  for (let round = 1; round <= rounds; round++) {
+    const result = await WeekResultModel.findOne({ leagueId: league._id, week: REGULAR_SEASON_WEEKS + round })
+    const games = roundGames(format, seeds, round, winners)
+    winners.push(
+      games.map(game => {
+        const played = result?.matchups.find(matchup => matchup.kind === 'playoff' && matchup.home.partyId.toString() === game.high)
+        if (!played) throw new Error(`Playoff round ${String(round)} of league ${league.id} has no result`)
+        return gameWinner(game, played.outcome)
+      })
+    )
+  }
+  return winners
+}
+
+/** The season's champion: the playoff final's winner, or without playoffs the best record. */
+export async function seasonChampion(league: LeagueDocument, standings?: readonly StandingView[]): Promise<StandingView | undefined> {
+  const table = standings ?? (await computeStandings(league))
+  if (!league.playoffs) return table[0]
+  const format = playoffFormat(league.partyCount)
+  const seeds = table.map(row => row.partyId)
+  try {
+    const [winner] = (await playoffWinners(league, format, seeds, format.rounds)).at(-1) ?? []
+    return table.find(row => row.partyId === winner)
+  } catch {
+    return undefined // the playoffs haven't finished
   }
 }
 
 async function resolveWeek(league: LeagueDocument, week: number): Promise<boolean> {
   const { season, seed } = league
+  await schedulePlayoffWeek(league, week)
   const scheduled = league.schedule?.find(entry => entry.week === week)
   if (season === undefined || season === null || !seed || !scheduled) throw new Error(`League ${league.id} is missing season data`)
 
@@ -97,12 +165,12 @@ async function resolveWeek(league: LeagueDocument, week: number): Promise<boolea
       if (!matchup.away) {
         const monster = { name: encounter?.name ?? monsterName(createRng(seed, `monster-${String(week)}`)), total: monsterTotal, gridiron: monsterGridiron }
         const gridironOutcome = home.gridiron && monsterGridiron !== null ? decideMonsterBattle(home.gridiron, monsterGridiron) : null
-        return { home, away: null, monster, outcome: decideMonsterBattle(home, monster.total), gridironOutcome }
+        return { home, away: null, monster, outcome: decideMonsterBattle(home, monster.total), gridironOutcome, kind: matchup.kind }
       }
       const away = sides.get(matchup.away.toString())
       if (!away) throw new Error(`Party ${matchup.away.toString()} not found`)
       const gridironOutcome = home.gridiron && away.gridiron ? decideBattle(home.gridiron, away.gridiron) : null
-      return { home, away, monster: null, outcome: decideBattle(home, away), gridironOutcome }
+      return { home, away, monster: null, outcome: decideBattle(home, away), gridironOutcome, kind: matchup.kind }
     })
     const encounterRecord = encounter ? { name: encounter.name, weak: [...encounter.weak], resists: encounter.resists } : null
     await WeekResultModel.create([{ leagueId: league._id, week, matchups, encounter: encounterRecord }], { session })
@@ -476,6 +544,9 @@ interface PartyRef {
   crest: Crest
 }
 
+/** Regular-season battles count in the standings; playoff weeks hold bracket games and consolation battles. */
+export type MatchupKind = 'regular' | 'playoff' | 'consolation'
+
 export interface ScheduleWeekView {
   week: number
   /** Crossover only: the real NFL week this game week follows */
@@ -485,6 +556,8 @@ export interface ScheduleWeekView {
     home: PartyRef
     /** null: the home party fights the dungeon monster */
     away: PartyRef | null
+    /** Playoff weeks: a bracket game (home is the higher seed) or a consolation battle */
+    kind: MatchupKind
     /** Crossover adds the Gridiron board's totals and outcome; Classic leaves them null */
     result: {
       homeTotal: number
@@ -516,6 +589,7 @@ export async function getSchedule(viewer: AccountDocument, leagueId: string): Pr
         return {
           home: ref(matchup.home),
           away: matchup.away ? ref(matchup.away) : null,
+          kind: matchup.kind,
           result: played
             ? {
                 homeTotal: played.home.total,
@@ -573,6 +647,7 @@ export interface WeekResultView {
     outcome: Outcome
     /** Crossover only: the Gridiron board */
     gridironOutcome: Outcome | null
+    kind: MatchupKind
   }[]
   /** Crossover only: the week's encounter */
   encounter: { name: string; weak: string[]; resists: string } | null
@@ -614,7 +689,8 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
       away: matchup.away ? side(matchup.away) : null,
       monster: matchup.monster ? { name: matchup.monster.name, total: matchup.monster.total, gridiron: matchup.monster.gridiron ?? null } : null,
       outcome: matchup.outcome,
-      gridironOutcome: matchup.gridironOutcome ?? null
+      gridironOutcome: matchup.gridironOutcome ?? null,
+      kind: matchup.kind
     })),
     encounter: result.encounter ? { name: result.encounter.name, weak: [...result.encounter.weak], resists: result.encounter.resists } : null
   }
@@ -651,6 +727,8 @@ export async function computeStandings(league: LeagueDocument): Promise<Standing
   }
   for (const result of results) {
     for (const matchup of result.matchups) {
+      // Only the regular season counts: playoff and consolation battles decide the title, not the table.
+      if (matchup.kind !== 'regular') continue
       // Crossover: each board is a result of its own (a sweep is 2-0), and Gridiron points break ties.
       // Classic: one battle, and total damage breaks ties.
       const boards = matchup.gridironOutcome

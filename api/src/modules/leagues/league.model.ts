@@ -41,7 +41,9 @@ const scheduledWeekSchema = new Schema(
           {
             home: { type: Schema.Types.ObjectId, ref: 'Party', required: true },
             // null: the home party fights the dungeon monster
-            away: { type: Schema.Types.ObjectId, ref: 'Party', default: null }
+            away: { type: Schema.Types.ObjectId, ref: 'Party', default: null },
+            // Playoff weeks: a bracket game (home is the higher seed), or a consolation battle that counts for nothing
+            kind: { type: String, enum: ['regular', 'playoff', 'consolation'], default: 'regular' }
           },
           { _id: false }
         )
@@ -59,6 +61,9 @@ const leagueSchema = new Schema(
     status: { type: String, required: true, enum: LEAGUE_STATUSES, default: 'forming' },
     // Chosen at creation and never changed: the two modes play by different rules.
     mode: { type: String, required: true, enum: LEAGUE_MODES, default: 'classic', immutable: true },
+    // Classic: after the 14-week regular season, a playoff bracket in weeks 15-17 decides the champion (season/bracket.ts).
+    // Off for leagues created before playoffs existed, and for Crossover, so their rules don't change.
+    playoffs: { type: Boolean, default: false, immutable: true },
     visibility: { type: String, required: true, enum: LEAGUE_VISIBILITIES },
     cadence: { type: String, required: true, enum: LEAGUE_CADENCES },
     maxParties: { type: Number, required: true, min: MIN_PARTIES, max: MAX_PARTIES },
