@@ -1,6 +1,6 @@
 import { model, Schema, type HydratedDocument, type InferSchemaType, type Types } from 'mongoose'
 import type { Lineup } from '../heroes/lineup.js'
-import { CREST_BANNERS, CREST_EMBLEMS } from './crests.js'
+import { CREST_BANNERS, CREST_EMBLEMS, CREST_PATTERNS } from './crests.js'
 
 export const PARTY_NAME_MAX = 30
 
@@ -13,7 +13,10 @@ const partySchema = new Schema(
       type: new Schema(
         {
           emblem: { type: String, required: true, enum: CREST_EMBLEMS },
-          banner: { type: String, required: true, enum: CREST_BANNERS }
+          banner: { type: String, required: true, enum: CREST_BANNERS },
+          // Older crests have neither: they're plain
+          pattern: { type: String, enum: CREST_PATTERNS, default: 'plain' },
+          accent: { type: String, enum: [...CREST_BANNERS, null], default: null }
         },
         { _id: false }
       ),

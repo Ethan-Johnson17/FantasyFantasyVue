@@ -2,6 +2,7 @@ import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { LeagueModel } from '../src/modules/leagues/league.model.js'
 import { PIN_ATTEMPTS_PER_MINUTE } from '../src/modules/leagues/league.routes.js'
+import { toCrest } from '../src/modules/leagues/crests.js'
 import { PartyModel } from '../src/modules/leagues/party.model.js'
 import { buildTestApp, signToken } from './helpers.js'
 
@@ -62,10 +63,10 @@ describe('creating a league', () => {
       host: { displayName: 'Adventurer' }
     })
     expect(res.body.pin).toMatch(/^[2-9A-HJKMNP-Z]{6}$/)
-    expect(res.body.parties[0].crest).toEqual({ emblem: 'tower', banner: 'sapphire' })
+    expect(res.body.parties[0].crest).toEqual({ emblem: 'tower', banner: 'sapphire', pattern: 'plain', accent: null })
     expect(res.body).toMatchObject({ draftAt: null, weekOneAt: null, resolvedWeeks: 0 })
     expect(res.body.parties).toEqual([
-      expect.objectContaining({ name: 'Dragon Slayers', crest: { emblem: 'tower', banner: 'sapphire' }, isMine: true })
+      expect.objectContaining({ name: 'Dragon Slayers', crest: { emblem: 'tower', banner: 'sapphire', pattern: 'plain', accent: null }, isMine: true })
     ])
   })
 
@@ -334,6 +335,43 @@ describe('editing a party', () => {
     expect(res.status).toBe(200)
     expect(res.body).toMatchObject({ name: 'Elf Legion', crest: { emblem: 'moon', banner: 'emerald' }, isMine: true })
     expect((await alice.patch(`/api/parties/${String(mine?.id)}`, { crest: crest('moon', 'neon') })).status).toBe(400)
+  })
+
+  it('takes a mascot emblem and a patterned shield in a second color', async () => {
+    const league = await createLeague()
+    const patterned = { emblem: 'dragon', banner: 'obsidian', pattern: 'chevron', accent: 'amber' }
+    const joined = await alice.post('/api/leagues/join', { pin: league.pin, party: party('Wyrm Riders', patterned) })
+    expect(joined.status).toBe(201)
+    const mine = (joined.body.parties as { id: string; isMine: boolean; crest: object }[]).find(p => p.isMine)!
+    expect(mine.crest).toEqual(patterned)
+    // Back to a plain shield: any second color is dropped.
+    const plain = await alice.patch(`/api/parties/${mine.id}`, { crest: { emblem: 'wolf', banner: 'sapphire', pattern: 'plain', accent: 'amber' } })
+    expect(plain.body.crest).toEqual({ emblem: 'wolf', banner: 'sapphire', pattern: 'plain', accent: null })
+  })
+
+  it('rejects a pattern without a different second color, and unknown patterns', async () => {
+    const league = await createLeague()
+    const joined = await alice.post('/api/leagues/join', { pin: league.pin, party: party('Elf Squad') })
+    const mine = (joined.body.parties as { id: string; isMine: boolean }[]).find(p => p.isMine)!
+    const tryCrest = async (extra: object) => (await alice.patch(`/api/parties/${mine.id}`, { crest: { ...crest('knight', 'emerald'), ...extra } })).status
+    expect(await tryCrest({ pattern: 'split' })).toBe(400)
+    expect(await tryCrest({ pattern: 'split', accent: 'emerald' })).toBe(400)
+    expect(await tryCrest({ pattern: 'plaid', accent: 'amber' })).toBe(400)
+    expect(await tryCrest({ pattern: 'split', accent: 'neon' })).toBe(400)
+    expect(await tryCrest({ pattern: 'quartered', accent: 'amber' })).toBe(200)
+    // Mascots from the first draft of this builder are gone.
+    expect(await tryCrest({ emblem: 'owl' })).toBe(400)
+  })
+
+  it('shows crests made before patterns as plain', async () => {
+    const league = await createLeague()
+    await alice.post('/api/leagues/join', { pin: league.pin, party: party('Elf Squad', crest('buck', 'amethyst')) })
+    await PartyModel.collection.updateMany({}, { $unset: { 'crest.pattern': '', 'crest.accent': '' } })
+    const parties = (await alice.get(`/api/leagues/${league.id}`)).body.parties as { name: string; crest: object }[]
+    expect(parties.find(p => p.name === 'Elf Squad')?.crest).toEqual({ emblem: 'buck', banner: 'amethyst', pattern: 'plain', accent: null })
+    // Anything that can't be drawn falls back too.
+    expect(toCrest({ emblem: 'buck', banner: 'amethyst', pattern: 'split', accent: 'amethyst' })).toMatchObject({ pattern: 'plain', accent: null })
+    expect(toCrest({ emblem: 'unicorn', banner: 'amethyst' })).toMatchObject({ emblem: 'crown', banner: 'crimson' })
   })
 
   it("hides other users' parties and rejects taken names", async () => {

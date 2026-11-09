@@ -135,7 +135,8 @@ This is more D&D-like but harder to balance and to explain. It's a good fit for 
 Decided 2026-10-12:
 
 - **Party per league:** hosting or joining a league creates the user's party for that league
-  (name + **crest**: one of 8 emblems on one of 6 banner colors, decided 2026-10-14). One party per user per league;
+  (name + **crest**: one of 8 emblems on one of 6 banner colors, decided 2026-10-14; since 2026-11-09 also 12 full-color mascots and an optional
+  pattern in a second banner color). One party per user per league;
   parties don't exist outside leagues.
 - **Size:** the host picks a maximum of 2–12 parties (raised from 6 on 2026-10-19). With an odd number, one party
   battles the dungeon monster each week.

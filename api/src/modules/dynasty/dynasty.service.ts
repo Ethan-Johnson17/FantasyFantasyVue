@@ -18,6 +18,7 @@ import { LAST_MATCHUP_WEEK } from '../draft/candidates.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models.js'
 import { WeekResultModel } from '../season/weekResult.model.js'
 import { chooseEarnedTrait, TOP_XP_TIER, withEarnedTrait, xpTier, xpView, type XpView } from './xp.js'
+import { toCrest, type Crest } from '../leagues/crests.js'
 
 /*
  * Dynasty: a Classic league that plays a chain of hidden seasons (docs/DYNASTY_SPEC.md). Each season is its own
@@ -93,7 +94,7 @@ export async function startNextSeason(host: AccountDocument, leagueId: string): 
             leagueId: nextId,
             accountId: party.accountId,
             name: party.name,
-            crest: { emblem: party.crest.emblem, banner: party.crest.banner },
+            crest: toCrest(party.crest),
             autoSwap: party.autoSwap,
             previousPartyId: party._id,
             keepers: []
@@ -364,7 +365,7 @@ export async function dynastyDraftOptions(
 
 interface DynastyParty {
   name: string
-  crest: { emblem: string; banner: string }
+  crest: Crest
 }
 
 export interface DynastyView {
@@ -405,14 +406,14 @@ export async function getDynasty(viewer: AccountDocument, leagueId: string): Pro
       number: season.dynasty?.number ?? 0,
       leagueId: season.id,
       status: season.status,
-      champion: champion ? { name: champion.name, crest: { emblem: champion.crest.emblem, banner: champion.crest.banner } } : null
+      champion: champion ? { name: champion.name, crest: toCrest(champion.crest) } : null
     })
     for (const party of parties.filter(entry => entry.leagueId.equals(season._id))) {
       const line = lineOf(party.id)
-      const row = rows.get(line) ?? { name: party.name, crest: { emblem: party.crest.emblem, banner: party.crest.banner }, titles: 0, wins: 0, losses: 0, draws: 0, seasons: 0, isMine: false, damage: 0, latest: 0 }
+      const row = rows.get(line) ?? { name: party.name, crest: toCrest(party.crest), titles: 0, wins: 0, losses: 0, draws: 0, seasons: 0, isMine: false, damage: 0, latest: 0 }
       const number = season.dynasty?.number ?? 0
       if (number >= row.latest) {
-        Object.assign(row, { name: party.name, crest: { emblem: party.crest.emblem, banner: party.crest.banner }, isMine: party.accountId.equals(viewer._id), latest: number })
+        Object.assign(row, { name: party.name, crest: toCrest(party.crest), isMine: party.accountId.equals(viewer._id), latest: number })
       }
       const standing = standings.find(entry => entry.partyId === party.id)
       if (standing) {

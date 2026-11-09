@@ -6,7 +6,7 @@ import { ref } from 'vue'
 import type { RouteLocationNormalized } from 'vue-router'
 import { ApiError, createApiClient, SIGN_IN_EXPIRED_MESSAGE, UNREACHABLE, UNREACHABLE_MESSAGE } from '../src/api/client'
 import { loadConfig } from '../src/config'
-import { BANNERS, crestName, EMBLEMS } from '../src/crests'
+import { BANNERS, crestName, EMBLEMS, PATTERNS } from '../src/crests'
 import { normalizePin } from '../src/pin'
 import { authGuard, routes } from '../src/router'
 import { DEFAULT_DISPLAY_NAME, suggestedDisplayName, useSessionStore } from '../src/stores/session'
@@ -82,10 +82,13 @@ describe('crests', () => {
       [...(new RegExp(`${name} = \\[([^\\]]*)\\]`).exec(source)?.[1] ?? '').matchAll(/'([a-z]+)'/g)].map(match => match[1])
     expect(EMBLEMS.map(emblem => emblem.key)).toEqual(list('CREST_EMBLEMS'))
     expect(BANNERS.map(banner => banner.key)).toEqual(list('CREST_BANNERS'))
+    expect(PATTERNS.map(pattern => pattern.key)).toEqual(list('CREST_PATTERNS'))
   })
 
   it('names crests by banner and emblem', () => {
     expect(crestName({ emblem: 'lightning', banner: 'emerald' })).toBe('Emerald Storm')
+    expect(crestName({ emblem: 'dragon', banner: 'obsidian', pattern: 'chevron', accent: 'amber' })).toBe('Obsidian and Amber Dragon')
+    expect(crestName({ emblem: 'dragon', banner: 'obsidian', pattern: 'plain', accent: 'amber' })).toBe('Obsidian Dragon')
   })
 })
 
