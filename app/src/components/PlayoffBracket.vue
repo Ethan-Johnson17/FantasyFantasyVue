@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { Playoffs } from '../api/types'
+import { computed } from 'vue'
+import type { BracketSide, Playoffs } from '../api/types'
 import CrestShield from './CrestShield.vue'
 
 /*
@@ -9,7 +10,13 @@ import CrestShield from './CrestShield.vue'
 
 const props = defineProps<{ playoffs: Playoffs; myPartyId: string | null }>()
 
-const total = (value: number | null) => (value === null ? '' : String(Math.round(value)))
+const whole = (value: number) => String(Math.round(value))
+/** Classic: the battle total. Crossover: Quest / Gridiron, the board that breaks a split first. */
+const total = (side: BracketSide) => {
+  if (side.total === null) return ''
+  return side.gridiron === null || side.gridiron === undefined ? whole(side.total) : `${whole(side.total)} / ${whole(side.gridiron)}`
+}
+const twoBoards = computed(() => props.playoffs.rounds.some(entry => entry.games.some(game => typeof game.high.gridiron === 'number')))
 /** Games in a round not yet set: a top-6 bracket's semifinals are 2, as the top seeds rejoin after their bye. */
 const waiting = (round: number) => (props.playoffs.format.spots === 6 ? [2, 2, 1][round - 1] ?? 1 : props.playoffs.format.spots / 2 ** round)
 </script>
@@ -39,7 +46,7 @@ const waiting = (round: number) => (props.playoffs.format.spots === 6 ? [2, 2, 1
             <span class="seed">{{ side.seed }}</span>
             <CrestShield :crest="side.crest" :size="20" decorative />
             <span class="name">{{ side.name }}<span v-if="side.partyId === myPartyId" class="you"> · you</span></span>
-            <span class="total">{{ total(side.total) }}</span>
+            <span class="total">{{ total(side) }}</span>
           </span>
         </li>
         <template v-if="!round.games.length">
@@ -49,7 +56,8 @@ const waiting = (round: number) => (props.playoffs.format.spots === 6 ? [2, 2, 1
     </section>
   </div>
   <p class="muted small">
-    <template v-if="playoffs.provisional">Seeds follow the standings until week 14. </template>
+    <template v-if="playoffs.provisional">Seeds follow the standings until week {{ playoffs.format.regularWeeks }}. </template>
+    <template v-if="twoBoards">Totals are Quest / Gridiron; a 1–1 split goes to the Quest board.</template>
     Higher seeds go through on a draw.
   </p>
 </template>

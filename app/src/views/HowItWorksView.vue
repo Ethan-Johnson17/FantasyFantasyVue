@@ -216,8 +216,8 @@ function back() {
       <h2 class="section-title">Playoffs</h2>
       <ul class="points">
         <li>
-          Classic leagues end with playoffs unless the host chose “Best record”. The regular season is 14 weeks; then a
-          bracket plays one round a week.
+          Leagues end with playoffs unless the host chose “Best record”. In Classic the regular season is 14 weeks; then
+          a bracket plays one round a week.
         </li>
         <li>
           The bracket grows with the league: 2–3 parties play a final, 4–7 send their top 4 to the semifinals, and 8–12
@@ -226,6 +226,11 @@ function back() {
         <li>Seeds follow the regular-season standings. The higher seed always plays the lowest seed left, and goes through on a draw.</li>
         <li>Everyone outside the bracket plays consolation battles. They, like the playoff games, don't change the standings.</li>
         <li>The final's winner is the champion.</li>
+        <li v-if="crossover">
+          Crossover: the bracket ends in NFL week 17, so smaller brackets leave a longer regular season. A league that starts
+          late keeps at least 4 regular-season weeks, so its bracket shrinks, or it plays without one. A playoff game goes to
+          whoever wins more boards; a 1–1 split goes to the Quest board.
+        </li>
       </ul>
     </section>
 

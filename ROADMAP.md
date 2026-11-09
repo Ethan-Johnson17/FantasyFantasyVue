@@ -40,7 +40,7 @@ Deferred during the scoring spec review. Details are in [docs/CLASSIC_SCORING.md
 
 - Hero attributes affect scoring (small multiplier on primary attribute)
 - Live snake draft with pick timer and auto-pick fallback
-- ~~Playoff bracket (NFL weeks 15–17)~~ Built 2026-11-01 for Classic and Dynasty ([docs/CLASSIC_SCORING.md](docs/CLASSIC_SCORING.md#playoffs-decided-2026-10-31)); Crossover playoffs are still to come
+- ~~Playoff bracket (NFL weeks 15–17)~~ Built 2026-11-01 for Classic and Dynasty ([docs/CLASSIC_SCORING.md](docs/CLASSIC_SCORING.md#playoffs-decided-2026-10-31)) and 2026-11-09 for Crossover ([docs/CROSSOVER_SPEC.md](docs/CROSSOVER_SPEC.md#playoffs-decided-2026-11-09))
 - Simulated turn-based combat (seeded RNG) as an alternative to score-based battles
 - Kicker class
 - "How it works" page explaining Levels, classes, and that hero strength follows a real season (main screens stay pure fantasy, with no mention of real players or the NFL)

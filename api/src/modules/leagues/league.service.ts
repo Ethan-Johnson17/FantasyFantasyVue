@@ -5,8 +5,7 @@ import { AccountModel, type AccountDocument } from '../accounts/account.model.js
 import { expireLeagueChat, unreadCount } from '../chat/chat.service.js'
 import { RULESET_FOR_MODE } from '../scoring/rulesets.js'
 import { advanceLeague } from '../season/advance.js'
-import { playoffFormat, type PlayoffFormat } from '../season/bracket.js'
-import { resolvesAt, seasonLength } from '../season/calendar.js'
+import { leaguePlayoffs, resolvesAt, seasonLength, type LeaguePlayoffs } from '../season/calendar.js'
 import { crossoverWindow } from '../season/nflWeeks.js'
 import { partyOutlook, type PartyOutlook } from '../season/outlook.service.js'
 import { computeStandings } from '../season/season.service.js'
@@ -71,8 +70,11 @@ export interface LeagueSummaryView {
   nextResolvesAt: Date | null
   /** Dynasty only: which season of the chain this is, and the seasons before and after it */
   dynasty: { seasons: number; number: number; previousLeagueId: string | null; nextLeagueId: string | null } | null
-  /** Classic with playoffs: the bracket's size and its weeks after the 14-week regular season; null without playoffs */
-  playoffs: PlayoffFormat | null
+  /**
+   * The bracket's size and rounds, and the regular season before them; null without playoffs (and for Crossover,
+   * until the draft sets its calendar)
+   */
+  playoffs: LeaguePlayoffs | null
   /** Dynasty, between seasons: parties waiting for a new member to take them over (join with `takeOver`) */
   openParties: { id: string; name: string; crest: Crest }[]
   createdAt: Date
@@ -196,7 +198,7 @@ export async function createLeague(host: AccountDocument, input: CreateLeagueInp
   // Crossover follows the NFL's weeks, whatever cadence was sent.
   const settings = {
     ...requested,
-    ...(crossover ? { cadence: 'weekly' as const, playoffs: false } : {}),
+    ...(crossover ? { cadence: 'weekly' as const } : {}),
     rulesetVersion: RULESET_FOR_MODE[requested.mode]
   }
   for (let attempt = 1; ; attempt++) {
@@ -429,7 +431,7 @@ function toSummary(
           nextLeagueId: league.dynasty.nextId?.toString() ?? null
         }
       : null,
-    playoffs: league.playoffs ? playoffFormat(league.partyCount) : null,
+    playoffs: leaguePlayoffs(league),
     openParties: league.openParties.map(open => ({ id: open._id.toString(), name: open.name, crest: { emblem: open.crest.emblem, banner: open.crest.banner } as Crest })),
     createdAt: league.createdAt
   }

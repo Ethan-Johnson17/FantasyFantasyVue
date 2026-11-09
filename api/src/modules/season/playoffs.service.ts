@@ -2,7 +2,8 @@ import mongoose from 'mongoose'
 import { NotFound } from '../../lib/errors.js'
 import type { AccountDocument } from '../accounts/account.model.js'
 import { loadVisibleLeague } from '../leagues/league.access.js'
-import { byeSeeds, gameWinner, playoffFormat, REGULAR_SEASON_WEEKS, roundGames, roundName, type PlayoffFormat } from './bracket.js'
+import { byeSeeds, gameWinner, roundGames, roundName } from './bracket.js'
+import { leaguePlayoffs, type LeaguePlayoffs } from './calendar.js'
 import { computeStandings, type StandingView } from './season.service.js'
 import { WeekResultModel } from './weekResult.model.js'
 
@@ -23,6 +24,8 @@ export interface SeedView extends PartyRef {
 export interface BracketSideView extends SeedView {
   /** The party's total that week; null until the round is played */
   total: number | null
+  /** Crossover: the Gridiron board's total (`total` is the Quest board); null in Classic and until played */
+  gridiron: number | null
 }
 
 export interface BracketGameView {
@@ -44,7 +47,7 @@ export interface PlayoffRoundView {
 }
 
 export interface PlayoffsView {
-  format: PlayoffFormat
+  format: LeaguePlayoffs
   /** The regular season isn't over, so the seeds can still change */
   provisional: boolean
   seeds: SeedView[]
@@ -54,11 +57,11 @@ export interface PlayoffsView {
 
 export async function getPlayoffs(viewer: AccountDocument, leagueId: string): Promise<PlayoffsView> {
   const league = await loadVisibleLeague(viewer, leagueId)
-  if (!league.playoffs) throw new NotFound('This league has no playoffs: the best record wins')
-  const format = playoffFormat(league.partyCount)
+  const format = leaguePlayoffs(league)
+  if (!format) throw new NotFound('This league has no playoffs: the best record wins')
   const [standings, results] = await Promise.all([
     computeStandings(league),
-    WeekResultModel.find({ leagueId: league._id, week: trusted({ $gt: REGULAR_SEASON_WEEKS }) })
+    WeekResultModel.find({ leagueId: league._id, week: trusted({ $gt: format.regularWeeks }) })
   ])
   const order = standings.map(row => row.partyId)
   const seedOf = (partyId: string): SeedView => {
@@ -73,7 +76,7 @@ export async function getPlayoffs(viewer: AccountDocument, leagueId: string): Pr
   const rounds: PlayoffRoundView[] = []
   const winners: string[][] = []
   for (let round = 1; round <= format.rounds; round++) {
-    const week = REGULAR_SEASON_WEEKS + round
+    const week = format.regularWeeks + round
     const byes = complete ? byeSeeds(format, order, round).map(seedOf) : []
     // A round's games are known once every earlier round is played (and the bracket has its parties).
     const known = complete && winners.length === round - 1
@@ -82,9 +85,9 @@ export async function getPlayoffs(viewer: AccountDocument, leagueId: string): Pr
       ? roundGames(format, order, round, winners).map((game): BracketGameView => {
           const played = result?.matchups.find(matchup => matchup.kind === 'playoff' && matchup.home.partyId.toString() === game.high)
           return {
-            high: { ...seedOf(game.high), total: played ? played.home.total : null },
-            low: { ...seedOf(game.low), total: played?.away ? played.away.total : null },
-            winner: played ? gameWinner(game, played.outcome) : null
+            high: { ...seedOf(game.high), total: played ? played.home.total : null, gridiron: played?.home.gridiron?.total ?? null },
+            low: { ...seedOf(game.low), total: played?.away ? played.away.total : null, gridiron: played?.away?.gridiron?.total ?? null },
+            winner: played ? gameWinner(game, played.outcome, played.gridironOutcome ?? null) : null
           }
         })
       : []
@@ -96,7 +99,7 @@ export async function getPlayoffs(viewer: AccountDocument, leagueId: string): Pr
   const champion = championId ? seedOf(championId) : null
   return {
     format,
-    provisional: league.resolvedWeeks < REGULAR_SEASON_WEEKS,
+    provisional: league.resolvedWeeks < format.regularWeeks,
     seeds,
     rounds,
     champion: champion && { partyId: champion.partyId, name: champion.name, crest: champion.crest }

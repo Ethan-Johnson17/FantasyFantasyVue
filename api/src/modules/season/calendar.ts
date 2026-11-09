@@ -1,6 +1,6 @@
 import { CADENCE_MS, type LeagueDocument } from '../leagues/league.model.js'
-import { nflWeekReady } from './nflWeeks.js'
-import { playoffFormat } from './bracket.js'
+import { MIN_CROSSOVER_WEEKS, nflWeekReady } from './nflWeeks.js'
+import { formatForRounds, playoffFormat, type PlayoffFormat } from './bracket.js'
 import { SEASON_WEEKS } from './schedule.js'
 
 /*
@@ -12,10 +12,33 @@ import { SEASON_WEEKS } from './schedule.js'
 
 type CalendarLeague = Pick<LeagueDocument, 'mode' | 'weekOneAt' | 'cadence' | 'nflWeeks' | 'playoffs' | 'partyCount'>
 
-/** Game weeks in the league's season: Classic adds its playoff rounds to the 14-week regular season. */
+/** Game weeks in the league's season: Classic adds its playoff rounds to the 14-week regular season, and
+ * Crossover's playoffs fit inside its NFL weeks. */
 export function seasonLength(league: CalendarLeague): number {
   if (league.mode === 'crossover') return league.nflWeeks?.length ?? 0
   return SEASON_WEEKS + (league.playoffs ? playoffFormat(league.partyCount).rounds : 0)
+}
+
+export interface LeaguePlayoffs extends PlayoffFormat {
+  /** Game weeks before the bracket; playoff round r is game week regularWeeks + r */
+  regularWeeks: number
+}
+
+/**
+ * The league's playoffs: bracket size and rounds, and the regular season before them. null without playoffs, for a
+ * Crossover league before its draft sets the calendar, or for one too short for them. Crossover's bracket fills the
+ * league's last weeks (the final is NFL week 17), shrinking to keep a regular season of MIN_CROSSOVER_WEEKS.
+ */
+export function leaguePlayoffs(
+  league: Pick<LeagueDocument, 'mode' | 'playoffs' | 'partyCount'> & { nflWeeks?: readonly unknown[] | null }
+): LeaguePlayoffs | null {
+  if (!league.playoffs) return null
+  const bySize = playoffFormat(league.partyCount)
+  if (league.mode !== 'crossover') return { ...bySize, regularWeeks: SEASON_WEEKS }
+  const weeks = league.nflWeeks?.length ?? 0
+  const rounds = Math.min(bySize.rounds, weeks - MIN_CROSSOVER_WEEKS)
+  if (rounds < 1) return null
+  return { ...formatForRounds(rounds), regularWeeks: weeks - rounds }
 }
 
 /** The NFL week whose stats a game week uses. Week 0 is the week before the league's first. */

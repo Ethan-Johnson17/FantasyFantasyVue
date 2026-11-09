@@ -12,14 +12,18 @@ import { as, host } from './leagueHelpers.js'
 export const alice = as('auth0|alice')
 const crest = { emblem: 'crown', banner: 'crimson' }
 
-export /** A drafted Crossover league (host + alice). In the seed, week 8 is next: KC-BUF and PHI-SF play; DET, BAL, GB, DAL are on bye. */
-async function draftedCrossover() {
+export /**
+ * A drafted Crossover league (host + alice). In the seed, week 8 is next: KC-BUF and PHI-SF play; DET, BAL, GB, DAL
+ * are on bye. Without playoffs unless asked (playoffs: crossoverPlayoffs.test.ts).
+ */
+async function draftedCrossover({ playoffs = false }: { playoffs?: boolean } = {}) {
   const created = await host.post('/api/leagues', {
     name: 'Sunday Crossover',
     visibility: 'private',
     cadence: 'weekly',
     maxParties: 4,
     mode: 'crossover',
+    playoffs,
     party: { name: 'Host Party', crest }
   })
   const { id, pin } = created.body as { id: string; pin: string }

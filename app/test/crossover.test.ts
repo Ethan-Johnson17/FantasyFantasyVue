@@ -5,12 +5,14 @@ import type { Component } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import type { ApiClient } from '../src/api/client'
 import { apiKey } from '../src/api/inject'
-import type { CrossoverRules, GameRules, Hero, LeagueDetail, Lineup, Matchup, MatchupSide, Party, ScheduleWeek, WeekResult } from '../src/api/types'
+import type { CrossoverRules, GameRules, Hero, LeagueDetail, Lineup, Matchup, MatchupSide, Party, Playoffs, ScheduleWeek, WeekResult } from '../src/api/types'
 import CrossoverResult from '../src/components/matchup/CrossoverResult.vue'
 import { provideLeagueForTest } from '../src/league'
 import { mySeason } from '../src/mySeason'
+import { roundName } from '../src/playoffs'
 import HostLeagueView from '../src/views/HostLeagueView.vue'
 import HowItWorksView from '../src/views/HowItWorksView.vue'
+import LeagueHomeView from '../src/views/league/LeagueHomeView.vue'
 import MatchupView from '../src/views/league/MatchupView.vue'
 import PartyView from '../src/views/league/PartyView.vue'
 import { detail, fakeApi, mountView } from './helpers'
@@ -338,5 +340,59 @@ describe('Crossover results', () => {
     expect(mySeason([week('home', 'home')], 'a')[0]).toMatchObject({ outcome: 'win', boards: { mine: 2, theirs: 0 } })
     expect(mySeason([week('home', 'away')], 'b')[0]).toMatchObject({ outcome: 'draw', boards: { mine: 1, theirs: 1 } })
     expect(mySeason([week('away', 'draw')], 'a')[0]).toMatchObject({ outcome: 'loss', boards: { mine: 0.5, theirs: 1.5 } })
+  })
+})
+
+describe('Crossover playoffs', () => {
+  it('lets the host choose a bracket or the best record', async () => {
+    const api = fakeApi({ getRules: vi.fn().mockResolvedValue(rules(true)), createLeague: vi.fn().mockResolvedValue(detail({ id: 'x' })) })
+    const { wrapper } = await mountView(HostLeagueView, api)
+    await flushPromises()
+    await wrapper.find('input[name="mode"][value="crossover"]').setValue(true)
+    expect(wrapper.text()).toContain('A bracket in NFL weeks 15–17')
+    expect(wrapper.text()).toContain('a 1–1 split goes to the Quest board')
+    await wrapper.find('input[name="playoffs"][value="false"]').setValue(true)
+    await wrapper.find('#league-name').setValue('Sunday Crew')
+    await wrapper.find('#party-name').setValue('Gridiron Knights')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(api.createLeague).toHaveBeenCalledWith(expect.objectContaining({ mode: 'crossover', playoffs: false }))
+  })
+
+  it('names rounds from the league’s own regular season', () => {
+    // A two-party league from NFL week 8: nine regular weeks, then the final in NFL week 17.
+    const plan = { spots: 2, rounds: 1, regularWeeks: 9 }
+    expect([9, 10, 11].map(week => roundName(plan, week))).toEqual([null, 'Final', null])
+  })
+
+  it('shows both boards in the bracket', async () => {
+    const ref = (id: string) => ({ partyId: id, name: `Party ${id}`, crest })
+    const bracket: Playoffs = {
+      format: { spots: 2, rounds: 1, regularWeeks: 9 },
+      provisional: false,
+      seeds: [{ ...ref('a'), seed: 1 }, { ...ref('b'), seed: 2 }],
+      rounds: [
+        {
+          round: 1,
+          week: 10,
+          name: 'Final',
+          games: [{ high: { ...ref('a'), seed: 1, total: 50, gridiron: 140 }, low: { ...ref('b'), seed: 2, total: 70, gridiron: 100 }, winner: 'b' }],
+          byes: []
+        }
+      ],
+      champion: ref('b')
+    }
+    const api = fakeApi({ getStandings: vi.fn().mockResolvedValue([]), getSchedule: vi.fn().mockResolvedValue([]), getPlayoffs: vi.fn().mockResolvedValue(bracket) })
+    const { wrapper } = await mountLeague(LeagueHomeView, api, crossoverLeague({ status: 'complete', resolvedWeeks: 10, playoffs: bracket.format }))
+    const sides = wrapper.findAll('.game .side').map(side => side.find('.total').text())
+    expect(sides).toEqual(['50 / 140', '70 / 100'])
+    expect(wrapper.text()).toContain('Totals are Quest / Gridiron; a 1–1 split goes to the Quest board.')
+    expect(wrapper.find('.finale-name').text()).toBe('Party b take the crown')
+  })
+
+  it('explains Crossover’s bracket in How it works', async () => {
+    const { wrapper } = await mountView(HowItWorksView, fakeApi({ getRules: vi.fn().mockResolvedValue(rules(true)) }))
+    await flushPromises()
+    expect(wrapper.find('#playoffs').text()).toContain('the bracket ends in NFL week 17')
   })
 })

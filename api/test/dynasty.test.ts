@@ -591,7 +591,7 @@ describe('the dynasty summary', () => {
     expect(summary.history[0]!.champion?.name).toBe(table[1]!.name)
     expect(summary.standings.find(row => row.name === table[1]!.name)?.titles).toBe(1)
     const next = (await host.post(`/api/leagues/${id}/next-season`)).body as { playoffs: unknown }
-    expect(next.playoffs).toEqual({ spots: 2, rounds: 1 })
+    expect(next.playoffs).toEqual({ spots: 2, rounds: 1, regularWeeks: 14 })
   })
 
   it('is only for dynasties', async () => {
