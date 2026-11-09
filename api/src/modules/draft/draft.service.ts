@@ -13,6 +13,7 @@ import { PartyModel, storedLineup } from '../leagues/party.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
 import { heroForm, type HeroForm } from '../season/form.service.js'
 import { crossoverWeeks, crossoverWindow } from '../season/nflWeeks.js'
+import { leaguePlayoffs } from '../season/calendar.js'
 import { roundRobin } from '../season/schedule.js'
 import { loadPoolCandidates, pickSeason } from './candidates.js'
 import { loadCrossoverCandidates, type PlayerCard } from './crossoverCandidates.js'
@@ -183,7 +184,12 @@ export async function runDueDraft(leagueId: string): Promise<void> {
             draftOrder: order,
             draftPicks: picks,
             nflWeeks,
-            schedule: roundRobin(parties.map(party => party.id), createRng(league.seed, 'schedule'), nflWeeks.length),
+            // With playoffs, the round robin covers the regular season; the bracket's weeks are set as it plays out.
+            schedule: roundRobin(
+              parties.map(party => party.id),
+              createRng(league.seed, 'schedule'),
+              leaguePlayoffs({ mode: league.mode, playoffs: league.playoffs, partyCount: league.partyCount, nflWeeks })?.regularWeeks ?? nflWeeks.length
+            ),
             weekOneAt: nflWeeks[0]?.finalAt
           }
         },

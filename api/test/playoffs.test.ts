@@ -119,7 +119,7 @@ describe('hosting with playoffs', () => {
   it('is on by default for Classic and fixed once the league exists', async () => {
     const id = await league(2)
     const detail = (await host.get(`/api/leagues/${id}`)).body as { playoffs: unknown; seasonWeeks: number }
-    expect(detail.playoffs).toEqual({ spots: 2, rounds: 1 })
+    expect(detail.playoffs).toEqual({ spots: 2, rounds: 1, regularWeeks: 14 })
     expect(detail.seasonWeeks).toBe(15)
     expect((await host.patch(`/api/leagues/${id}`, { playoffs: false })).status).toBe(400)
   })

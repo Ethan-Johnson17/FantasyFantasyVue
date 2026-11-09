@@ -61,8 +61,8 @@ const leagueSchema = new Schema(
     status: { type: String, required: true, enum: LEAGUE_STATUSES, default: 'forming' },
     // Chosen at creation and never changed: the two modes play by different rules.
     mode: { type: String, required: true, enum: LEAGUE_MODES, default: 'classic', immutable: true },
-    // Classic: after the 14-week regular season, a playoff bracket in weeks 15-17 decides the champion (season/bracket.ts).
-    // Off for leagues created before playoffs existed, and for Crossover, so their rules don't change.
+    // A playoff bracket after the regular season decides the champion (season/bracket.ts, calendar.ts leaguePlayoffs).
+    // Off for leagues created before playoffs existed, so their rules don't change.
     playoffs: { type: Boolean, default: false, immutable: true },
     visibility: { type: String, required: true, enum: LEAGUE_VISIBILITIES },
     cadence: { type: String, required: true, enum: LEAGUE_CADENCES },

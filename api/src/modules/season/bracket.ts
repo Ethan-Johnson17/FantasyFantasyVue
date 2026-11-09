@@ -1,6 +1,7 @@
 /*
- * The playoff bracket (docs/CLASSIC_SCORING.md, "Playoffs"). Pure: seeds and earlier winners in, games out.
- * The regular season is weeks 1-14; playoffs use the hidden season's weeks 15-17, one round a week.
+ * The playoff bracket (docs/CLASSIC_SCORING.md, "Playoffs"; docs/CROSSOVER_SPEC.md, "Playoffs"). Pure: seeds and
+ * earlier winners in, games out. Classic's regular season is weeks 1-14, then one round a week; a league's own
+ * playoff weeks come from calendar.ts (leaguePlayoffs).
  */
 
 export const REGULAR_SEASON_WEEKS = 14
@@ -16,6 +17,13 @@ export interface PlayoffFormat {
 export function playoffFormat(partyCount: number): PlayoffFormat {
   if (partyCount <= 3) return { spots: 2, rounds: 1 }
   if (partyCount <= 7) return { spots: 4, rounds: 2 }
+  return { spots: 6, rounds: 3 }
+}
+
+/** The bracket for a number of rounds: a final, then top 4, then top 6. Crossover shrinks to the weeks it has left. */
+export function formatForRounds(rounds: number): PlayoffFormat {
+  if (rounds <= 1) return { spots: 2, rounds: 1 }
+  if (rounds === 2) return { spots: 4, rounds: 2 }
   return { spots: 6, rounds: 3 }
 }
 
@@ -63,7 +71,17 @@ export function byeSeeds(format: PlayoffFormat, seeds: readonly string[], round:
   return format.spots === 6 && round === 1 ? seeds.slice(0, 2) : []
 }
 
-/** The winner of a played bracket game: the higher seed takes a draw. */
-export function gameWinner(game: BracketGame, outcome: 'home' | 'away' | 'draw'): string {
+type Outcome = 'home' | 'away' | 'draw'
+
+/**
+ * The winner of a played bracket game (home is the higher seed, who takes a draw). Crossover passes both boards:
+ * more board wins advances, a 1-1 split goes to the Quest board (`outcome`), and two draws to the higher seed.
+ */
+export function gameWinner(game: BracketGame, outcome: Outcome, gridironOutcome: Outcome | null = null): string {
+  if (gridironOutcome) {
+    const points = (board: Outcome) => (board === 'home' ? 1 : board === 'away' ? -1 : 0)
+    const margin = points(outcome) + points(gridironOutcome)
+    if (margin !== 0) return margin > 0 ? game.high : game.low
+  }
   return outcome === 'away' ? game.low : game.high
 }

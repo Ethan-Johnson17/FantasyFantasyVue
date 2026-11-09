@@ -48,7 +48,7 @@ export interface LeagueSummary {
   /** When the next game week resolves, once the season has started */
   nextResolvesAt?: string | null
   /** Classic with playoffs: the bracket's size, and its rounds (weeks after the 14-week regular season); null without */
-  playoffs?: PlayoffFormat | null
+  playoffs?: LeaguePlayoffs | null
   /** Dynasty only: which season of the chain this is, and the seasons before and after it */
   dynasty?: { seasons: number; number: number; previousLeagueId: string | null; nextLeagueId: string | null } | null
   /** Dynasty, between seasons: parties waiting for a new member to take them over */
@@ -313,13 +313,25 @@ export interface PlayoffFormat {
   rounds: number
 }
 
+export interface LeaguePlayoffs extends PlayoffFormat {
+  /** Game weeks before the bracket: playoff round r is game week regularWeeks + r */
+  regularWeeks: number
+}
+
 export interface PlayoffSeed extends PartyRef {
   seed: number
 }
 
+export interface BracketSide extends PlayoffSeed {
+  /** null until played. Crossover: the Quest board */
+  total: number | null
+  /** Crossover only: the Gridiron board */
+  gridiron?: number | null
+}
+
 /** The playoff bracket (GET /api/leagues/:id/playoffs). */
 export interface Playoffs {
-  format: PlayoffFormat
+  format: LeaguePlayoffs
   /** The regular season isn't over, so the seeds can still change */
   provisional: boolean
   seeds: PlayoffSeed[]
@@ -328,7 +340,7 @@ export interface Playoffs {
     week: number
     name: string
     /** Empty while earlier rounds are still to be played */
-    games: { high: PlayoffSeed & { total: number | null }; low: PlayoffSeed & { total: number | null }; winner: string | null }[]
+    games: { high: BracketSide; low: BracketSide; winner: string | null }[]
     /** The top seeds resting on a bye */
     byes: PlayoffSeed[]
   }[]

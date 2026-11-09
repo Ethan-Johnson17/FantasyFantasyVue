@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../api/inject'
 import type { Cadence, CreateLeagueInput, CrossoverRules, LeagueMode, Visibility } from '../api/types'
@@ -46,12 +46,19 @@ const lengths: { value: 1 | 3 | 5; label: string; hint: string }[] = [
   { value: 5, label: 'Dynasty · 5', hint: 'The long haul' }
 ]
 const length = ref<1 | 3 | 5>(1)
-// Classic only: a playoff bracket after the regular season, or the best record wins (docs/CLASSIC_SCORING.md).
+// A playoff bracket after the regular season, or the best record wins (docs/CLASSIC_SCORING.md, docs/CROSSOVER_SPEC.md).
 const playoffs = ref(true)
-const champions: { value: boolean; label: string; hint: string }[] = [
-  { value: true, label: 'Playoffs', hint: 'A bracket after week 14' },
-  { value: false, label: 'Best record', hint: 'First place after week 14' }
-]
+const champions = computed(() =>
+  form.mode === 'crossover'
+    ? [
+        { value: true, label: 'Playoffs', hint: 'A bracket in NFL weeks 15–17' },
+        { value: false, label: 'Best record', hint: 'First place after week 17' }
+      ]
+    : [
+        { value: true, label: 'Playoffs', hint: 'A bracket after week 14' },
+        { value: false, label: 'Best record', hint: 'First place after week 14' }
+      ]
+)
 
 const modes: { value: LeagueMode; label: string; hint: string }[] = [
   { value: 'classic', label: 'Classic', hint: 'Heroes hide the real players behind them. Plays any time.' },
@@ -65,9 +72,8 @@ async function submit() {
   submitting.value = true
   error.value = null
   try {
-    const classic = form.mode !== 'crossover'
-    const dynasty = classic && length.value !== 1 ? { dynastySeasons: length.value } : {}
-    const league = await api.createLeague({ ...form, ...dynasty, ...(classic ? { playoffs: playoffs.value } : {}) })
+    const dynasty = form.mode !== 'crossover' && length.value !== 1 ? { dynastySeasons: length.value } : {}
+    const league = await api.createLeague({ ...form, ...dynasty, playoffs: playoffs.value })
     await router.push(`/leagues/${league.id}`)
   } catch (caught) {
     error.value = caught
@@ -142,7 +148,7 @@ async function submit() {
         </span>
       </fieldset>
 
-      <fieldset v-if="form.mode !== 'crossover'" class="choice">
+      <fieldset class="choice">
         <legend class="field-label">Champion</legend>
         <div class="pair">
           <label v-for="option in champions" :key="String(option.value)" class="option" :class="{ on: playoffs === option.value }">
@@ -150,7 +156,11 @@ async function submit() {
             <span class="muted hint">{{ option.hint }}</span>
           </label>
         </div>
-        <span v-if="playoffs" class="muted hint">
+        <span v-if="playoffs && form.mode === 'crossover'" class="muted hint">
+          The best 2, 4 or 6 parties, by how many join, play a bracket ending in NFL week 17; a 1–1 split goes to the
+          Quest board. A league that starts late gets a smaller bracket, or none. Everyone else plays consolation battles.
+        </span>
+        <span v-else-if="playoffs" class="muted hint">
           The best 2, 4 or 6 parties, by how many join, play a bracket over up to 3 more weeks. Everyone else plays
           consolation battles.
         </span>

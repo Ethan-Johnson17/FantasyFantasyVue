@@ -17,8 +17,8 @@ import { scoreDefense, scoreOffense } from '../scoring/scoring.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models.js'
 import { decideBattle, decideMonsterBattle, monsterDamage, scoreParty, type Outcome } from './battle.js'
 import { monsterName } from './monsters.js'
-import { byeSeeds, gameWinner, playoffFormat, REGULAR_SEASON_WEEKS, roundGames, type PlayoffFormat } from './bracket.js'
-import { nflWeekOf, resolvesAt, seasonLength, weeksDueByTime, weeksReady } from './calendar.js'
+import { byeSeeds, gameWinner, roundGames } from './bracket.js'
+import { leaguePlayoffs, nflWeekOf, resolvesAt, seasonLength, weeksDueByTime, weeksReady, type LeaguePlayoffs } from './calendar.js'
 import { xpMultiplier } from '../dynasty/xp.js'
 import { encounterFor, encounterMultiplier, type Encounter } from './encounters.js'
 import { heroGames, lockedHeroes, type HeroGame } from './nflWeeks.js'
@@ -68,21 +68,21 @@ export async function resolveDueWeeks(leagueId: string): Promise<void> {
  * call again: it never schedules a week twice.
  */
 export async function schedulePlayoffWeek(league: LeagueDocument, week: number): Promise<void> {
-  if (!league.playoffs || week <= REGULAR_SEASON_WEEKS) return
+  const plan = leaguePlayoffs(league)
+  if (!plan || week <= plan.regularWeeks) return
   const fresh = await LeagueModel.findById(league._id)
   if (!fresh || fresh.schedule?.some(entry => entry.week === week)) {
     if (fresh?.schedule) league.schedule = fresh.schedule
     return
   }
-  const format = playoffFormat(fresh.partyCount)
-  const round = week - REGULAR_SEASON_WEEKS
-  if (round > format.rounds) return
+  const round = week - plan.regularWeeks
+  if (round > plan.rounds) return
   const standings = await computeStandings(fresh)
   const seeds = standings.map(row => row.partyId)
-  const winners = await playoffWinners(fresh, format, seeds, round - 1)
-  const games = roundGames(format, seeds, round, winners)
+  const winners = await playoffWinners(fresh, plan, seeds, round - 1)
+  const games = roundGames(plan, seeds, round, winners)
   // Everyone outside the round's games plays a consolation battle, except the top seeds resting on a bye.
-  const excluded = new Set([...games.flatMap(game => [game.high, game.low]), ...byeSeeds(format, seeds, round)])
+  const excluded = new Set([...games.flatMap(game => [game.high, game.low]), ...byeSeeds(plan, seeds, round)])
   const others = seeds.filter(id => !excluded.has(id))
   const consolation = Array.from({ length: Math.ceil(others.length / 2) }, (_, i) => ({
     home: others[i * 2] ?? '',
@@ -96,16 +96,16 @@ export async function schedulePlayoffWeek(league: LeagueDocument, week: number):
 }
 
 /** The winners of each playoff round played so far (round 1 first), from the results. */
-async function playoffWinners(league: LeagueDocument, format: PlayoffFormat, seeds: readonly string[], rounds: number): Promise<string[][]> {
+async function playoffWinners(league: LeagueDocument, plan: LeaguePlayoffs, seeds: readonly string[], rounds: number): Promise<string[][]> {
   const winners: string[][] = []
   for (let round = 1; round <= rounds; round++) {
-    const result = await WeekResultModel.findOne({ leagueId: league._id, week: REGULAR_SEASON_WEEKS + round })
-    const games = roundGames(format, seeds, round, winners)
+    const result = await WeekResultModel.findOne({ leagueId: league._id, week: plan.regularWeeks + round })
+    const games = roundGames(plan, seeds, round, winners)
     winners.push(
       games.map(game => {
         const played = result?.matchups.find(matchup => matchup.kind === 'playoff' && matchup.home.partyId.toString() === game.high)
         if (!played) throw new Error(`Playoff round ${String(round)} of league ${league.id} has no result`)
-        return gameWinner(game, played.outcome)
+        return gameWinner(game, played.outcome, played.gridironOutcome ?? null)
       })
     )
   }
@@ -115,11 +115,11 @@ async function playoffWinners(league: LeagueDocument, format: PlayoffFormat, see
 /** The season's champion: the playoff final's winner, or without playoffs the best record. */
 export async function seasonChampion(league: LeagueDocument, standings?: readonly StandingView[]): Promise<StandingView | undefined> {
   const table = standings ?? (await computeStandings(league))
-  if (!league.playoffs) return table[0]
-  const format = playoffFormat(league.partyCount)
+  const plan = leaguePlayoffs(league)
+  if (!plan) return table[0]
   const seeds = table.map(row => row.partyId)
   try {
-    const [winner] = (await playoffWinners(league, format, seeds, format.rounds)).at(-1) ?? []
+    const [winner] = (await playoffWinners(league, plan, seeds, plan.rounds)).at(-1) ?? []
     return table.find(row => row.partyId === winner)
   } catch {
     return undefined // the playoffs haven't finished

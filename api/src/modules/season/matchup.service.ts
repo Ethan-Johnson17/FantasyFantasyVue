@@ -11,8 +11,7 @@ import { PartyModel, readLineup, type PartyDocument } from '../leagues/party.mod
 import { getRuleset, type Ruleset } from '../scoring/rulesets.js'
 import { monsterName } from './monsters.js'
 import { NflGameModel } from '../stats/stats.models.js'
-import { REGULAR_SEASON_WEEKS } from './bracket.js'
-import { nflWeekOf, resolvesAt, seasonLength } from './calendar.js'
+import { leaguePlayoffs, nflWeekOf, resolvesAt, seasonLength } from './calendar.js'
 import { critOf } from './crits.js'
 import { encounterFor, encounterMultiplier, type Encounter } from './encounters.js'
 import type { HeroGame } from './nflWeeks.js'
@@ -108,10 +107,11 @@ export async function getMatchup(member: AccountDocument, leagueId: string, requ
   if (!at) throw new NotFound('There is no battle that week')
   const next = { week, at }
   const scheduled = league.schedule?.find(entry => entry.week === week)
-  if (!scheduled && week > REGULAR_SEASON_WEEKS) throw new NotFound('Playoff matchups are set as the bracket plays out, one round at a time')
+  const playoffs = leaguePlayoffs(league)
+  if (playoffs && !scheduled && week > playoffs.regularWeeks) throw new NotFound('Playoff matchups are set as the bracket plays out, one round at a time')
   const matchup = scheduled?.matchups.find(m => m.home.equals(party._id) || m.away?.equals(party._id))
   // In the playoffs, only the top seeds on a bye have no battle.
-  if (!matchup && week > REGULAR_SEASON_WEEKS) throw new NotFound('Your party rests on a bye this week, through to the next round')
+  if (playoffs && !matchup && week > playoffs.regularWeeks) throw new NotFound('Your party rests on a bye this week, through to the next round')
   if (!matchup) throw new NotFound('There is no battle that week')
 
   const opponentId = matchup.home.equals(party._id) ? matchup.away : matchup.home

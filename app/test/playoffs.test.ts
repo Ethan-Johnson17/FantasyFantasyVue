@@ -43,12 +43,12 @@ afterEach(() => {
 
 describe('round names', () => {
   it('follow the bracket size, and label consolation battles', () => {
-    expect([15, 16, 17].map(week => roundName({ spots: 6, rounds: 3 }, week))).toEqual(['Quarterfinals', 'Semifinals', 'Final'])
-    expect([14, 15, 16, 17].map(week => roundName({ spots: 4, rounds: 2 }, week))).toEqual([null, 'Semifinals', 'Final', null])
+    expect([15, 16, 17].map(week => roundName({ spots: 6, rounds: 3, regularWeeks: 14 }, week))).toEqual(['Quarterfinals', 'Semifinals', 'Final'])
+    expect([14, 15, 16, 17].map(week => roundName({ spots: 4, rounds: 2, regularWeeks: 14 }, week))).toEqual([null, 'Semifinals', 'Final', null])
     expect(roundName(null, 15)).toBeNull()
-    expect(stageOf({ spots: 2, rounds: 1 }, 15, 'consolation')).toBe('Consolation')
-    expect(stageOf({ spots: 2, rounds: 1 }, 15, 'playoff')).toBe('Final')
-    expect(stageOf({ spots: 2, rounds: 1 }, 3, 'regular')).toBeNull()
+    expect(stageOf({ spots: 2, rounds: 1, regularWeeks: 14 }, 15, 'consolation')).toBe('Consolation')
+    expect(stageOf({ spots: 2, rounds: 1, regularWeeks: 14 }, 15, 'playoff')).toBe('Final')
+    expect(stageOf({ spots: 2, rounds: 1, regularWeeks: 14 }, 3, 'regular')).toBeNull()
   })
 })
 
@@ -84,7 +84,7 @@ describe('the league page in the playoffs', () => {
   // Six parties at week 15 of a top-6 bracket: my party (seed 1) rests on a bye.
   const standings = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id, i) => row(id, 13 - i))
   const bracket = (overrides: Partial<Playoffs> = {}): Playoffs => ({
-    format: { spots: 6, rounds: 3 },
+    format: { spots: 6, rounds: 3, regularWeeks: 14 },
     provisional: false,
     seeds: standings.slice(0, 6).map((entry, i) => seed(entry.partyId, i + 1)),
     rounds: [
@@ -105,7 +105,7 @@ describe('the league page in the playoffs', () => {
     ]
   }
   const league = (overrides: Partial<LeagueDetail> = {}) =>
-    detail({ status: 'active', resolvedWeeks: 14, seasonWeeks: 17, playoffs: { spots: 6, rounds: 3 }, partyCount: 8, parties: [party('a', true), party('b')], ...overrides })
+    detail({ status: 'active', resolvedWeeks: 14, seasonWeeks: 17, playoffs: { spots: 6, rounds: 3, regularWeeks: 14 }, partyCount: 8, parties: [party('a', true), party('b')], ...overrides })
 
   it('shows the bracket, the playoff line, and my bye', async () => {
     const api = fakeApi({ getStandings: vi.fn().mockResolvedValue(standings), getSchedule: vi.fn().mockResolvedValue([week15]), getPlayoffs: vi.fn().mockResolvedValue(bracket()) })
@@ -162,7 +162,7 @@ describe('the matchup screen in the playoffs', () => {
     { week: 15, resolvesAt: null, matchups: [{ home: ref('b'), away: ref('c'), kind: 'playoff', result: null }] },
     { week: 16, resolvesAt: null, matchups: [{ home: ref('a'), away: ref('b'), kind: 'playoff', result: null }, { home: ref('c'), away: null, kind: 'consolation', result: null }] }
   ]
-  const league = detail({ status: 'active', resolvedWeeks: 14, seasonWeeks: 16, playoffs: { spots: 4, rounds: 2 }, parties: [party('a', true), party('b')] })
+  const league = detail({ status: 'active', resolvedWeeks: 14, seasonWeeks: 16, playoffs: { spots: 4, rounds: 2, regularWeeks: 14 }, parties: [party('a', true), party('b')] })
 
   it('shows a bye without fetching a battle, and labels the round', async () => {
     const api = fakeApi({ getSchedule: vi.fn().mockResolvedValue(schedule), getMatchup: vi.fn().mockRejectedValue(new Error('no battle')) })
@@ -185,13 +185,13 @@ describe('the finale after playoffs', () => {
   const standings = [row('a', 11), row('b', 9), row('c', 7)]
   const finale = (mine: string): Finale => ({ champion: standings[1]!, standings, myFinish: { partyId: mine, rank: standings.findIndex(r => r.partyId === mine) + 1 }, awards: [] })
   const final: Playoffs = {
-    format: { spots: 2, rounds: 1 },
+    format: { spots: 2, rounds: 1, regularWeeks: 14 },
     provisional: false,
     seeds: [seed('a', 1), seed('b', 2)],
     rounds: [{ round: 1, week: 15, name: 'Final', games: [{ high: seed('a', 1, 90), low: seed('b', 2, 110), winner: 'b' }], byes: [] }],
     champion: ref('b')
   }
-  const league = detail({ status: 'complete', name: 'Bracket League', playoffs: { spots: 2, rounds: 1 } })
+  const league = detail({ status: 'complete', name: 'Bracket League', playoffs: { spots: 2, rounds: 1, regularWeeks: 14 } })
 
   it('puts the finalists on the podium and the regular season below', async () => {
     const api = fakeApi({ getFinale: vi.fn().mockResolvedValue(finale('a')), getPlayoffs: vi.fn().mockResolvedValue(final) })

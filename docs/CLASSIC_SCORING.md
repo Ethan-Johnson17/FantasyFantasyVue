@@ -249,8 +249,9 @@ Decided 2026-10-13. Items marked *(default)* were filled in during implementatio
 ## Playoffs (decided 2026-10-31)
 
 - **On by default** for Classic (and so Dynasty) leagues; the host can choose **Best record** instead when creating the
-  league, and can't change it afterwards. Leagues created before playoffs existed keep best record. Crossover has no
-  playoffs yet. Each Dynasty season keeps the first season's choice.
+  league, and can't change it afterwards. Leagues created before playoffs existed keep best record. Each Dynasty
+  season keeps the first season's choice. Crossover has playoffs too, fitted to the NFL calendar
+  ([docs/CROSSOVER_SPEC.md](CROSSOVER_SPEC.md#playoffs-decided-2026-11-09)).
 - **The bracket scales with the league** (by parties at the draft): 2–3 parties play a **final** (1 week); 4–7 send the
   **top 4** to semifinals and a final (2 weeks); 8–12 send the **top 6** to quarterfinals, semifinals and a final
   (3 weeks), with seeds 1 and 2 resting on a **bye** in the quarterfinals. The season is 15, 16 or 17 weeks; playoff

@@ -51,8 +51,25 @@ identity is only ever serialized for Crossover leagues, with tests on both sides
   the league is the first NFL week whose first kickoff is after the draft.
 - The league plays through **NFL week 17** *(default)*, so week 18's resting starters don't decide titles. Leagues
   need at least **4 weeks** left at draft time *(default)*; late in the season, creating one is refused clearly.
-- Playoffs are post-MVP, as in Classic.
+- Playoffs: see below.
 - Off-season, Crossover is unavailable and the create screen points to Classic.
+
+## Playoffs (decided 2026-11-09)
+
+As in Classic ([docs/CLASSIC_SCORING.md](CLASSIC_SCORING.md#playoffs-decided-2026-10-31)): on by default, the host can
+choose best record at creation, the bracket scales with the league (a final for 2-3 parties, top 4 for 4-7, top 6 with
+byes for 8-12), seeds come from the standings (board wins), consolation battles fill the week, and only the regular
+season counts in the standings. Crossover leagues created before this keep best record. What differs:
+
+- **NFL weeks 15–17.** The bracket fills the league's last weeks, so the final is always NFL week 17 and week 18's
+  resting starters never decide a title. A smaller bracket needs fewer weeks, so its regular season runs longer: a
+  4-party league from NFL week 1 has a 15-week regular season and plays its semifinals in week 16.
+- **Late leagues shrink the bracket.** The regular season keeps at least 4 weeks (the creation minimum), and the bracket
+  takes only the weeks left after it: a league starting in NFL week 13 plays 4 regular weeks and a final; one starting
+  in week 14 plays without playoffs. The plan is fixed at the draft, with the calendar.
+- **Two boards.** A playoff game goes to whoever wins more boards. A 1–1 split goes to the **Quest board**, so the D&D
+  half breaks ties; if both boards are draws, the higher seed goes through.
+- Implemented in `api/src/modules/season/calendar.ts` (`leaguePlayoffs`) and `bracket.ts` (`gameWinner`).
 
 ## Pool and draft
 
