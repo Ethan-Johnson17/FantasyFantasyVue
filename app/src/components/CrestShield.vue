@@ -1,14 +1,23 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { bannerOf, crestName, emblemOf, type Crest } from '../crests'
+import { computed, useId } from 'vue'
+import { accentOf, bannerOf, crestName, emblemOf, patternOf, type Crest } from '../crests'
 
 const props = withDefaults(defineProps<{ crest: Crest; size?: number; decorative?: boolean }>(), {
   size: 44,
   decorative: false
 })
 
+const SHIELD = 'M32 3l27 9v20c0 18-12 30-27 37C17 62 5 50 5 32V12z'
+const id = useId()
+const clipId = `crest-${id}`
+const outlineId = `crest-outline-${id}`
 const fill = computed(() => bannerOf(props.crest.banner).hex)
-const path = computed(() => emblemOf(props.crest.emblem).path)
+const accent = computed(() => accentOf(props.crest))
+const area = computed(() => (accent.value ? patternOf(props.crest.pattern).area : ''))
+const emblem = computed(() => emblemOf(props.crest.emblem))
+/** A heraldic emblem's line drawing, or a mascot's full-color image */
+const path = computed(() => ('path' in emblem.value ? emblem.value.path : ''))
+const image = computed(() => ('image' in emblem.value ? emblem.value.image : ''))
 const label = computed(() => `${crestName(props.crest)} crest`)
 </script>
 
@@ -21,8 +30,43 @@ const label = computed(() => `${crestName(props.crest)} crest`)
     :aria-label="decorative ? undefined : label"
     :aria-hidden="decorative ? 'true' : undefined"
   >
-    <path d="M32 3l27 9v20c0 18-12 30-27 37C17 62 5 50 5 32V12z" :fill="fill" stroke="var(--gold)" stroke-width="2" />
-    <g transform="translate(17 17) scale(1.25)">
+    <defs v-if="area || image">
+      <clipPath :id="clipId"><path :d="SHIELD" /></clipPath>
+      <!-- A thin light outline lets dark mascots (wolf, dragon) read on dark banners -->
+      <filter v-if="image" :id="outlineId" x="-10%" y="-10%" width="120%" height="120%">
+        <feMorphology in="SourceAlpha" operator="dilate" radius="0.9" result="grown" />
+        <feFlood flood-color="#FFF8EC" flood-opacity="0.85" />
+        <feComposite in2="grown" operator="in" result="outline" />
+        <feMerge>
+          <feMergeNode in="outline" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+    <path :d="SHIELD" :fill="fill" />
+    <path v-if="area && accent" :d="area" :fill="accent.hex" :clip-path="`url(#${clipId})`" />
+    <image
+      v-if="image"
+      :href="image"
+      x="13"
+      y="12"
+      width="38"
+      height="40"
+      preserveAspectRatio="xMidYMid meet"
+      :filter="`url(#${outlineId})`"
+      :clip-path="`url(#${clipId})`"
+    />
+    <g v-else transform="translate(17 17) scale(1.25)">
+      <!-- A dark halo keeps the emblem legible where it crosses a pattern line -->
+      <path
+        v-if="area"
+        :d="path"
+        fill="none"
+        stroke="rgba(20, 16, 26, 0.55)"
+        stroke-width="3.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
       <path
         :d="path"
         fill="none"
@@ -32,5 +76,7 @@ const label = computed(() => `${crestName(props.crest)} crest`)
         stroke-linejoin="round"
       />
     </g>
+    <!-- The gold rim goes on last, over the art -->
+    <path :d="SHIELD" fill="none" stroke="var(--gold)" stroke-width="2" />
   </svg>
 </template>

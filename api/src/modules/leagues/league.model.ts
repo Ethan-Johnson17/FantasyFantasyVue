@@ -109,7 +109,18 @@ const leagueSchema = new Schema(
         new Schema({
           previousPartyId: { type: Schema.Types.ObjectId, ref: 'Party', required: true },
           name: { type: String, required: true },
-          crest: { type: new Schema({ emblem: { type: String, required: true }, banner: { type: String, required: true } }, { _id: false }), required: true },
+          crest: {
+            type: new Schema(
+              {
+                emblem: { type: String, required: true },
+                banner: { type: String, required: true },
+                pattern: { type: String, default: 'plain' },
+                accent: { type: String, default: null }
+              },
+              { _id: false }
+            ),
+            required: true
+          },
           keepers: { type: [{ type: Schema.Types.ObjectId, ref: 'Hero' }], default: [] }
         })
       ],

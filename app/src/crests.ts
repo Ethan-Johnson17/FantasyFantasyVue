@@ -1,7 +1,21 @@
 /**
- * Crest emblems and banner colors. Keys must match the API (api/src/modules/leagues/crests.ts);
- * a test guards against drift. Emblem paths are drawn on a 24x24 grid.
+ * Crest emblems, banner colors and shield patterns. Keys must match the API (api/src/modules/leagues/crests.ts);
+ * a test guards against drift. Heraldic emblem paths are drawn on a 24x24 grid; pattern paths on the shield's
+ * 64x72. Mascots are images from the original FantasyFantasy team builder (src/assets/mascots).
  */
+
+import raccoonArt from './assets/mascots/raccoon.svg'
+import wolfArt from './assets/mascots/wolf.svg'
+import foxArt from './assets/mascots/fox.svg'
+import phoenixArt from './assets/mascots/phoenix.svg'
+import knightArt from './assets/mascots/knight.svg'
+import bearArt from './assets/mascots/bear.svg'
+import tigerArt from './assets/mascots/tiger.svg'
+import huskyArt from './assets/mascots/husky.svg'
+import buckArt from './assets/mascots/buck.svg'
+import samuraiArt from './assets/mascots/samurai.svg'
+import dragonArt from './assets/mascots/dragon.svg'
+import jokerArt from './assets/mascots/joker.svg'
 
 export const EMBLEMS = [
   { key: 'crown', name: 'Crown', path: 'M3 18h18l-1.5-10-4.5 4-3-7-3 7-4.5-4z M3 21h18' },
@@ -19,7 +33,20 @@ export const EMBLEMS = [
     key: 'paw',
     name: 'Beast',
     path: 'M8 15c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4-4-1.8-4-4z M6.5 9.5a1.6 1.6 0 1 0 0.01 0z M10 6.5a1.6 1.6 0 1 0 0.01 0z M14 6.5a1.6 1.6 0 1 0 0.01 0z M17.5 9.5a1.6 1.6 0 1 0 0.01 0z'
-  }
+  },
+  // Mascots: full-color art (Pixabay content license), drawn inside the shield
+  { key: 'raccoon', name: 'Raccoon', mascot: true, image: raccoonArt },
+  { key: 'wolf', name: 'Wolf', mascot: true, image: wolfArt },
+  { key: 'fox', name: 'Fox', mascot: true, image: foxArt },
+  { key: 'phoenix', name: 'Phoenix', mascot: true, image: phoenixArt },
+  { key: 'knight', name: 'Knight', mascot: true, image: knightArt },
+  { key: 'bear', name: 'Bear', mascot: true, image: bearArt },
+  { key: 'tiger', name: 'Tiger', mascot: true, image: tigerArt },
+  { key: 'husky', name: 'Husky', mascot: true, image: huskyArt },
+  { key: 'buck', name: 'Buck', mascot: true, image: buckArt },
+  { key: 'samurai', name: 'Samurai', mascot: true, image: samuraiArt },
+  { key: 'dragon', name: 'Dragon', mascot: true, image: dragonArt },
+  { key: 'joker', name: 'Joker', mascot: true, image: jokerArt }
 ] as const
 
 export const BANNERS = [
@@ -31,15 +58,40 @@ export const BANNERS = [
   { key: 'obsidian', name: 'Obsidian', hex: '#3A3A44' }
 ] as const
 
+/** How the shield divides between the banner and a second (accent) color. `area` is the accent's part. */
+export const PATTERNS = [
+  { key: 'plain', name: 'Plain', area: '' },
+  { key: 'split', name: 'Split', area: 'M32 0H64V72H32z' },
+  { key: 'diagonal', name: 'Diagonal', area: 'M0 0H64V72z' },
+  { key: 'chevron', name: 'Chevron', area: 'M0 58L32 26 64 58V74L32 42 0 74z' },
+  { key: 'quartered', name: 'Quartered', area: 'M32 0H64V36H32z M0 36H32V72H0z' },
+  { key: 'stripe', name: 'Stripe', area: 'M24 0H40V72H24z' }
+] as const
+
 export type EmblemKey = (typeof EMBLEMS)[number]['key']
 export type BannerKey = (typeof BANNERS)[number]['key']
+export type PatternKey = (typeof PATTERNS)[number]['key']
 
 export interface Crest {
   emblem: EmblemKey
   banner: BannerKey
+  /** Plain when absent */
+  pattern?: PatternKey
+  /** The pattern's second color; null or absent on a plain shield */
+  accent?: BannerKey | null
 }
 
-export const DEFAULT_CREST: Crest = { emblem: 'crown', banner: 'crimson' }
+export const DEFAULT_CREST: Crest = { emblem: 'crown', banner: 'crimson', pattern: 'plain', accent: null }
+
+export function patternOf(key: string | undefined) {
+  return PATTERNS.find(pattern => pattern.key === key) ?? PATTERNS[0]
+}
+
+/** The accent color, if the crest is patterned (and drawable: a known accent unlike the banner) */
+export function accentOf(crest: Crest) {
+  if (!crest.pattern || crest.pattern === 'plain' || !crest.accent || crest.accent === crest.banner) return null
+  return BANNERS.find(banner => banner.key === crest.accent) ?? null
+}
 
 export function emblemOf(key: string) {
   return EMBLEMS.find(emblem => emblem.key === key) ?? EMBLEMS[0]
@@ -49,7 +101,9 @@ export function bannerOf(key: string) {
   return BANNERS.find(banner => banner.key === key) ?? BANNERS[0]
 }
 
-/** e.g. "Crimson Crown" */
+/** e.g. "Crimson Crown", or patterned "Obsidian and Amber Dragon" */
 export function crestName(crest: Crest): string {
-  return `${bannerOf(crest.banner).name} ${emblemOf(crest.emblem).name}`
+  const accent = accentOf(crest)
+  const colors = accent ? `${bannerOf(crest.banner).name} and ${accent.name}` : bannerOf(crest.banner).name
+  return `${colors} ${emblemOf(crest.emblem).name}`
 }

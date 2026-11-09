@@ -6,6 +6,7 @@ import type { LeagueDocument } from '../leagues/league.model.js'
 import { PartyModel, type PartyDocument } from '../leagues/party.model.js'
 import { CHAT_RETENTION_MS, ChatMessageModel, type ChatMessageDocument } from './chatMessage.model.js'
 import { filterProfanity } from './profanity.js'
+import { toCrest, type Crest } from '../leagues/crests.js'
 
 const { trusted } = mongoose
 
@@ -19,7 +20,7 @@ export interface ChatMessageView {
   body: string
   at: string
   /** The author's party; null once they've left the league */
-  author: { partyId: string; name: string; crest: { emblem: string; banner: string } } | null
+  author: { partyId: string; name: string; crest: Crest } | null
   mine: boolean
   reportedByMe: boolean
   /** How many members reported it; shown to the host only, null for everyone else */
@@ -168,7 +169,7 @@ async function toViews(messages: readonly ChatMessageDocument[], viewer: Account
       id: message.id,
       body: message.body,
       at: message.createdAt.toISOString(),
-      author: party ? { partyId: party.id, name: party.name, crest: { emblem: party.crest.emblem, banner: party.crest.banner } } : null,
+      author: party ? { partyId: party.id, name: party.name, crest: toCrest(party.crest) } : null,
       mine: message.accountId.equals(viewer._id),
       reportedByMe: message.reportedBy.some(id => id.equals(viewer._id)),
       reports: canModerate ? message.reportedBy.length : null

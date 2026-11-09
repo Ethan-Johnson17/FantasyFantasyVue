@@ -12,7 +12,7 @@ import { computeStandings } from '../season/season.service.js'
 import { inTransaction, loadLeagueAsHost } from './league.access.js'
 import { LeagueModel, type LeagueDocument, type LeagueStatus } from './league.model.js'
 import type { CreateLeagueInput, PartyInput, UpdateLeagueInput, UpdatePartyInput } from './league.schemas.js'
-import { DEFAULT_CREST, type Crest } from './crests.js'
+import { toCrest, type Crest } from './crests.js'
 import { PartyModel, type PartyDocument } from './party.model.js'
 import { generatePin } from './pin.js'
 
@@ -351,7 +351,7 @@ export async function removePartyFromLeague(league: LeagueDocument, party: Party
   const reopen = !!league.dynasty && league.dynasty.number > 1 && party.previousPartyId
   await inTransaction(async session => {
     const opened = reopen
-      ? { $push: { openParties: { previousPartyId: party.previousPartyId, name: party.name, crest: { emblem: party.crest.emblem, banner: party.crest.banner }, keepers: [...(party.keepers ?? [])] } } }
+      ? { $push: { openParties: { previousPartyId: party.previousPartyId, name: party.name, crest: toCrest(party.crest), keepers: [...(party.keepers ?? [])] } } }
       : {}
     const released = await LeagueModel.updateOne(
       { _id: league._id, status: 'forming' },
@@ -432,14 +432,13 @@ function toSummary(
         }
       : null,
     playoffs: leaguePlayoffs(league),
-    openParties: league.openParties.map(open => ({ id: open._id.toString(), name: open.name, crest: { emblem: open.crest.emblem, banner: open.crest.banner } as Crest })),
+    openParties: league.openParties.map(open => ({ id: open._id.toString(), name: open.name, crest: toCrest(open.crest) })),
     createdAt: league.createdAt
   }
 }
 
 function crestOf(party: PartyDocument): Crest {
-  const crest = party.crest as Partial<Crest> | null | undefined
-  return crest?.emblem && crest.banner ? { emblem: crest.emblem, banner: crest.banner } : DEFAULT_CREST
+  return toCrest(party.crest)
 }
 
 function draftOf(league: LeagueDocument): DraftView | null {

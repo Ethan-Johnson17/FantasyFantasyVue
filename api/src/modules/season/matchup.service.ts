@@ -5,7 +5,7 @@ import type { AccountDocument } from '../accounts/account.model.js'
 import { toHeroView, type HeroView } from '../draft/draft.service.js'
 import { HeroModel, type HeroDocument } from '../heroes/hero.model.js'
 import { loadLeagueAsMember } from '../leagues/league.access.js'
-import type { Crest } from '../leagues/crests.js'
+import { toCrest, type Crest } from '../leagues/crests.js'
 import { LeagueModel } from '../leagues/league.model.js'
 import { PartyModel, readLineup, type PartyDocument } from '../leagues/party.model.js'
 import { getRuleset, type Ruleset } from '../scoring/rulesets.js'
@@ -253,7 +253,7 @@ function sideView(
   return {
     partyId: party.id,
     name: party.name,
-    crest: { emblem: party.crest.emblem, banner: party.crest.banner },
+    crest: toCrest(party.crest),
     record: { wins: row?.wins ?? 0, losses: row?.losses ?? 0, draws: row?.draws ?? 0 },
     starters,
     questParty,

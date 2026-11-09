@@ -8,14 +8,27 @@ import {
   MAX_PARTIES,
   MIN_PARTIES
 } from './league.model.js'
-import { CREST_BANNERS, CREST_EMBLEMS } from './crests.js'
+import { CREST_BANNERS, CREST_EMBLEMS, CREST_PATTERNS } from './crests.js'
 import { PARTY_NAME_MAX } from './party.model.js'
 import { PIN_PATTERN } from './pin.js'
 
 export const PartyInputSchema = z
   .object({
     name: z.string().trim().min(1).max(PARTY_NAME_MAX),
-    crest: z.object({ emblem: z.enum(CREST_EMBLEMS), banner: z.enum(CREST_BANNERS) }).strict()
+    crest: z
+      .object({
+        emblem: z.enum(CREST_EMBLEMS),
+        banner: z.enum(CREST_BANNERS),
+        pattern: z.enum(CREST_PATTERNS).default('plain'),
+        accent: z.enum(CREST_BANNERS).nullable().default(null)
+      })
+      .strict()
+      .refine(crest => crest.pattern === 'plain' || (crest.accent !== null && crest.accent !== crest.banner), {
+        message: 'A patterned crest needs a second color, different from the banner',
+        path: ['accent']
+      })
+      // A plain shield has no second color.
+      .transform(crest => (crest.pattern === 'plain' ? { ...crest, accent: null } : crest))
   })
   .strict()
 
