@@ -1,11 +1,24 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { BANNERS, crestName, EMBLEMS, PATTERNS, type BannerKey, type Crest, type EmblemKey, type PatternKey } from '../crests'
+import {
+  BANNERS,
+  crestName,
+  EMBLEMS,
+  isMascot,
+  MASCOT_COLORS,
+  PATTERNS,
+  type BannerKey,
+  type Crest,
+  type EmblemKey,
+  type MascotColorKey,
+  type PatternKey
+} from '../crests'
 import CrestShield from './CrestShield.vue'
 
 /*
  * Builds a crest: an emblem (heraldry or a mascot), the banner color, and optionally a pattern that splits the
  * shield with a second color. The second color is always different from the banner, so the pattern shows.
+ * A mascot's two color regions can each take a color, or keep the art's own.
  */
 
 const crest = defineModel<Crest>({ required: true })
@@ -18,8 +31,18 @@ const pattern = computed<PatternKey>(() => crest.value.pattern ?? 'plain')
 /** A second color to start a pattern with: gold reads on every banner, except gold itself */
 const firstAccent = (banner: BannerKey): BannerKey => (banner === 'amber' ? 'obsidian' : 'amber')
 
+const mascot = computed(() => isMascot(crest.value.emblem))
+const regions = [
+  { field: 'mascotPrimary', name: 'Mascot main color' },
+  { field: 'mascotSecondary', name: 'Mascot second color' }
+] as const
+
 function setEmblem(emblem: EmblemKey) {
-  crest.value = { ...crest.value, emblem }
+  // Heraldry has no color regions; switching between mascots keeps the chosen colors.
+  crest.value = isMascot(emblem) ? { ...crest.value, emblem } : { ...crest.value, emblem, mascotPrimary: null, mascotSecondary: null }
+}
+function setMascotColor(field: (typeof regions)[number]['field'], color: MascotColorKey | null) {
+  crest.value = { ...crest.value, [field]: color }
 }
 function setBanner(banner: BannerKey) {
   // Picking the second color as the banner swaps the two, so the pattern stays visible.
@@ -78,6 +101,42 @@ const sample = (key: PatternKey): Crest => ({ ...crest.value, pattern: key, acce
         </div>
       </template>
     </fieldset>
+
+    <template v-if="mascot">
+      <fieldset v-for="region in regions" :key="region.field">
+        <legend class="field-label">{{ region.name }}</legend>
+        <div class="banners">
+          <label class="banner original" :class="{ on: !crest[region.field] }">
+            <input
+              class="visually-hidden"
+              type="radio"
+              :name="region.field"
+              value=""
+              :checked="!crest[region.field]"
+              @change="setMascotColor(region.field, null)"
+            />
+            <span>Original</span>
+          </label>
+          <label
+            v-for="color in MASCOT_COLORS"
+            :key="color.key"
+            class="banner"
+            :class="{ on: crest[region.field] === color.key }"
+            :style="{ background: color.hex }"
+          >
+            <input
+              class="visually-hidden"
+              type="radio"
+              :name="region.field"
+              :value="color.key"
+              :checked="crest[region.field] === color.key"
+              @change="setMascotColor(region.field, color.key)"
+            />
+            <span class="visually-hidden">{{ color.name }}</span>
+          </label>
+        </div>
+      </fieldset>
+    </template>
 
     <fieldset>
       <legend class="field-label">Banner color</legend>
@@ -219,6 +278,8 @@ legend {
   width: var(--tap);
   height: var(--tap);
   border-radius: 50%;
+  /* An edge so the darkest colors (obsidian, black) still read as swatches */
+  border: 1px solid var(--line-strong);
   cursor: pointer;
 }
 .banner.on {
@@ -230,6 +291,15 @@ legend {
   object-fit: contain;
   /* The same light edge the shield gives mascots, so dark art (wolf, dragon) reads on the dark tile */
   filter: drop-shadow(0 0 0.6px rgba(255, 248, 236, 0.9)) drop-shadow(0 0 0.6px rgba(255, 248, 236, 0.9));
+}
+.banner.original {
+  display: grid;
+  place-items: center;
+  width: auto;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 13px;
 }
 .banner.off {
   opacity: 0.3;

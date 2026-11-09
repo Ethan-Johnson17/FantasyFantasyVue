@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
-import { accentOf, bannerOf, crestName, emblemOf, patternOf, type Crest } from '../crests'
+import { accentOf, bannerOf, crestName, emblemOf, mascotColorVars, patternOf, type Crest } from '../crests'
 
 const props = withDefaults(defineProps<{ crest: Crest; size?: number; decorative?: boolean }>(), {
   size: 44,
@@ -18,6 +18,7 @@ const emblem = computed(() => emblemOf(props.crest.emblem))
 /** A heraldic emblem's line drawing, or a mascot's full-color image */
 const path = computed(() => ('path' in emblem.value ? emblem.value.path : ''))
 const image = computed(() => ('image' in emblem.value ? emblem.value.image : ''))
+const colorVars = computed(() => mascotColorVars(props.crest))
 const label = computed(() => `${crestName(props.crest)} crest`)
 </script>
 
@@ -45,17 +46,13 @@ const label = computed(() => `${crestName(props.crest)} crest`)
     </defs>
     <path :d="SHIELD" :fill="fill" />
     <path v-if="area && accent" :d="area" :fill="accent.hex" :clip-path="`url(#${clipId})`" />
-    <image
-      v-if="image"
-      :href="image"
-      x="13"
-      y="12"
-      width="38"
-      height="40"
-      preserveAspectRatio="xMidYMid meet"
-      :filter="`url(#${outlineId})`"
-      :clip-path="`url(#${clipId})`"
-    />
+    <!--
+      <use> rather than <image>, so the chosen mascot colors (CSS variables) reach the art's paths. The clip and outline
+      sit on a wrapping group: on <use> itself, x/y would shift them along with the art and cut its top and left.
+    -->
+    <g v-if="image" :filter="`url(#${outlineId})`" :clip-path="`url(#${clipId})`">
+      <use :href="`${image}#m`" x="13" y="12" width="38" height="40" :style="colorVars" />
+    </g>
     <g v-else transform="translate(17 17) scale(1.25)">
       <!-- A dark halo keeps the emblem legible where it crosses a pattern line -->
       <path

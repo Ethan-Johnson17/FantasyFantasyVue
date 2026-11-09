@@ -44,7 +44,7 @@ try {
       const n = league.partyCount + i
       await joinLeague(bot, pin, {
         name: `Bot Party ${String(n)}`,
-        crest: { emblem: CREST_EMBLEMS[n % CREST_EMBLEMS.length] ?? 'crown', banner: CREST_BANNERS[n % CREST_BANNERS.length] ?? 'crimson', pattern: 'plain', accent: null }
+        crest: { emblem: CREST_EMBLEMS[n % CREST_EMBLEMS.length] ?? 'crown', banner: CREST_BANNERS[n % CREST_BANNERS.length] ?? 'crimson', pattern: 'plain', accent: null, mascotPrimary: null, mascotSecondary: null }
       })
       console.log(`Added Bot Party ${String(n)}`)
     }

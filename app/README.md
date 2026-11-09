@@ -59,4 +59,8 @@ last good page opens offline); built assets are cached; the API and sign-in are 
   automatic is happening.
 - **Mascot art** in `src/assets/mascots/` is from the original FantasyFantasy team builder (Pixabay content license).
   The files were run through SVGO, and the samurai and joker had their cream backgrounds removed.
+  Each mascot has two color regions a party can recolor. Region paths are styled
+  `fill:var(--m1-<shade>, <original>)` (`m2` for the second region), where the shade is `0`, `b10`..`b90` (darker) or
+  `w10`..`w90` (lighter) than the region's middle tone; `mascotColorVars` in `src/crests.ts` sets them. Raccoon, wolf,
+  fox, phoenix and knight use the regions from the original `Logo.vue`; the other seven were split by color.
 - **Crest emblem, banner and pattern keys** must match `api/src/modules/leagues/crests.ts`; a test enforces it.

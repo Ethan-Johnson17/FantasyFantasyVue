@@ -63,10 +63,10 @@ describe('creating a league', () => {
       host: { displayName: 'Adventurer' }
     })
     expect(res.body.pin).toMatch(/^[2-9A-HJKMNP-Z]{6}$/)
-    expect(res.body.parties[0].crest).toEqual({ emblem: 'tower', banner: 'sapphire', pattern: 'plain', accent: null })
+    expect(res.body.parties[0].crest).toEqual({ emblem: 'tower', banner: 'sapphire', pattern: 'plain', accent: null, mascotPrimary: null, mascotSecondary: null })
     expect(res.body).toMatchObject({ draftAt: null, weekOneAt: null, resolvedWeeks: 0 })
     expect(res.body.parties).toEqual([
-      expect.objectContaining({ name: 'Dragon Slayers', crest: { emblem: 'tower', banner: 'sapphire', pattern: 'plain', accent: null }, isMine: true })
+      expect.objectContaining({ name: 'Dragon Slayers', crest: { emblem: 'tower', banner: 'sapphire', pattern: 'plain', accent: null, mascotPrimary: null, mascotSecondary: null }, isMine: true })
     ])
   })
 
@@ -343,10 +343,33 @@ describe('editing a party', () => {
     const joined = await alice.post('/api/leagues/join', { pin: league.pin, party: party('Wyrm Riders', patterned) })
     expect(joined.status).toBe(201)
     const mine = (joined.body.parties as { id: string; isMine: boolean; crest: object }[]).find(p => p.isMine)!
-    expect(mine.crest).toEqual(patterned)
+    expect(mine.crest).toEqual({ ...patterned, mascotPrimary: null, mascotSecondary: null })
     // Back to a plain shield: any second color is dropped.
     const plain = await alice.patch(`/api/parties/${mine.id}`, { crest: { emblem: 'wolf', banner: 'sapphire', pattern: 'plain', accent: 'amber' } })
-    expect(plain.body.crest).toEqual({ emblem: 'wolf', banner: 'sapphire', pattern: 'plain', accent: null })
+    expect(plain.body.crest).toEqual({ emblem: 'wolf', banner: 'sapphire', pattern: 'plain', accent: null, mascotPrimary: null, mascotSecondary: null })
+  })
+
+  it('recolors a mascot, and drops the colors on a heraldic emblem', async () => {
+    const league = await createLeague()
+    const tinted = { emblem: 'tiger', banner: 'obsidian', pattern: 'plain', accent: null, mascotPrimary: 'white', mascotSecondary: 'black' }
+    const joined = await alice.post('/api/leagues/join', { pin: league.pin, party: party('Snow Tigers', tinted) })
+    expect(joined.status).toBe(201)
+    const mine = (joined.body.parties as { id: string; isMine: boolean; crest: object }[]).find(p => p.isMine)!
+    expect(mine.crest).toEqual(tinted)
+    // One region can keep the art's own color.
+    const half = await alice.patch(`/api/parties/${mine.id}`, { crest: { ...tinted, mascotSecondary: null } })
+    expect(half.body.crest).toMatchObject({ mascotPrimary: 'white', mascotSecondary: null })
+    // Heraldry has no color regions.
+    const oak = await alice.patch(`/api/parties/${mine.id}`, { crest: { ...tinted, emblem: 'oak' } })
+    expect(oak.body.crest).toMatchObject({ emblem: 'oak', mascotPrimary: null, mascotSecondary: null })
+    expect((await PartyModel.findById(mine.id).lean())?.crest).toMatchObject({ mascotPrimary: null, mascotSecondary: null })
+    expect((await alice.patch(`/api/parties/${mine.id}`, { crest: { ...tinted, mascotPrimary: 'neon' } })).status).toBe(400)
+    // Anything stored that can't be drawn falls back to the art's colors.
+    expect(toCrest({ emblem: 'oak', banner: 'emerald', mascotPrimary: 'white' })).toMatchObject({ mascotPrimary: null })
+    expect(toCrest({ emblem: 'fox', banner: 'emerald', mascotPrimary: 'neon', mascotSecondary: 'amber' })).toMatchObject({
+      mascotPrimary: null,
+      mascotSecondary: 'amber'
+    })
   })
 
   it('rejects a pattern without a different second color, and unknown patterns', async () => {
@@ -368,7 +391,7 @@ describe('editing a party', () => {
     await alice.post('/api/leagues/join', { pin: league.pin, party: party('Elf Squad', crest('buck', 'amethyst')) })
     await PartyModel.collection.updateMany({}, { $unset: { 'crest.pattern': '', 'crest.accent': '' } })
     const parties = (await alice.get(`/api/leagues/${league.id}`)).body.parties as { name: string; crest: object }[]
-    expect(parties.find(p => p.name === 'Elf Squad')?.crest).toEqual({ emblem: 'buck', banner: 'amethyst', pattern: 'plain', accent: null })
+    expect(parties.find(p => p.name === 'Elf Squad')?.crest).toEqual({ emblem: 'buck', banner: 'amethyst', pattern: 'plain', accent: null, mascotPrimary: null, mascotSecondary: null })
     // Anything that can't be drawn falls back too.
     expect(toCrest({ emblem: 'buck', banner: 'amethyst', pattern: 'split', accent: 'amethyst' })).toMatchObject({ pattern: 'plain', accent: null })
     expect(toCrest({ emblem: 'unicorn', banner: 'amethyst' })).toMatchObject({ emblem: 'crown', banner: 'crimson' })
