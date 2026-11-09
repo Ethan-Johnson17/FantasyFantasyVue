@@ -57,4 +57,6 @@ last good page opens offline); built assets are cached; the API and sign-in are 
 - **Components get the API by injection** (`useApi()`), so tests pass a fake client.
 - **Design tokens** live in `src/styles/tokens.css`. The dashed gold border (`.note`) means something special or
   automatic is happening.
-- **Crest emblem and banner keys** must match `api/src/modules/leagues/crests.ts`; a test enforces it.
+- **Mascot art** in `src/assets/mascots/` is from the original FantasyFantasy team builder (Pixabay content license).
+  The files were run through SVGO, and the samurai and joker had their cream backgrounds removed.
+- **Crest emblem, banner and pattern keys** must match `api/src/modules/leagues/crests.ts`; a test enforces it.

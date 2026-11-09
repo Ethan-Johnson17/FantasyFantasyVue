@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import { ApiError } from '../src/api/client'
 import CrestPicker from '../src/components/CrestPicker.vue'
+import CrestShield from '../src/components/CrestShield.vue'
 import type { Crest } from '../src/crests'
 import HostLeagueView from '../src/views/HostLeagueView.vue'
 import JoinLeagueView from '../src/views/JoinLeagueView.vue'
@@ -20,10 +21,83 @@ describe('CrestPicker', () => {
     })
     await wrapper.find('input[value="moon"]').trigger('change')
     await wrapper.setProps({ modelValue: crest.value })
-    await wrapper.find('input[value="emerald"]').trigger('change')
-    expect(crest.value).toEqual({ emblem: 'moon', banner: 'emerald' })
+    await wrapper.find('input[name="banner"][value="emerald"]').trigger('change')
+    expect(crest.value).toEqual({ emblem: 'moon', banner: 'emerald', accent: null })
     await wrapper.setProps({ modelValue: crest.value })
     expect(wrapper.text()).toContain('Emerald Moon')
+  })
+
+  function mountPicker(start: Crest) {
+    const crest = ref<Crest>(start)
+    const wrapper = mount(CrestPicker, {
+      props: {
+        modelValue: crest.value,
+        'onUpdate:modelValue': async (value: Crest) => {
+          crest.value = value
+          await wrapper.setProps({ modelValue: value })
+        }
+      }
+    })
+    return { crest, wrapper }
+  }
+
+  it('groups heraldry and mascots', () => {
+    const { wrapper } = mountPicker({ emblem: 'crown', banner: 'crimson' })
+    expect(wrapper.findAll('.group-name').map(group => group.text())).toEqual(['Heraldry', 'Mascots'])
+    expect(wrapper.findAll('.emblems')[1]!.text()).toContain('Dragon')
+    expect(wrapper.findAll('.emblems')[1]!.findAll('img.mascot')).toHaveLength(12)
+    expect(wrapper.findAll('.emblems')[0]!.text()).not.toContain('Dragon')
+  })
+
+  it('starts a pattern with a second color, and plain clears it', async () => {
+    const { crest, wrapper } = mountPicker({ emblem: 'dragon', banner: 'obsidian' })
+    expect(wrapper.find('input[name="accent"]').exists()).toBe(false)
+    await wrapper.find('input[name="pattern"][value="chevron"]').trigger('change')
+    expect(crest.value).toMatchObject({ pattern: 'chevron', accent: 'amber' })
+    expect(wrapper.text()).toContain('Obsidian and Amber Dragon')
+    // The banner's own color can't be the second color.
+    expect(wrapper.find('input[name="accent"][value="obsidian"]').attributes('disabled')).toBeDefined()
+    await wrapper.find('input[name="accent"][value="sapphire"]').trigger('change')
+    expect(crest.value.accent).toBe('sapphire')
+    await wrapper.find('input[name="pattern"][value="plain"]').trigger('change')
+    expect(crest.value).toMatchObject({ pattern: 'plain', accent: null })
+    expect(wrapper.find('input[name="accent"]').exists()).toBe(false)
+  })
+
+  it('starts a gold banner with a dark second color', async () => {
+    const { crest, wrapper } = mountPicker({ emblem: 'wolf', banner: 'amber' })
+    await wrapper.find('input[name="pattern"][value="split"]').trigger('change')
+    expect(crest.value.accent).toBe('obsidian')
+  })
+
+  it('swaps the colors when the banner takes the second color', async () => {
+    const { crest, wrapper } = mountPicker({ emblem: 'knight', banner: 'crimson', pattern: 'split', accent: 'amber' })
+    await wrapper.find('input[name="banner"][value="amber"]').trigger('change')
+    expect(crest.value).toMatchObject({ banner: 'amber', accent: 'crimson', pattern: 'split' })
+  })
+})
+
+describe('CrestShield', () => {
+  it('draws the second color only on a patterned shield', () => {
+    const plain = mount(CrestShield, { props: { crest: { emblem: 'oak', banner: 'emerald' } } })
+    expect(plain.find('clipPath').exists()).toBe(false)
+    const split = mount(CrestShield, { props: { crest: { emblem: 'oak', banner: 'emerald', pattern: 'split', accent: 'amber' } } })
+    const accent = split.find('path[clip-path]')
+    expect(accent.attributes('fill')).toBe('#A97A1F')
+    expect(accent.attributes('clip-path')).toBe(`url(#${split.find('clipPath').attributes('id')})`)
+    // An accent matching the banner can't show, so the shield stays plain.
+    const same = mount(CrestShield, { props: { crest: { emblem: 'oak', banner: 'emerald', pattern: 'split', accent: 'emerald' } } })
+    expect(same.find('path[clip-path]').exists()).toBe(false)
+  })
+
+  it('draws a mascot as its image, outlined and clipped to the shield', () => {
+    const mascot = mount(CrestShield, { props: { crest: { emblem: 'wolf', banner: 'obsidian' } } })
+    const image = mascot.find('image')
+    expect(image.attributes('href')).toMatch(/wolf/)
+    expect(image.attributes('filter')).toBe(`url(#${mascot.find('filter').attributes('id')})`)
+    expect(image.attributes('clip-path')).toBe(`url(#${mascot.find('clipPath').attributes('id')})`)
+    expect(mascot.find('g').exists()).toBe(false)
+    expect(mascot.attributes('aria-label')).toBe('Obsidian Wolf crest')
   })
 })
 
@@ -48,7 +122,7 @@ describe('HostLeagueView', () => {
       maxParties: 4,
       mode: 'classic',
       playoffs: true,
-      party: { name: 'Dragon Slayers', crest: { emblem: 'tower', banner: 'crimson' } }
+      party: { name: 'Dragon Slayers', crest: { emblem: 'tower', banner: 'crimson', pattern: 'plain', accent: null } }
     })
     expect(router.currentRoute.value.fullPath).toBe('/leagues/new-league')
   })
@@ -94,7 +168,7 @@ describe('JoinLeagueView', () => {
     await wrapper.find('#party-name').setValue('Moonlit Pact')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    expect(api.joinLeague).toHaveBeenCalledWith('K7QX4M', { name: 'Moonlit Pact', crest: { emblem: 'crown', banner: 'crimson' } })
+    expect(api.joinLeague).toHaveBeenCalledWith('K7QX4M', { name: 'Moonlit Pact', crest: { emblem: 'crown', banner: 'crimson', pattern: 'plain', accent: null } })
     expect(router.currentRoute.value.fullPath).toBe('/leagues/joined')
   })
 

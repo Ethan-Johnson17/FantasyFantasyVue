@@ -10,7 +10,7 @@ import { planAutoSwaps, validateLineup, type Lineup } from '../heroes/lineup.js'
 import { expectedLevel } from '../heroes/pool.js'
 import { inTransaction, loadLeagueAsMember, loadVisibleLeague } from '../leagues/league.access.js'
 import { LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
-import { DEFAULT_CREST, type Crest } from '../leagues/crests.js'
+import { DEFAULT_CREST, toCrest, type Crest } from '../leagues/crests.js'
 import { PartyModel, readLineup, storedLineup, type PartyDocument } from '../leagues/party.model.js'
 import { getRuleset, type Ruleset, type SlotRule, type StrategyRules } from '../scoring/rulesets.js'
 import { scoreDefense, scoreOffense } from '../scoring/scoring.js'
@@ -843,7 +843,7 @@ async function partyRefs(league: LeagueDocument): Promise<Map<string, PartyRef>>
   return new Map(
     parties.map(party => [
       party.id,
-      { partyId: party.id, name: party.name, crest: { emblem: party.crest.emblem, banner: party.crest.banner } }
+      { partyId: party.id, name: party.name, crest: toCrest(party.crest) }
     ])
   )
 }

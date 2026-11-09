@@ -2,7 +2,7 @@ import mongoose from 'mongoose'
 import { createRng } from '../../lib/random.js'
 import { DraftRankingModel } from '../draft/ranking.model.js'
 import { HeroModel } from '../heroes/hero.model.js'
-import type { Crest } from '../leagues/crests.js'
+import { toCrest, type Crest } from '../leagues/crests.js'
 import { LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
 import { PartyModel, readLineup, type PartyDocument } from '../leagues/party.model.js'
 
@@ -69,7 +69,7 @@ async function upcoming(league: LeagueDocument, party: PartyDocument): Promise<P
   return {
     week: next.week,
     at: next.at,
-    opponent: opponent ? { name: opponent.name, crest: { emblem: opponent.crest.emblem, banner: opponent.crest.banner } } : null,
+    opponent: opponent ? { name: opponent.name, crest: toCrest(opponent.crest) } : null,
     // The same name the battle will use.
     monster: !opponent && hidden?.seed ? monsterName(createRng(hidden.seed, `monster-${String(next.week)}`)) : null,
     noChampion: !party.champion,
