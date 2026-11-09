@@ -115,7 +115,9 @@ const leagueSchema = new Schema(
                 emblem: { type: String, required: true },
                 banner: { type: String, required: true },
                 pattern: { type: String, default: 'plain' },
-                accent: { type: String, default: null }
+                accent: { type: String, default: null },
+                mascotPrimary: { type: String, default: null },
+                mascotSecondary: { type: String, default: null }
               },
               { _id: false }
             ),

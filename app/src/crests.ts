@@ -1,7 +1,8 @@
 /**
  * Crest emblems, banner colors and shield patterns. Keys must match the API (api/src/modules/leagues/crests.ts);
  * a test guards against drift. Heraldic emblem paths are drawn on a 24x24 grid; pattern paths on the shield's
- * 64x72. Mascots are images from the original FantasyFantasy team builder (src/assets/mascots).
+ * 64x72. Mascots are images from the original FantasyFantasy team builder (src/assets/mascots); each has two color
+ * regions whose paths read CSS variables (--m1-*, --m2-*), falling back to the art's own colors.
  */
 
 import raccoonArt from './assets/mascots/raccoon.svg'
@@ -58,6 +59,13 @@ export const BANNERS = [
   { key: 'obsidian', name: 'Obsidian', hex: '#3A3A44' }
 ] as const
 
+/** Colors for a mascot's two regions: the banner colors, plus white and black */
+export const MASCOT_COLORS = [
+  ...BANNERS,
+  { key: 'white', name: 'White', hex: '#F4EFE6' },
+  { key: 'black', name: 'Black', hex: '#1A1820' }
+] as const
+
 /** How the shield divides between the banner and a second (accent) color. `area` is the accent's part. */
 export const PATTERNS = [
   { key: 'plain', name: 'Plain', area: '' },
@@ -71,6 +79,7 @@ export const PATTERNS = [
 export type EmblemKey = (typeof EMBLEMS)[number]['key']
 export type BannerKey = (typeof BANNERS)[number]['key']
 export type PatternKey = (typeof PATTERNS)[number]['key']
+export type MascotColorKey = (typeof MASCOT_COLORS)[number]['key']
 
 export interface Crest {
   emblem: EmblemKey
@@ -79,9 +88,44 @@ export interface Crest {
   pattern?: PatternKey
   /** The pattern's second color; null or absent on a plain shield */
   accent?: BannerKey | null
+  /** A mascot's recolored regions; null or absent keeps the art's own color */
+  mascotPrimary?: MascotColorKey | null
+  mascotSecondary?: MascotColorKey | null
 }
 
-export const DEFAULT_CREST: Crest = { emblem: 'crown', banner: 'crimson', pattern: 'plain', accent: null }
+export const DEFAULT_CREST: Crest = {
+  emblem: 'crown',
+  banner: 'crimson',
+  pattern: 'plain',
+  accent: null,
+  mascotPrimary: null,
+  mascotSecondary: null
+}
+
+export const isMascot = (key: string) => EMBLEMS.some(emblem => emblem.key === key && 'image' in emblem)
+
+/**
+ * Each region path's shade is a step darker (b10..b90) or lighter (w10..w90) than the region's middle tone (0), so a
+ * recolored mascot keeps its shading. These mix the chosen color the same way.
+ */
+const SHADES = ['0', ...[10, 20, 30, 40, 50, 60, 70, 80, 90].flatMap(step => [`b${step}`, `w${step}`])]
+
+function regionVars(region: 1 | 2, key: string | null | undefined): Record<string, string> {
+  const color = MASCOT_COLORS.find(entry => entry.key === key)
+  if (!color) return {}
+  return Object.fromEntries(
+    SHADES.map(shade => {
+      const mix = shade === '0' ? color.hex : `color-mix(in oklab, ${color.hex}, ${shade[0] === 'b' ? 'black' : 'white'} ${shade.slice(1)}%)`
+      return [`--m${region}-${shade}`, mix]
+    })
+  )
+}
+
+/** CSS variables that recolor a mascot's regions; empty for heraldry or untouched mascots */
+export function mascotColorVars(crest: Crest): Record<string, string> {
+  if (!isMascot(crest.emblem)) return {}
+  return { ...regionVars(1, crest.mascotPrimary), ...regionVars(2, crest.mascotSecondary) }
+}
 
 export function patternOf(key: string | undefined) {
   return PATTERNS.find(pattern => pattern.key === key) ?? PATTERNS[0]

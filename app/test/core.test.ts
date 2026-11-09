@@ -6,7 +6,7 @@ import { ref } from 'vue'
 import type { RouteLocationNormalized } from 'vue-router'
 import { ApiError, createApiClient, SIGN_IN_EXPIRED_MESSAGE, UNREACHABLE, UNREACHABLE_MESSAGE } from '../src/api/client'
 import { loadConfig } from '../src/config'
-import { BANNERS, crestName, EMBLEMS, PATTERNS } from '../src/crests'
+import { BANNERS, crestName, EMBLEMS, MASCOT_COLORS, mascotColorVars, PATTERNS } from '../src/crests'
 import { normalizePin } from '../src/pin'
 import { authGuard, routes } from '../src/router'
 import { DEFAULT_DISPLAY_NAME, suggestedDisplayName, useSessionStore } from '../src/stores/session'
@@ -80,9 +80,22 @@ describe('crests', () => {
     const source = readFileSync(path.join(import.meta.dirname, '../../api/src/modules/leagues/crests.ts'), 'utf8')
     const list = (name: string) =>
       [...(new RegExp(`${name} = \\[([^\\]]*)\\]`).exec(source)?.[1] ?? '').matchAll(/'([a-z]+)'/g)].map(match => match[1])
-    expect(EMBLEMS.map(emblem => emblem.key)).toEqual(list('CREST_EMBLEMS'))
+    expect(EMBLEMS.map(emblem => emblem.key)).toEqual([...list('CREST_HERALDRY'), ...list('CREST_MASCOTS')])
+    expect(EMBLEMS.filter(emblem => 'image' in emblem).map(emblem => emblem.key)).toEqual(list('CREST_MASCOTS'))
+    expect(MASCOT_COLORS.map(color => color.key)).toEqual([...list('CREST_BANNERS'), ...list('CREST_MASCOT_COLORS')])
     expect(BANNERS.map(banner => banner.key)).toEqual(list('CREST_BANNERS'))
     expect(PATTERNS.map(pattern => pattern.key)).toEqual(list('CREST_PATTERNS'))
+  })
+
+  it('turns mascot colors into the shade variables the art reads', () => {
+    const vars = mascotColorVars({ emblem: 'tiger', banner: 'obsidian', mascotPrimary: 'white', mascotSecondary: null })
+    expect(vars['--m1-0']).toBe('#F4EFE6')
+    expect(vars['--m1-b30']).toBe('color-mix(in oklab, #F4EFE6, black 30%)')
+    expect(vars['--m1-w90']).toBe('color-mix(in oklab, #F4EFE6, white 90%)')
+    expect(Object.keys(vars)).toHaveLength(19)
+    expect(Object.keys(vars).some(key => key.startsWith('--m2'))).toBe(false)
+    // Heraldry has no color regions.
+    expect(mascotColorVars({ emblem: 'oak', banner: 'emerald', mascotPrimary: 'white' })).toEqual({})
   })
 
   it('names crests by banner and emblem', () => {

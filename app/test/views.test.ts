@@ -22,7 +22,7 @@ describe('CrestPicker', () => {
     await wrapper.find('input[value="moon"]').trigger('change')
     await wrapper.setProps({ modelValue: crest.value })
     await wrapper.find('input[name="banner"][value="emerald"]').trigger('change')
-    expect(crest.value).toEqual({ emblem: 'moon', banner: 'emerald', accent: null })
+    expect(crest.value).toEqual({ emblem: 'moon', banner: 'emerald', accent: null, mascotPrimary: null, mascotSecondary: null })
     await wrapper.setProps({ modelValue: crest.value })
     expect(wrapper.text()).toContain('Emerald Moon')
   })
@@ -70,6 +70,24 @@ describe('CrestPicker', () => {
     expect(crest.value.accent).toBe('obsidian')
   })
 
+  it('offers mascot colors only for mascots, and clears them for heraldry', async () => {
+    const { crest, wrapper } = mountPicker({ emblem: 'crown', banner: 'crimson' })
+    expect(wrapper.find('input[name="mascotPrimary"]').exists()).toBe(false)
+    await wrapper.find('input[name="emblem"][value="tiger"]').trigger('change')
+    expect(wrapper.find('input[name="mascotPrimary"][value=""]').attributes('checked')).toBeDefined()
+    await wrapper.find('input[name="mascotPrimary"][value="white"]').trigger('change')
+    await wrapper.find('input[name="mascotSecondary"][value="black"]').trigger('change')
+    expect(crest.value).toMatchObject({ emblem: 'tiger', mascotPrimary: 'white', mascotSecondary: 'black' })
+    // Another mascot keeps the colors; back to the art's own with Original.
+    await wrapper.find('input[name="emblem"][value="fox"]').trigger('change')
+    expect(crest.value).toMatchObject({ emblem: 'fox', mascotPrimary: 'white' })
+    await wrapper.find('input[name="mascotPrimary"][value=""]').trigger('change')
+    expect(crest.value.mascotPrimary).toBeNull()
+    await wrapper.find('input[name="emblem"][value="oak"]').trigger('change')
+    expect(crest.value).toMatchObject({ emblem: 'oak', mascotPrimary: null, mascotSecondary: null })
+    expect(wrapper.find('input[name="mascotPrimary"]').exists()).toBe(false)
+  })
+
   it('swaps the colors when the banner takes the second color', async () => {
     const { crest, wrapper } = mountPicker({ emblem: 'knight', banner: 'crimson', pattern: 'split', accent: 'amber' })
     await wrapper.find('input[name="banner"][value="amber"]').trigger('change')
@@ -90,14 +108,22 @@ describe('CrestShield', () => {
     expect(same.find('path[clip-path]').exists()).toBe(false)
   })
 
-  it('draws a mascot as its image, outlined and clipped to the shield', () => {
+  it('draws a mascot from its art, outlined and clipped to the shield', () => {
     const mascot = mount(CrestShield, { props: { crest: { emblem: 'wolf', banner: 'obsidian' } } })
-    const image = mascot.find('image')
-    expect(image.attributes('href')).toMatch(/wolf/)
+    const image = mascot.find('use')
+    expect(image.attributes('href')).toMatch(/wolf.*#m$/)
+    expect(image.attributes('style')).toBeUndefined()
     expect(image.attributes('filter')).toBe(`url(#${mascot.find('filter').attributes('id')})`)
     expect(image.attributes('clip-path')).toBe(`url(#${mascot.find('clipPath').attributes('id')})`)
     expect(mascot.find('g').exists()).toBe(false)
     expect(mascot.attributes('aria-label')).toBe('Obsidian Wolf crest')
+  })
+
+  it('recolors a mascot through the variables its art reads', () => {
+    const tinted = mount(CrestShield, { props: { crest: { emblem: 'wolf', banner: 'obsidian', mascotSecondary: 'crimson' } } })
+    const style = tinted.find('use').attributes('style') ?? ''
+    expect(style).toContain('--m2-0: #B4432F')
+    expect(style).not.toContain('--m1-')
   })
 })
 
@@ -122,7 +148,7 @@ describe('HostLeagueView', () => {
       maxParties: 4,
       mode: 'classic',
       playoffs: true,
-      party: { name: 'Dragon Slayers', crest: { emblem: 'tower', banner: 'crimson', pattern: 'plain', accent: null } }
+      party: { name: 'Dragon Slayers', crest: { emblem: 'tower', banner: 'crimson', pattern: 'plain', accent: null, mascotPrimary: null, mascotSecondary: null } }
     })
     expect(router.currentRoute.value.fullPath).toBe('/leagues/new-league')
   })
@@ -168,7 +194,7 @@ describe('JoinLeagueView', () => {
     await wrapper.find('#party-name').setValue('Moonlit Pact')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    expect(api.joinLeague).toHaveBeenCalledWith('K7QX4M', { name: 'Moonlit Pact', crest: { emblem: 'crown', banner: 'crimson', pattern: 'plain', accent: null } })
+    expect(api.joinLeague).toHaveBeenCalledWith('K7QX4M', { name: 'Moonlit Pact', crest: { emblem: 'crown', banner: 'crimson', pattern: 'plain', accent: null, mascotPrimary: null, mascotSecondary: null } })
     expect(router.currentRoute.value.fullPath).toBe('/leagues/joined')
   })
 

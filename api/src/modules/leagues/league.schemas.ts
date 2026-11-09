@@ -8,7 +8,7 @@ import {
   MAX_PARTIES,
   MIN_PARTIES
 } from './league.model.js'
-import { CREST_BANNERS, CREST_EMBLEMS, CREST_PATTERNS } from './crests.js'
+import { CREST_BANNERS, CREST_EMBLEMS, CREST_MASCOT_COLORS, CREST_PATTERNS, isMascot } from './crests.js'
 import { PARTY_NAME_MAX } from './party.model.js'
 import { PIN_PATTERN } from './pin.js'
 
@@ -20,15 +20,21 @@ export const PartyInputSchema = z
         emblem: z.enum(CREST_EMBLEMS),
         banner: z.enum(CREST_BANNERS),
         pattern: z.enum(CREST_PATTERNS).default('plain'),
-        accent: z.enum(CREST_BANNERS).nullable().default(null)
+        accent: z.enum(CREST_BANNERS).nullable().default(null),
+        mascotPrimary: z.enum(CREST_MASCOT_COLORS).nullable().default(null),
+        mascotSecondary: z.enum(CREST_MASCOT_COLORS).nullable().default(null)
       })
       .strict()
       .refine(crest => crest.pattern === 'plain' || (crest.accent !== null && crest.accent !== crest.banner), {
         message: 'A patterned crest needs a second color, different from the banner',
         path: ['accent']
       })
-      // A plain shield has no second color.
-      .transform(crest => (crest.pattern === 'plain' ? { ...crest, accent: null } : crest))
+      // A plain shield has no second color, and only mascots can be recolored.
+      .transform(crest => ({
+        ...crest,
+        accent: crest.pattern === 'plain' ? null : crest.accent,
+        ...(isMascot(crest.emblem) ? {} : { mascotPrimary: null, mascotSecondary: null })
+      }))
   })
   .strict()
 
