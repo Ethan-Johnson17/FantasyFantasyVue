@@ -113,9 +113,13 @@ describe('CrestShield', () => {
     const image = mascot.find('use')
     expect(image.attributes('href')).toMatch(/wolf.*#m$/)
     expect(image.attributes('style')).toBeUndefined()
-    expect(image.attributes('filter')).toBe(`url(#${mascot.find('filter').attributes('id')})`)
-    expect(image.attributes('clip-path')).toBe(`url(#${mascot.find('clipPath').attributes('id')})`)
-    expect(mascot.find('g').exists()).toBe(false)
+    // The clip and outline wrap the art, so the art's x/y don't shift them
+    const wrap = mascot.find('g')
+    expect(wrap.find('use').exists()).toBe(true)
+    expect(wrap.attributes('filter')).toBe(`url(#${mascot.find('filter').attributes('id')})`)
+    expect(wrap.attributes('clip-path')).toBe(`url(#${mascot.find('clipPath').attributes('id')})`)
+    expect(image.attributes('clip-path')).toBeUndefined()
+    expect(mascot.find('g path').exists()).toBe(false)
     expect(mascot.attributes('aria-label')).toBe('Obsidian Wolf crest')
   })
 

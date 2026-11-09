@@ -46,18 +46,13 @@ const label = computed(() => `${crestName(props.crest)} crest`)
     </defs>
     <path :d="SHIELD" :fill="fill" />
     <path v-if="area && accent" :d="area" :fill="accent.hex" :clip-path="`url(#${clipId})`" />
-    <!-- <use> rather than <image>, so the chosen mascot colors (CSS variables) reach the art's paths -->
-    <use
-      v-if="image"
-      :href="`${image}#m`"
-      x="13"
-      y="12"
-      width="38"
-      height="40"
-      :style="colorVars"
-      :filter="`url(#${outlineId})`"
-      :clip-path="`url(#${clipId})`"
-    />
+    <!--
+      <use> rather than <image>, so the chosen mascot colors (CSS variables) reach the art's paths. The clip and outline
+      sit on a wrapping group: on <use> itself, x/y would shift them along with the art and cut its top and left.
+    -->
+    <g v-if="image" :filter="`url(#${outlineId})`" :clip-path="`url(#${clipId})`">
+      <use :href="`${image}#m`" x="13" y="12" width="38" height="40" :style="colorVars" />
+    </g>
     <g v-else transform="translate(17 17) scale(1.25)">
       <!-- A dark halo keeps the emblem legible where it crosses a pattern line -->
       <path
