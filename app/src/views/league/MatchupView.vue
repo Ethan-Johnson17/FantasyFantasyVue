@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useApi } from '../../api/inject'
 import type { Matchup, ScheduleWeek, WeekResult } from '../../api/types'
 import FormError from '../../components/FormError.vue'
@@ -21,9 +21,19 @@ import CrossoverResult from '../../components/matchup/CrossoverResult.vue'
 
 const api = useApi()
 const route = useRoute()
+const router = useRouter()
 const { league, myParty } = useLeague()
 
-const scheduled = computed(() => league.value?.status === 'active' || league.value?.status === 'complete')
+// Co-op has no matchups: an old or shared link goes to the quest board instead.
+const coop = computed(() => league.value?.mode === 'coop')
+watch(
+  coop,
+  value => {
+    if (value && league.value) void router.replace(`/leagues/${league.value.id}/quest`)
+  },
+  { immediate: true }
+)
+const scheduled = computed(() => !coop.value && (league.value?.status === 'active' || league.value?.status === 'complete'))
 /** The week to open on: the next battle, or the last one once the season is over. */
 const seasonWeeks = computed(() => seasonWeeksOf(league.value))
 const crossover = computed(() => league.value?.mode === 'crossover')

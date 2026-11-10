@@ -23,6 +23,8 @@ export const routes: RouteRecordRaw[] = [
       // The season schedule now lives in the Matchup week strip.
       { path: 'battles', redirect: to => `/leagues/${String(to.params.id)}/matchup` },
       { path: 'matchup/:week?', name: 'matchup', component: () => import('./views/league/MatchupView.vue') },
+      // Co-op: the campaign against shared monsters, in place of matchups
+      { path: 'quest/:week?', name: 'quest', component: () => import('./views/league/QuestView.vue') },
       // Older links: results and the preview now live on the matchup screen.
       { path: 'battles/upcoming', redirect: to => `/leagues/${String(to.params.id)}/matchup` },
       { path: 'battles/:week', redirect: to => `/leagues/${String(to.params.id)}/matchup/${String(to.params.week)}` },

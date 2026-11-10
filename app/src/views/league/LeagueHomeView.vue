@@ -2,7 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../../api/inject'
-import type { Playoffs, ScheduleWeek, Standing } from '../../api/types'
+import type { Campaign, Playoffs, ScheduleWeek, Standing } from '../../api/types'
+import CampaignBoard from '../../components/CampaignBoard.vue'
 import CrestShield from '../../components/CrestShield.vue'
 import FormError from '../../components/FormError.vue'
 import PlayoffBracket from '../../components/PlayoffBracket.vue'
@@ -17,6 +18,9 @@ const { league, myParty, reload } = useLeague()
 const standings = ref<Standing[]>([])
 const schedule = ref<ScheduleWeek[]>([])
 const playoffs = ref<Playoffs | null>(null)
+/** Co-op: the campaign, in place of standings and battles */
+const campaign = ref<Campaign | null>(null)
+const coop = computed(() => league.value?.mode === 'coop')
 const busy = ref(false)
 const error = ref<unknown>(null)
 const copied = ref(false)
@@ -61,6 +65,14 @@ const inviteLink = computed(() => (league.value?.pin ? `${window.location.origin
 async function loadSeason() {
   if (!league.value || !inSeason.value) return
   const id = league.value.id
+  if (coop.value) {
+    try {
+      campaign.value = await api.getCampaign(id)
+    } catch (caught) {
+      error.value = caught
+    }
+    return
+  }
   ;[standings.value, schedule.value, playoffs.value] = await Promise.all([
     api.getStandings(id),
     api.getSchedule(id),
@@ -154,6 +166,7 @@ async function startNextSeason() {
       <RouterLink to="/leagues" class="back-link">‹ Your leagues</RouterLink>
       <h1 class="title">{{ league.name }}</h1>
       <span v-if="league.mode === 'crossover'" class="mode-chip">Crossover</span>
+      <span v-else-if="coop" class="mode-chip">Co-op</span>
       <RouterLink v-if="dynasty" :to="`/leagues/${league.id}/dynasty`" class="mode-chip">Dynasty · season {{ dynasty.number }} of {{ dynasty.seasons }} ›</RouterLink>
       <div class="muted">
         <template v-if="league.status === 'forming'">Gathering parties · {{ league.partyCount }} of {{ league.maxParties }}</template>
@@ -161,6 +174,7 @@ async function startNextSeason() {
         <template v-else-if="league.status === 'active'">
           Week {{ currentWeek }} of {{ seasonWeeks }} · {{ league.mode === 'crossover' ? 'follows the NFL schedule' : `battles resolve ${league.cadence}` }}
         </template>
+        <template v-else-if="league.status === 'complete' && coop">Campaign {{ campaign?.outcome === 'lost' ? 'lost' : campaign?.outcome === 'won' ? 'won' : 'over' }}</template>
         <template v-else-if="league.status === 'complete'">Season complete</template>
         <template v-else>This league was canceled</template>
       </div>
@@ -232,8 +246,24 @@ async function startNextSeason() {
       </section>
     </template>
 
+    <!-- Co-op in season: the campaign, with no standings or matchups -->
+    <template v-if="inSeason && coop">
+      <RouterLink v-if="league.status === 'complete' && campaign" :to="`/leagues/${league.id}/finale`" class="finale-banner">
+        <span class="finale-eyebrow">Campaign {{ campaign.outcome === 'won' ? 'won' : 'lost' }}</span>
+        <span class="finale-name">{{ campaign.outcome === 'won' ? 'The league brought down the boss' : 'The monsters prevailed' }}</span>
+        <span class="finale-cta">See the finale and awards ›</span>
+      </RouterLink>
+      <div v-if="league.status === 'active'" class="row-heading">
+        <h2 class="section-title">The campaign</h2>
+        <span v-if="nextBattle" class="muted small">{{ nextBattle }}</span>
+      </div>
+      <CampaignBoard v-if="campaign" :campaign="campaign" :league-id="league.id" />
+      <p class="muted small">Every party fights the same monster. Your damage, and everyone else's, brings it down together.</p>
+      <RouterLink v-if="league.draft" :to="`/leagues/${league.id}/draft`" class="recap-link">See the draft recap ›</RouterLink>
+    </template>
+
     <!-- In season: standings and this week -->
-    <template v-if="inSeason">
+    <template v-if="inSeason && !coop">
       <RouterLink v-if="league.status === 'complete'" :to="`/leagues/${league.id}/finale`" class="finale-banner">
         <span class="finale-eyebrow">Season complete</span>
         <span class="finale-name">{{ champion?.name ?? 'The champions' }} take the crown</span>

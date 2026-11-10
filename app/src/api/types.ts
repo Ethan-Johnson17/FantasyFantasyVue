@@ -4,8 +4,11 @@ import type { Crest } from '../crests'
 export type LeagueStatus = 'forming' | 'drafting' | 'active' | 'complete' | 'canceled'
 export type Visibility = 'private' | 'public'
 export type Cadence = 'daily' | 'weekly'
-/** Classic hides each hero's player; Crossover (docs/CROSSOVER_SPEC.md) shows real, current players */
-export type LeagueMode = 'classic' | 'crossover'
+/**
+ * Classic hides each hero's player; Crossover (docs/CROSSOVER_SPEC.md) shows real, current players; Co-op
+ * (docs/COOP_SPEC.md) is Classic with every party against the same campaign monsters, and no matchups.
+ */
+export type LeagueMode = 'classic' | 'crossover' | 'coop'
 
 export interface Account {
   id: string
@@ -85,6 +88,17 @@ export interface PartyOutlook {
     restingStarters: number
   } | null
   lastBattle: { week: number; outcome: 'win' | 'loss' | 'draw'; myTotal: number; theirTotal: number; opponentName: string } | null
+  /** Co-op only, once drafted: where the campaign stands, and my party's damage last week */
+  campaign?: {
+    chapter: number
+    monster: string
+    hp: number
+    hpLeft: number
+    deadline: number
+    livesLeft: number
+    outcome: CampaignOutcome
+    myLastWeek: number | null
+  } | null
 }
 
 export interface PartyInput {
@@ -97,7 +111,7 @@ export interface CreateLeagueInput {
   visibility: Visibility
   cadence: Cadence
   maxParties: number
-  /** Classic unless given; Crossover leagues are always weekly */
+  /** Classic unless given; Crossover leagues are always weekly; Co-op never has playoffs */
   mode?: LeagueMode
   /** Classic only: play a dynasty of this many seasons */
   dynastySeasons?: 3 | 5
@@ -195,7 +209,75 @@ export interface GameRules {
   strategy: StrategyRules
   /** Crossover's rules, and whether its leagues can be created yet */
   crossover?: CrossoverRules
+  /** Co-op's campaign rules, and whether its leagues can be created yet */
+  coop?: CoopRules | null
 }
+
+export interface CoopRules {
+  available: boolean
+  version: number
+  /** The last game week each chapter's monster may fall by; the last is the boss raid */
+  deadlines: number[]
+  lives: number
+  weakMultiplier: number
+  resistMultiplier: number
+  /** The boss raid's monster */
+  boss: string
+}
+
+export type CampaignOutcome = 'ongoing' | 'won' | 'lost'
+
+/** One chapter of a Co-op campaign: its monster, and how it went. */
+export interface CampaignChapter {
+  chapter: number
+  name: string
+  weak: HeroClass[]
+  resists: HeroClass
+  boss: boolean
+  hp: number
+  deadline: number
+  status: 'upcoming' | 'active' | 'fallen' | 'failed'
+  /** The full HP until it's fought, 0 once fallen */
+  hpLeft: number
+  /** The week it fell, or its deadline passed */
+  endedWeek: number | null
+}
+
+/** A Co-op league's quest board (GET /api/leagues/:id/campaign). */
+export interface Campaign {
+  lives: number
+  livesLeft: number
+  outcome: CampaignOutcome
+  /** The chapter being fought (the last one fought, once it's over) */
+  chapter: number
+  chapters: CampaignChapter[]
+  lastWeek: number | null
+  nextWeek: { week: number; at: string } | null
+  /** Every party, by damage to this chapter's monster, most first */
+  contributions: (PartyRef & { lastWeek: number; chapter: number; total: number })[]
+  /** My party, if I'm in the league; no Champion means a reminder */
+  myParty: { partyId: string; hasChampion: boolean } | null
+}
+
+export type CoopAward =
+  | { kind: 'monsterSlayer'; party: PartyRef; damage: number }
+  | { kind: 'finalBlow'; chapter: number; monster: string; week: number; party: PartyRef; damage: number }
+  | { kind: 'natural20'; party: PartyRef; count: number }
+  | { kind: 'cursedDice'; party: PartyRef; count: number }
+
+/** The end of a Co-op campaign (GET /api/leagues/:id/finale in a Co-op league). */
+export interface CoopFinale {
+  mode: 'coop'
+  outcome: 'won' | 'lost'
+  lives: number
+  livesLeft: number
+  chapters: CampaignChapter[]
+  contributions: (PartyRef & { total: number })[]
+  myParty: { partyId: string } | null
+  awards: CoopAward[]
+}
+
+export const isCoopFinale = (finale: Finale | CoopFinale): finale is CoopFinale => 'mode' in finale && finale.mode === 'coop'
 
 export interface CrossoverRules {
   available: boolean
@@ -409,6 +491,21 @@ export interface WeekResult {
   }[]
   /** Crossover only: the week's encounter */
   encounter?: Encounter | null
+  /** Co-op only: every party's damage against the chapter monster, most first (matchups is empty) */
+  sides?: ResultSide[]
+  /** Co-op only: the campaign this week */
+  campaign?: {
+    chapter: number
+    monster: string
+    hpBefore: number
+    dealt: number
+    /** Chapters whose monster fell this week */
+    fallen: number[]
+    /** A chapter whose deadline passed with its monster standing (a life lost) */
+    failed: number | null
+    failedHpLeft: number | null
+    state: { chapter: number; hpLeft: number; livesLeft: number; outcome: CampaignOutcome }
+  } | null
 }
 
 export interface Standing extends PartyRef {

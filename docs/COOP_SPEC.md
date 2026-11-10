@@ -174,11 +174,30 @@ the balancing simulation, and the Co-op ruleset is version 3 (`COOP_V1`).
 - **Rechecked** with the engine's own campaign code (whole-number HP): lineups by Level with a Champion win 67%, set
   against each monster 93%, never naming a Champion 12%; 63-71% by league size and 48-80% by season.
 
+## App
+
+Built 2026-11-09. Co-op shows only once `GET /api/rules` says it's available, and never asks for matchups, standings or
+the schedule.
+
+- **Hosting:** a third Game choice, Co-op, with a note on the deadlines, lives and boss. It hides the Seasons
+  (dynasty) and Champion (playoffs) choices and is sent with `playoffs: false`.
+- **The Quest tab** replaces Matchup (`/leagues/:id/quest/:week?`; an old matchup link goes there). It shows the
+  campaign board (the monster, its weaknesses, HP, deadline and lives), the Champion reminder, who's dealing the
+  damage, every chapter, and each played week: what happened, every party's total and my heroes.
+- **League home:** the campaign board in place of standings and this week's battles, a Co-op chip, and once it's
+  over a Victory or Defeat banner to the finale.
+- **Finale:** victory or defeat, every chapter, the awards, and each party's damage; no podium or standings.
+- **My Leagues:** a Co-op tag, the monster, its HP and the lives on each card, and the spotlight's button opens the
+  quest board.
+- **How it works** has a Co-op section.
+- HP is shown rounded up, so a monster with any HP left never reads as 0; damage is shown as whole numbers.
+
 ## Build phases
 
 1. **Spec review** (this document): done 2026-11-09.
 2. **Balancing simulation:** HP, difficulty factors, and the default values above: done 2026-11-09.
 3. **API:** the `coop` league mode, campaign state, resolving a week against the monster, lives, chapter advance,
    finale; tests on both sides of the hidden-player line: built 2026-11-09 (see "API" below). Co-op leagues can be
-   created only once `COOP_ENABLED` is on, after the app phase.
-4. **App:** create a Co-op league, the quest board, chapter and finale screens, How it works.
+   created only once `COOP_ENABLED` is on.
+4. **App:** create a Co-op league, the quest board, chapter and finale screens, How it works: built 2026-11-09 (see
+   "App" above). Next: switch on `COOP_ENABLED` (docs/DEPLOY.md, section 10).

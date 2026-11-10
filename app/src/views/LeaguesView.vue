@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ApiError } from '../api/client'
 import { useApi } from '../api/inject'
 import type { MyLeague } from '../api/types'
+import { hpShown } from '../campaign'
 import { unreadText } from '../chat'
 import CrestShield from '../components/CrestShield.vue'
 import InstallCard from '../components/InstallCard.vue'
@@ -38,6 +39,25 @@ const ordinal = (n: number) => {
 const OUTCOME = { win: 'Victory', loss: 'Defeat', draw: 'Draw' } as const
 const SPOTLIGHT_TITLE = { battle: 'Up next', draft: 'Draft day', gather: 'Gather your party', finale: 'Season complete' } as const
 const plural = (n: number, word: string) => `${String(n)} ${word}${n === 1 ? '' : 's'}`
+const MODE_TAG = { classic: null, crossover: 'Crossover', coop: 'Co-op' } as const
+/** Where a league's battles are shown: Co-op's quest board, or the matchup */
+const battlePath = (league: MyLeague) => `/leagues/${league.id}/${league.mode === 'coop' ? 'quest' : 'matchup'}`
+
+/** Co-op: the campaign on a card, in place of a record */
+function campaignLine(league: MyLeague): string | null {
+  const campaign = league.outlook.campaign
+  if (!campaign || campaign.outcome !== 'ongoing') return null
+  const left = hpShown(campaign.hpLeft).toLocaleString()
+  return `${campaign.monster} · ${left} of ${campaign.hp.toLocaleString()} HP · ${String(campaign.livesLeft)} ${campaign.livesLeft === 1 ? 'life' : 'lives'} left`
+}
+
+/** How a finished league went, for my party */
+function finishText(league: MyLeague): string {
+  const outcome = league.outlook.campaign?.outcome
+  if (league.mode === 'coop') return outcome === 'won' ? 'Campaign won!' : outcome === 'lost' ? 'Campaign lost' : 'The campaign is over'
+  if (league.standing?.rank === 1) return 'Champions!'
+  return league.standing ? `You finished ${ordinal(league.standing.rank)}` : 'The season is over'
+}
 
 /** The one thing worth doing next in an active league. */
 function nextStep(league: MyLeague): string {
@@ -83,7 +103,12 @@ function statusLine(league: MyLeague): { label: string; detail: string; callout?
     case 'complete':
       return {
         label: 'Complete',
-        detail: league.standing ? `Finished ${ordinal(league.standing.rank)}` : 'Season finished',
+        detail:
+          league.mode === 'coop'
+            ? finishText(league)
+            : league.standing
+              ? `Finished ${ordinal(league.standing.rank)}`
+              : 'Season finished',
         callout: 'See the finale ›'
       }
     case 'canceled':
@@ -141,7 +166,9 @@ function signOut() {
             <li v-if="!spotlight.battle.noChampion && !spotlight.battle.restingStarters" class="alert ok">✓ Lineup ready</li>
           </ul>
           <div class="spot-actions">
-            <RouterLink :to="`/leagues/${spotlight.league.id}/matchup`" class="btn btn-primary">See matchup</RouterLink>
+            <RouterLink :to="battlePath(spotlight.league)" class="btn btn-primary">
+              {{ spotlight.league.mode === 'coop' ? 'See the quest' : 'See matchup' }}
+            </RouterLink>
             <RouterLink :to="`/leagues/${spotlight.league.id}/party`" class="btn btn-secondary">Set lineup</RouterLink>
           </div>
         </template>
@@ -173,7 +200,7 @@ function signOut() {
         <template v-else-if="spotlight.kind === 'finale'">
           <CrestShield :crest="spotlight.league.myParty.crest" :size="56" class="finale-crest" />
           <div class="countdown big">
-            {{ spotlight.league.standing?.rank === 1 ? 'Champions!' : spotlight.league.standing ? `You finished ${ordinal(spotlight.league.standing.rank)}` : 'The season is over' }}
+            {{ finishText(spotlight.league) }}
           </div>
           <div class="spot-actions single">
             <RouterLink :to="`/leagues/${spotlight.league.id}/finale`" class="btn btn-primary">See the finale</RouterLink>
@@ -204,7 +231,7 @@ function signOut() {
         <li v-for="league in leagues" :key="league.id">
           <RouterLink :to="cardLink(league)" class="card league" :class="{ highlight: league.status === 'active' }">
             <div class="league-top">
-              <span class="league-name">{{ league.name }}<span v-if="league.mode === 'crossover'" class="mode-tag"> · Crossover</span></span>
+              <span class="league-name">{{ league.name }}<span v-if="MODE_TAG[league.mode]" class="mode-tag"> · {{ MODE_TAG[league.mode] }}</span></span>
               <span v-if="league.unreadChat" class="unread" :aria-label="`${unreadText(league.unreadChat)} unread chat messages`">
                 {{ unreadText(league.unreadChat) }} new
               </span>
@@ -225,6 +252,9 @@ function signOut() {
             </div>
             <div v-if="league.status === 'forming' && league.isHost && league.pin" class="muted">
               You're the host · PIN <strong class="pin">{{ league.pin }}</strong>
+            </div>
+            <div v-if="campaignLine(league)" class="league-record">
+              <span class="rank"><span aria-hidden="true">☠ </span>{{ campaignLine(league) }}</span>
             </div>
             <div v-if="league.standing || league.outlook.lastBattle" class="league-record">
               <span v-if="league.standing" class="rank">

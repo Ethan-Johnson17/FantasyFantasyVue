@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../api/inject'
-import type { Cadence, CreateLeagueInput, CrossoverRules, LeagueMode, Visibility } from '../api/types'
+import type { Cadence, CoopRules, CreateLeagueInput, CrossoverRules, LeagueMode, Visibility } from '../api/types'
 import FormError from '../components/FormError.vue'
 import PartyFields from '../components/PartyFields.vue'
 import { DEFAULT_CREST } from '../crests'
@@ -29,12 +29,14 @@ const visibilities: { value: Visibility; label: string; hint: string }[] = [
   { value: 'public', label: 'Public', hint: 'Listed for anyone' }
 ]
 
-// Crossover shows as a choice only once it's switched on for everyone (GET /api/rules).
+// Crossover and Co-op show as choices only once each is switched on for everyone (GET /api/rules).
 const crossover = ref<CrossoverRules | null>(null)
+const coopRules = ref<CoopRules | null>(null)
 onMounted(async () => {
   try {
     const rules = await api.getRules()
     crossover.value = rules.crossover?.available ? rules.crossover : null
+    coopRules.value = rules.coop?.available ? rules.coop : null
   } catch {
     // Without the rules, Classic is the only choice, as before.
   }
@@ -60,10 +62,16 @@ const champions = computed(() =>
       ]
 )
 
-const modes: { value: LeagueMode; label: string; hint: string }[] = [
-  { value: 'classic', label: 'Classic', hint: 'Heroes hide the real players behind them. Plays any time.' },
-  { value: 'crossover', label: 'Crossover', hint: 'Real NFL players this season. Football and a D&D quest each week.' }
-]
+const modes = computed(() => {
+  const list: { value: LeagueMode; label: string; hint: string }[] = [
+    { value: 'classic', label: 'Classic', hint: 'Heroes hide the real players behind them. Plays any time.' }
+  ]
+  if (crossover.value) list.push({ value: 'crossover', label: 'Crossover', hint: 'Real NFL players this season. Football and a D&D quest each week.' })
+  if (coopRules.value) list.push({ value: 'coop', label: 'Co-op', hint: 'Every party against the same monsters. Win or lose together.' })
+  return list
+})
+// Co-op (docs/COOP_SPEC.md) is one season with no matchups, so no dynasty and no playoffs.
+const coop = computed(() => form.mode === 'coop')
 
 const submitting = ref(false)
 const error = ref<unknown>(null)
@@ -72,8 +80,8 @@ async function submit() {
   submitting.value = true
   error.value = null
   try {
-    const dynasty = form.mode !== 'crossover' && length.value !== 1 ? { dynastySeasons: length.value } : {}
-    const league = await api.createLeague({ ...form, ...dynasty, playoffs: playoffs.value })
+    const dynasty = form.mode === 'classic' && length.value !== 1 ? { dynastySeasons: length.value } : {}
+    const league = await api.createLeague({ ...form, ...dynasty, playoffs: coop.value ? false : playoffs.value })
     await router.push(`/leagues/${league.id}`)
   } catch (caught) {
     error.value = caught
@@ -106,12 +114,13 @@ async function submit() {
             {{ size }}
           </label>
         </div>
-        <span class="muted hint">With an odd number of parties, one battles the dungeon monster each week.</span>
+        <span v-if="coop" class="muted hint">Every party fights the campaign's monsters together, at any size.</span>
+        <span v-else class="muted hint">With an odd number of parties, one battles the dungeon monster each week.</span>
       </fieldset>
 
-      <fieldset v-if="crossover" class="choice">
+      <fieldset v-if="modes.length > 1" class="choice">
         <legend class="field-label">Game</legend>
-        <div class="pair">
+        <div :class="modes.length > 2 ? 'stack' : 'pair'">
           <label v-for="option in modes" :key="option.value" class="option" :class="{ on: (form.mode ?? 'classic') === option.value }">
             <span class="option-title"><input v-model="form.mode" type="radio" name="mode" :value="option.value" />{{ option.label }}</span>
             <span class="muted hint">{{ option.hint }}</span>
@@ -134,7 +143,13 @@ async function submit() {
         </div>
       </fieldset>
 
-      <fieldset v-if="form.mode !== 'crossover'" class="choice">
+      <p v-if="coop && coopRules" class="note small-note">
+        Co-op has no matchups. The whole league fights {{ coopRules.deadlines.length - 1 }} monsters and then
+        {{ coopRules.boss }}, each by a deadline (weeks {{ coopRules.deadlines.join(', ') }}). A monster that escapes costs one of
+        {{ coopRules.lives }} lives. <RouterLink to="/how-it-works#coop">How it works</RouterLink>
+      </p>
+
+      <fieldset v-if="form.mode === 'classic'" class="choice">
         <legend class="field-label">Seasons</legend>
         <div class="triple">
           <label v-for="option in lengths" :key="option.value" class="option" :class="{ on: length === option.value }">
@@ -148,7 +163,7 @@ async function submit() {
         </span>
       </fieldset>
 
-      <fieldset class="choice">
+      <fieldset v-if="!coop" class="choice">
         <legend class="field-label">Champion</legend>
         <div class="pair">
           <label v-for="option in champions" :key="String(option.value)" class="option" :class="{ on: playoffs === option.value }">
@@ -236,6 +251,10 @@ legend {
 .option:focus-within {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
+}
+.stack {
+  display: grid;
+  gap: 6px;
 }
 .pair {
   display: grid;
