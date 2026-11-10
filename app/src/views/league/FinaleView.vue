@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useApi } from '../../api/inject'
-import type { Award, Finale, PartyRef, Playoffs } from '../../api/types'
+import { isCoopFinale, type Award, type CoopFinale, type Finale, type PartyRef, type Playoffs } from '../../api/types'
+import CoopFinaleBoard from '../../components/CoopFinaleBoard.vue'
 import CrestShield from '../../components/CrestShield.vue'
 import FormError from '../../components/FormError.vue'
 import { useLeague } from '../../league'
@@ -14,6 +15,8 @@ import { useLeague } from '../../league'
 const api = useApi()
 const { league } = useLeague()
 const finale = ref<Finale | null>(null)
+/** Co-op: the campaign's end, in place of a champion and standings */
+const coopFinale = ref<CoopFinale | null>(null)
 const playoffs = ref<Playoffs | null>(null)
 const error = ref<unknown>(null)
 
@@ -21,7 +24,13 @@ onMounted(async () => {
   if (!league.value) return
   try {
     const id = league.value.id
-    ;[finale.value, playoffs.value] = await Promise.all([api.getFinale(id), league.value.playoffs ? api.getPlayoffs(id) : null])
+    const [fetched, bracket] = await Promise.all([
+      api.getFinale(id),
+      league.value.playoffs && league.value.mode !== 'coop' ? api.getPlayoffs(id) : null
+    ])
+    if (isCoopFinale(fetched)) coopFinale.value = fetched
+    else finale.value = fetched
+    playoffs.value = bracket
   } catch (caught) {
     error.value = caught
   }
@@ -100,10 +109,12 @@ function describe(award: Award): { icon: string; title: string; subject: string;
 <template>
   <header class="page-header row">
     <RouterLink :to="`/leagues/${league?.id}`" class="back-link">‹ {{ league?.name ?? 'League' }}</RouterLink>
-    <span class="eyebrow">Season complete</span>
+    <span class="eyebrow">{{ coopFinale ? 'Campaign complete' : 'Season complete' }}</span>
   </header>
 
   <FormError :error="error" />
+
+  <CoopFinaleBoard v-if="coopFinale && league" :finale="coopFinale" :league-id="league.id" :draft="!!league.draft" />
 
   <template v-if="finale">
     <section class="crown" aria-label="Champions">

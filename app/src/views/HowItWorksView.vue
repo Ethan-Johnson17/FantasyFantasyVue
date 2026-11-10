@@ -30,6 +30,8 @@ const TRAIT_ORDER: HeroTrait[] = ['steadfast', 'wild', 'mighty']
 // Crossover is explained once its leagues can be created.
 const crossover = computed(() => (rules.value?.crossover?.available ? rules.value.crossover : null))
 const multiplierText = (value: number) => `×${String(value)}`
+// Co-op too (docs/COOP_SPEC.md).
+const coop = computed(() => (rules.value?.coop?.available ? rules.value.coop : null))
 
 const champion = computed(() =>
   rules.value
@@ -72,6 +74,7 @@ function back() {
       <a href="#crits">Natural 20s</a>
       <a href="#season">The season</a>
       <a v-if="crossover" href="#crossover">Crossover</a>
+      <a v-if="coop" href="#coop">Co-op</a>
     </nav>
 
     <section id="strength" class="section">
@@ -268,6 +271,43 @@ function back() {
         <li v-for="encounter in crossover.encounters" :key="encounter.name">
           <strong>{{ encounter.name }}</strong>
           <span class="muted small">weak to {{ encounter.weak.join(' and ') }}s · resists {{ encounter.resists }}s</span>
+        </li>
+      </ul>
+    </section>
+
+    <section v-if="coop" id="coop" class="section">
+      <h2 class="section-title">Co-op</h2>
+      <p>
+        A third way to play: no party battles another. The whole league fights the same monsters, and wins or loses
+        together. Heroes, the draft, lineups, the Champion and synergies all work as above.
+      </p>
+      <ul class="points">
+        <li>
+          <strong>A campaign.</strong> {{ coop.deadlines.length - 1 }} chapters, each a monster, then a boss raid against
+          {{ coop.boss }}. Each must fall by its deadline: weeks {{ coop.deadlines.join(', ') }}. Only one monster is fought at a
+          time.
+        </li>
+        <li>
+          <strong>Every party's damage counts.</strong> Each week, every party's battle damage is added together and dealt to the
+          monster. The quest board ranks who dealt the most, just for fun.
+        </li>
+        <li>
+          <strong>Weaknesses.</strong> Each monster is weak to two classes ({{ multiplierText(coop.weakMultiplier) }} damage) and
+          resists one ({{ multiplierText(coop.resistMultiplier) }}), shown ahead of time so you can set your lineup and Champion for
+          it.
+        </li>
+        <li>
+          <strong>Falling early banks time.</strong> When a monster falls before its deadline, the next one starts the following
+          week, with more weeks to bring it down. Damage beyond the HP it had left carries over to the next monster.
+        </li>
+        <li>
+          <strong>{{ coop.lives }} lives.</strong> A monster still standing after its deadline costs a life, and the story moves on.
+          The league loses if it runs out of lives or the boss survives week {{ coop.deadlines.at(-1) }}; it wins when the boss
+          falls.
+        </li>
+        <li>
+          <strong>Name a Champion.</strong> A league where every party names one wins far more often. It stays named from week
+          to week.
         </li>
       </ul>
     </section>

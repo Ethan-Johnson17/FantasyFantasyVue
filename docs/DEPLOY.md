@@ -136,8 +136,8 @@ in the database.
 
 ## 10. Switch on Co-op
 
-Co-op leagues can be created only when the API's `COOP_ENABLED` setting is `true` (docs/COOP_SPEC.md). Leave it off
-until the app's Co-op screens have shipped.
+Co-op leagues can be created only when the API's `COOP_ENABLED` setting is `true` (docs/COOP_SPEC.md). The app's
+Co-op screens appear once it's on, so deploy the app first.
 
 1. Vercel → the API project (`fantasy-fantasy`) → **Settings → Environment Variables → Add**: name `COOP_ENABLED`,
    value `true`, environment **Production**.

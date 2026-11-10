@@ -1,6 +1,8 @@
 import type {
   Account,
+  Campaign,
   ChatMessage,
+  CoopFinale,
   ChatPage,
   DynastySummary,
   Keepers,
@@ -85,7 +87,10 @@ export interface ApiClient {
   getRules(): Promise<GameRules>
   getWeekResult(leagueId: string, week: number): Promise<WeekResult>
   getStandings(leagueId: string): Promise<Standing[]>
-  getFinale(leagueId: string): Promise<Finale>
+  /** Classic and Crossover: the champion and standings. Co-op: the campaign's finale (isCoopFinale). */
+  getFinale(leagueId: string): Promise<Finale | CoopFinale>
+  /** Co-op: the quest board */
+  getCampaign(leagueId: string): Promise<Campaign>
   getPlayoffs(leagueId: string): Promise<Playoffs>
   /** The latest chat messages, or the page before a message id */
   getChat(leagueId: string, before?: string): Promise<ChatPage>
@@ -164,6 +169,7 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     getWeekResult: (id, week) => request('GET', `/api/leagues/${segment(id)}/results/${String(week)}`),
     getStandings: id => request('GET', `/api/leagues/${segment(id)}/standings`),
     getFinale: id => request('GET', `/api/leagues/${segment(id)}/finale`),
+    getCampaign: id => request('GET', `/api/leagues/${segment(id)}/campaign`),
     getPlayoffs: id => request('GET', `/api/leagues/${segment(id)}/playoffs`),
     getChat: (id, before) => request('GET', `/api/leagues/${segment(id)}/chat${before ? `?before=${segment(before)}` : ''}`),
     postChat: (id, body) => request('POST', `/api/leagues/${segment(id)}/chat`, { body }),
