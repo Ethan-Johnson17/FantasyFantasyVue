@@ -76,18 +76,47 @@ All parties' damage is added together and dealt to the monster. Resting heroes d
 
 ### HP and difficulty
 
-Monster HP scales with the league so every size is about equally hard:
+Monster HP scales with the league, so every league size and every hidden season is about equally hard:
 
-> HP = parties × expected party damage per week × weeks in the chapter's window × difficulty factor
+> HP = parties × expected party damage per week (by league size) × the season's scoring factor × weeks in the
+> chapter's window × difficulty factor × a seeded variation of up to ±15%
 
 - **Parties** is the number at the draft.
-- **Expected party damage** comes from the ruleset (the average weekly damage of a drafted Classic lineup).
-- **The difficulty factor** is tuned by simulation on the real 2012–2025 seasons, as Crossover's Quest was, so that
-  **about two in three leagues win**. The boss's factor is higher than the chapters'.
-- The simulation runs leagues of 2, 4, 6, 8 and 12 parties through the real draft, lineup and auto-swap code, with each
-  party following a plan (ranking by Level, playing to the monster's weaknesses, never setting a Champion), and checks
-  that league size and plan don't swing the win rate much. It also reports how often lives are lost and which chapter
-  leagues fail at.
+- **Expected party damage per week** depends on league size, because bigger leagues spread the talent thinner: 110 at
+  2 parties, 109, 105, 104, 102, 100, 99, 97, 96, 94, and 93 at 12 (the average plain weekly damage of a drafted
+  Classic lineup, 2012–2025).
+- **The season's scoring factor** is how high-scoring the league's hidden season was, against the 2012–2025 average:
+  2012 1.04, 2013 1.03, 2014 1.04, 2015 0.96, 2016 0.93, 2017 0.93, 2018 1.11, 2019 0.96, 2020 0.98, 2021 1.00,
+  2022 1.08, 2023 1.04, 2024 0.92, 2025 0.96. It is used only on the server and never sent to the client.
+- **Difficulty factors:** chapters 1–4 ×1.0, the boss ×1.25.
+- **Seeded variation:** each monster's HP varies by up to ±15% from the league seed. Some monsters are a little
+  tougher than others, and the season can't be worked out from the HP values.
+- Shown HP is rounded to a whole number.
+
+**Balancing (decided 2026-11-09).** Simulated with `npm run simulate:coop` (api/src/scripts/simulate-coop.ts): 5,544
+leagues on the real 2012–2025 seasons, every league size from 2 to 12, 12 leagues per season and size, through the real
+pool, draft, lineup, auto-swap and strategy code. Every party in a league follows the same plan; free agency isn't
+simulated.
+
+| Plan | Win | Lives lost 0 / 1 / 2 / 3 |
+|---|---|---|
+| Lineups by Level, best starter as Champion (the target) | 66% | 52% / 25% / 13% / 10% |
+| Lineup and Champion set against each monster | 93% | 86% / 10% / 3% / 1% |
+| Lineups by Level, never a Champion | 12% | 7% / 14% / 22% / 57% |
+
+- **By size** (Level plan): 65% at 2 parties, 67% at 4, 66% at 6, 60% at 8, 71% at 12.
+- **By season:** 49% (2017) to 73% (2012, 2016).
+- **Where leagues lose:** almost always at the boss (30% of leagues); 4% run out of lives in chapters 3–4. Chapter 1
+  is failed most often of the four chapters (20%), while players learn.
+- **Pacing:** HP is sized to fill each window, so monsters rarely fall early (the boss starts in week 13 on average)
+  and overkill almost never fells a second monster. Banking time stays as a rare reward for a big week (kept,
+  2026-11-09).
+- **Rejected: the same HP every season.** Adding every party's damage together cancels most weekly luck, so the
+  hidden season decided the result: from 6% of leagues winning (2017, 2024) to 100% (2012, 2018, 2022).
+- **Rejected: season scaling without the variation.** Results were nearly all-or-nothing (one 5% step in difficulty
+  moved the win rate by about 25 points), and HP values could hint at the season.
+- **How a league plays matters a lot**, because every party's choices add up. Since a new party has no Champion until
+  its player names one, the quest board reminds any party without a Champion to name one.
 
 ## Parties and contribution
 
@@ -95,6 +124,7 @@ There's no standings table. Each party's contribution is still visible, because 
 
 - **The quest board:** the current monster's HP bar, the deadline, the league's lives, and each party's damage
   this week and this chapter. Party totals are exact; individual heroes are rounded as in Classic.
+  A party without a Champion sees a reminder to name one, since it carries over from week to week.
 - **Contribution order**: parties are listed by this chapter's damage, highest first. It's a friendly ranking of who
   helped most, not a result: no party wins or loses against another.
 - **Finale:** victory or defeat, every chapter's result, and awards: **Monster Slayer** (most damage over the season),
@@ -115,12 +145,13 @@ timing. A league with an odd number of parties needs no dungeon monster, since n
 ## Ruleset
 
 Co-op gets its own ruleset version: chapter count and deadlines, lives, weakness and resistance values, the expected
-party damage and difficulty factors from the simulation.
+party damage by size, the season factors, the difficulty factors and the ±15% variation from the simulation. It's
+added with the API (build phase 3), along with the `coop` league mode.
 
 ## Build phases
 
 1. **Spec review** (this document): done 2026-11-09.
-2. **Balancing simulation:** HP, difficulty factors, and the default values above.
+2. **Balancing simulation:** HP, difficulty factors, and the default values above: done 2026-11-09.
 3. **API:** the `coop` league mode, campaign state, resolving a week against the monster, lives, chapter advance,
    finale; tests on both sides of the hidden-player line.
 4. **App:** create a Co-op league, the quest board, chapter and finale screens, How it works.
