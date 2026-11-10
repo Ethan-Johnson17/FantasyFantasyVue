@@ -28,6 +28,7 @@ These are recorded so they aren't lost. Some will use live NFL scores and show t
 |---|---|---|---|
 | Crossover (next, spec in [docs/CROSSOVER_SPEC.md](docs/CROSSOVER_SPEC.md)) | Party-on-party | 50 / 50 | Draft real, visible NFL players from the current season; each becomes a hero. Every week has two scoreboards: Gridiron (plain fantasy points) and Quest (D&D damage against a weekly encounter), and each board counts as a win. Game-day scores from nflverse. |
 | Co-op (built; switch on with `COOP_ENABLED`; [docs/COOP_SPEC.md](docs/COOP_SPEC.md)) | Every party against the monsters | 100% fantasy (Classic) | A campaign of chapters runs through the season; every party's active heroes deal their damage to the same monster, and the league wins or loses together. No matchups between parties (reshaped 2026-11-09). |
+| Solo (spec in [docs/SOLO_SPEC.md](docs/SOLO_SPEC.md)) | One party against the monsters | 100% fantasy (Crossover's Quest) | Build a party of 8 real, current-season NFL players under a budget, then take on a campaign of monsters alone, with up to 2 swaps a week. Crossover's players and Quest board with Co-op's campaign (added 2026-11-09). |
 | Free-for-all | Party-on-party, team-on-team | 50 / 50 | A shared quest runs through the season and whoever accomplishes the goal first wins the league. |
 | Lone Wolf | Solo, team-on-team | 40 / 60 | An individual quest runs throughout the season and parties work separately to complete it while teams face off for bragging rights. |
 
