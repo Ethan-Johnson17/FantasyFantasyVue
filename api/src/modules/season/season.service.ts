@@ -25,7 +25,8 @@ import { heroGames, lockedHeroes, type HeroGame } from './nflWeeks.js'
 import { critOf, type Crit } from './crits.js'
 import { heroForm, type HeroForm } from './form.service.js'
 import { applyStrategy, type Synergy } from './strategy.js'
-import { WeekResultModel } from './weekResult.model.js'
+import { monsterMultiplier, playCampaignWeek, readMonsters, startCampaign, type CampaignState } from './campaign.js'
+import { WeekResultModel, type WeekResultDocument } from './weekResult.model.js'
 
 /*
  * Season play: weekly resolution, lineups, schedule, results, and standings.
@@ -127,6 +128,7 @@ export async function seasonChampion(league: LeagueDocument, standings?: readonl
 }
 
 async function resolveWeek(league: LeagueDocument, week: number): Promise<boolean> {
+  if (league.mode === 'coop') return resolveCoopWeek(league, week)
   const { season, seed } = league
   await schedulePlayoffWeek(league, week)
   const scheduled = league.schedule?.find(entry => entry.week === week)
@@ -209,6 +211,69 @@ export async function heroPoints(
   )
 }
 
+/** The campaign before a game week: the last played week's result, or the start. */
+export async function campaignBefore(
+  league: Pick<LeagueDocument, '_id' | 'campaign'>,
+  week: number,
+  ruleset: Ruleset,
+  session: ClientSession | null = null
+): Promise<CampaignState> {
+  const monsters = readMonsters(league.campaign)
+  if (!ruleset.coop || monsters.length === 0) throw new Error('This league has no campaign')
+  if (week <= 1) return startCampaign(monsters, ruleset.coop)
+  const previous = await WeekResultModel.findOne({ leagueId: league._id, week: week - 1 }).session(session)
+  if (!previous?.campaign) throw new Error(`Week ${String(week - 1)} has no campaign result`)
+  const { chapter, hpLeft, livesLeft, outcome } = previous.campaign.state
+  return { chapter, hpLeft, livesLeft, outcome }
+}
+
+/**
+ * A Co-op game week (docs/COOP_SPEC.md): every party's Classic damage, with the chapter monster's weaknesses, goes to
+ * that monster. The league ends as soon as the campaign is won or lost.
+ */
+async function resolveCoopWeek(league: LeagueDocument, week: number): Promise<boolean> {
+  const { season } = league
+  const ruleset = getRuleset(league.rulesetVersion)
+  const rules = ruleset.coop
+  const monsters = readMonsters(league.campaign)
+  if (season === undefined || season === null || !rules || monsters.length === 0) throw new Error(`League ${league.id} is missing campaign data`)
+
+  return inTransaction(async session => {
+    // Claim exactly this week; fails if another request already resolved it (or the campaign has ended).
+    const claim = await LeagueModel.updateOne(
+      { _id: league._id, status: 'active', resolvedWeeks: week - 1 },
+      { $set: { resolvedWeeks: week } },
+      { session }
+    )
+    if (claim.modifiedCount === 0) return false
+
+    const before = await campaignBefore(league, week, ruleset, session)
+    const monster = monsters[before.chapter - 1]
+    if (!monster) throw new Error(`League ${league.id} has no chapter ${String(before.chapter)}`)
+    const [parties, heroes] = await Promise.all([
+      PartyModel.find({ leagueId: league._id }).session(session),
+      HeroModel.find({ leagueId: league._id, partyId: trusted({ $ne: null }) })
+        .select('+source')
+        .session(session)
+    ])
+    const points = await heroPoints(heroes, season, week, ruleset, session)
+    const sides = parties.map(party => buildSide(party, heroes, points, ruleset, heroClass => monsterMultiplier(monster, heroClass, rules)))
+    const played = playCampaignWeek(before, sides.reduce((sum, side) => sum + side.total, 0), week, monsters)
+
+    await WeekResultModel.create(
+      [{ leagueId: league._id, week, matchups: [], sides, campaign: { ...played, monster: monster.name } }],
+      { session }
+    )
+    // The campaign is over (won, or lost) at the boss's deadline at the latest.
+    if (played.state.outcome !== 'ongoing' || week >= seasonLength(league)) {
+      const endedAt = new Date()
+      await LeagueModel.updateOne({ _id: league._id }, { $set: { status: 'complete', endedAt } }, { session })
+      await expireLeagueChat(league._id, endedAt, session)
+    }
+    return true
+  })
+}
+
 /**
  * One party's week. Classic: one battle, class damage with Champion and synergies. Crossover adds the Quest
  * modifiers to that same battle (the encounter's weaknesses, natural 20s and 1s that count) and a separate
@@ -218,7 +283,9 @@ function buildSide(
   party: PartyDocument,
   heroes: readonly HeroDocument[],
   points: ReadonlyMap<string, HeroPoints>,
-  ruleset: Ruleset
+  ruleset: Ruleset,
+  /** Co-op: the chapter monster's weakness or resistance per class, applied before Champion and synergies */
+  modifier: (heroClass: HeroClass) => number = () => 1
 ) {
   const lineup = readLineup(party.lineup)
   if (!lineup) throw new Error(`Party ${party.id} has no lineup`)
@@ -246,7 +313,7 @@ function buildSide(
     const into = swappedInto.get(hero.id) ?? null
     const earned = pointsOf(hero.id)
     // Dynasty: a kept hero's XP adds a small bonus (0 for everyone else, so Classic is unchanged).
-    const damage = earned.points * classMultipliers[hero.heroClass] * xpMultiplier(hero.xp)
+    const damage = earned.points * classMultipliers[hero.heroClass] * xpMultiplier(hero.xp) * modifier(hero.heroClass)
     // Starters count their class damage, swapped-in bench heroes count it at the swap penalty, the rest count 0.
     const counted = slot !== 'Bench' ? round2(damage) : into ? round2(damage * autoSwapMultiplier) : 0
     const fights = (slot !== 'Bench' && !earned.resting) || into !== null
@@ -651,6 +718,19 @@ export interface WeekResultView {
   }[]
   /** Crossover only: the week's encounter */
   encounter: { name: string; weak: string[]; resists: string } | null
+  /** Co-op only: every party's damage against the chapter monster, most first (matchups is empty) */
+  sides: SideView[]
+  /** Co-op only: the campaign this week */
+  campaign: {
+    chapter: number
+    monster: string
+    hpBefore: number
+    dealt: number
+    fallen: number[]
+    failed: number | null
+    failedHpLeft: number | null
+    state: CampaignState
+  } | null
 }
 
 export async function getWeekResult(viewer: AccountDocument, leagueId: string, week: number): Promise<WeekResultView> {
@@ -692,8 +772,31 @@ export async function getWeekResult(viewer: AccountDocument, leagueId: string, w
       gridironOutcome: matchup.gridironOutcome ?? null,
       kind: matchup.kind
     })),
-    encounter: result.encounter ? { name: result.encounter.name, weak: [...result.encounter.weak], resists: result.encounter.resists } : null
+    encounter: result.encounter ? { name: result.encounter.name, weak: [...result.encounter.weak], resists: result.encounter.resists } : null,
+    sides: (result.sides ?? []).map(side).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name)),
+    campaign: result.campaign
+      ? {
+          chapter: result.campaign.chapter,
+          monster: result.campaign.monster,
+          hpBefore: result.campaign.hpBefore,
+          dealt: result.campaign.dealt,
+          fallen: [...result.campaign.fallen],
+          failed: result.campaign.failed ?? null,
+          failedHpLeft: result.campaign.failedHpLeft ?? null,
+          state: {
+            chapter: result.campaign.state.chapter,
+            hpLeft: result.campaign.state.hpLeft,
+            livesLeft: result.campaign.state.livesLeft,
+            outcome: result.campaign.state.outcome
+          }
+        }
+      : null
   }
+}
+
+/** Every party's week in a stored result: both sides of each matchup, or Co-op's sides. */
+export function sidesOf(result: Pick<WeekResultDocument, 'matchups' | 'sides'>): WeekResultDocument['matchups'][number]['home'][] {
+  return [...result.matchups.flatMap(matchup => (matchup.away ? [matchup.home, matchup.away] : [matchup.home])), ...(result.sides ?? [])]
 }
 
 export interface StandingView extends PartyRef {
@@ -705,7 +808,9 @@ export interface StandingView extends PartyRef {
 
 /** Ranked by win points (win 1, draw ½), then total damage. */
 export async function getStandings(viewer: AccountDocument, leagueId: string): Promise<StandingView[]> {
-  return computeStandings(await loadVisibleLeague(viewer, leagueId))
+  const league = await loadVisibleLeague(viewer, leagueId)
+  if (league.mode === 'coop') throw new Conflict('Co-op leagues have no standings: every party fights the same campaign')
+  return computeStandings(league)
 }
 
 /** Standings for a league the caller has already been authorized to see. */
@@ -791,8 +896,7 @@ export async function getHeroDetail(viewer: AccountDocument, leagueId: string, h
   const multipliers = ruleset.lineup.classMultipliers
   const results = await WeekResultModel.find({ leagueId: league._id }).sort({ week: 1 })
   const history = results.flatMap(result => {
-    const line = result.matchups
-      .flatMap(matchup => (matchup.away ? [matchup.home, matchup.away] : [matchup.home]))
+    const line = sidesOf(result)
       .flatMap(side => side.heroes)
       .find(entry => entry.heroId.equals(hero._id))
     if (!line) return []

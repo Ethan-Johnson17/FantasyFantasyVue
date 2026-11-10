@@ -15,7 +15,7 @@ import { healthRouter } from './routes/health.js'
 import { rulesRouter } from './routes/rules.js'
 
 export interface AppDependencies {
-  env: Pick<Env, 'CORS_ORIGINS' | 'TRUST_PROXY_HOPS'> & Partial<Pick<Env, 'CROSSOVER_ENABLED'>>
+  env: Pick<Env, 'CORS_ORIGINS' | 'TRUST_PROXY_HOPS'> & Partial<Pick<Env, 'CROSSOVER_ENABLED' | 'COOP_ENABLED'>>
   logger: Logger
   /** Validates the bearer token and populates req.auth. Injected so tests can use a local signing key. */
   authenticate: RequestHandler
@@ -46,16 +46,19 @@ export function createApp({ env, logger, authenticate }: AppDependencies) {
     rateLimit({ windowMs: 60_000, limit: 300, standardHeaders: 'draft-8', legacyHeaders: false, store: new MongoRateLimitStore('ip:') })
   )
 
+  // Modes that can be switched on once finished; leagues already created keep working either way.
+  const modes = { crossoverEnabled: env.CROSSOVER_ENABLED ?? false, coopEnabled: env.COOP_ENABLED ?? false }
+
   app.use('/health', healthRouter)
   // Public, so the rules can be read before signing in. Mounted ahead of the authenticated API.
-  app.use('/api/rules', rulesRouter({ crossoverEnabled: env.CROSSOVER_ENABLED ?? false }))
+  app.use('/api/rules', rulesRouter(modes))
 
   const api = express.Router()
   api.use(authenticate, loadAccount)
   api.use('/account', accountRouter)
   // Ahead of the league router, whose /:id routes bring the league up to date first; chat polls too often for that.
   api.use('/leagues/:id/chat', chatRouter())
-  api.use('/leagues', leagueRouter({ crossoverEnabled: env.CROSSOVER_ENABLED ?? false }))
+  api.use('/leagues', leagueRouter(modes))
   api.use('/parties', partyRouter)
   app.use('/api', api)
 

@@ -14,6 +14,7 @@ import { getRuleset } from '../scoring/rulesets.js'
 import { heroForm, type HeroForm } from '../season/form.service.js'
 import { crossoverWeeks, crossoverWindow } from '../season/nflWeeks.js'
 import { leaguePlayoffs } from '../season/calendar.js'
+import { coopMonsters } from '../season/campaign.js'
 import { roundRobin } from '../season/schedule.js'
 import { loadPoolCandidates, pickSeason } from './candidates.js'
 import { loadCrossoverCandidates, type PlayerCard } from './crossoverCandidates.js'
@@ -191,6 +192,26 @@ export async function runDueDraft(leagueId: string): Promise<void> {
               leaguePlayoffs({ mode: league.mode, playoffs: league.playoffs, partyCount: league.partyCount, nflWeeks })?.regularWeeks ?? nflWeeks.length
             ),
             weekOneAt: nflWeeks[0]?.finalAt
+          }
+        },
+        { session }
+      )
+      return
+    }
+    // Co-op: no matchups, so no schedule; the campaign's monsters are set from the seed, the hidden season and the
+    // parties at the draft.
+    const coop = getRuleset(league.rulesetVersion).coop
+    if (coop) {
+      const season = (await LeagueModel.findById(league._id).select('+season').session(session))?.season
+      if (season === undefined || season === null) throw new Error(`League ${league.id} has no season`)
+      await LeagueModel.updateOne(
+        { _id: league._id },
+        {
+          $set: {
+            draftOrder: order,
+            draftPicks: picks,
+            campaign: { monsters: coopMonsters(league.seed, season, parties.length, coop) },
+            weekOneAt: new Date(league.draftAt.getTime() + CADENCE_MS[league.cadence])
           }
         },
         { session }

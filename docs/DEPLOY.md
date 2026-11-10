@@ -134,4 +134,14 @@ in the database.
 3. Open the app's **Host a league** screen: a **Game** choice (Classic or Crossover) appears, and How it works gains a
    Crossover section. To switch it off again, remove the variable and redeploy; existing Crossover leagues keep playing.
 
+## 10. Switch on Co-op
+
+Co-op leagues can be created only when the API's `COOP_ENABLED` setting is `true` (docs/COOP_SPEC.md). Leave it off
+until the app's Co-op screens have shipped.
+
+1. Vercel → the API project (`fantasy-fantasy`) → **Settings → Environment Variables → Add**: name `COOP_ENABLED`,
+   value `true`, environment **Production**.
+2. **Deployments → the latest → Redeploy**, so the setting takes effect. To switch it off again, remove the variable
+   and redeploy; existing Co-op leagues keep playing.
+
 Remaining launch items (Google sign-in keys, and so on) are in `ROADMAP.md` under "Before public launch".

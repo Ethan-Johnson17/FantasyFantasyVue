@@ -17,7 +17,9 @@ const EnvSchema = z.object({
   // Number of reverse proxies in front of the API (0 locally; usually 1 on a hosting platform).
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
   // Crossover leagues can be created only when this is "true": off until every build phase is done.
-  CROSSOVER_ENABLED: z.stringbool().default(false)
+  CROSSOVER_ENABLED: z.stringbool().default(false),
+  // Co-op leagues likewise (docs/COOP_SPEC.md): off until the app's Co-op screens ship.
+  COOP_ENABLED: z.stringbool().default(false)
 })
 
 export type Env = z.infer<typeof EnvSchema>

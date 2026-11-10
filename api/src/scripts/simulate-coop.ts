@@ -20,9 +20,9 @@ import { runSnakeDraft } from '../modules/draft/snakeDraft.js'
 import type { HeroClass } from '../modules/heroes/classes.js'
 import { autoLineup, planAutoSwaps, type Lineup } from '../modules/heroes/lineup.js'
 import { expectedLevel, selectHeroPool, type PoolEntry } from '../modules/heroes/pool.js'
-import { RULESET_V1, type Ruleset } from '../modules/scoring/rulesets.js'
+import { COOP_V1, RULESET_V1, type CoopRules, type Ruleset } from '../modules/scoring/rulesets.js'
 import { scoreDefense, scoreOffense } from '../modules/scoring/scoring.js'
-import { ENCOUNTERS, type Encounter } from '../modules/season/encounters.js'
+import { coopMonsters, monsterMultiplier, playCampaignWeek, startCampaign, type CoopMonster } from '../modules/season/campaign.js'
 import { applyStrategy } from '../modules/season/strategy.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../modules/stats/stats.models.js'
 
@@ -52,12 +52,13 @@ const PLAN_NAMES: Record<Plan, string> = {
   weakness: 'Play to the monster (lineup + Champion)',
   noChampion: 'Rank by Level, never a Champion'
 }
-/** Spec defaults: chapter deadlines (the last week each monster may fall) and lives */
-const DEADLINES = [3, 6, 9, 12, 14] as const
-const WINDOW_WEEKS = DEADLINES.map((deadline, index) => deadline - (index === 0 ? 0 : (DEADLINES[index - 1] ?? 0)))
-const LIVES = 3
-const WEAK = 1.25
-const RESISTS = 0.75
+/** The campaign rules being tuned: deadlines, lives and class modifiers as in the Co-op ruleset */
+const COOP = (() => {
+  const rules = COOP_V1.coop
+  if (!rules) throw new Error('The Co-op ruleset has no campaign rules')
+  return rules
+})()
+const CHAPTERS = COOP.deadlines.length
 
 interface Hero {
   id: string
@@ -80,11 +81,10 @@ async function loadWeeks(season: number): Promise<WeekPoints> {
   return weeks
 }
 
-const multiplierOf = (monster: Encounter | null, heroClass: HeroClass) =>
-  !monster ? 1 : monster.weak.includes(heroClass) ? WEAK : monster.resists === heroClass ? RESISTS : 1
+const multiplierOf = (monster: CoopMonster | null, heroClass: HeroClass) => (monster ? monsterMultiplier(monster, heroClass, COOP) : 1)
 
 /** What a hero is expected to deal: the ruleset's damage for their Level, times the monster's modifier */
-function expectedDamage(hero: Hero, monster: Encounter | null): number {
+function expectedDamage(hero: Hero, monster: CoopMonster | null): number {
   const table = RULESET.levelDamage[hero.heroClass]
   const level = Math.min(10, Math.max(1, Math.round(hero.value)))
   return (table[level - 1] ?? 0) * multiplierOf(monster, hero.heroClass)
@@ -96,7 +96,7 @@ interface PartySetup {
 }
 
 /** A plan's lineup and Champion against a monster (null: no modifiers, to measure plain damage) */
-function setup(plan: Plan, roster: readonly Hero[], monster: Encounter | null): PartySetup {
+function setup(plan: Plan, roster: readonly Hero[], monster: CoopMonster | null): PartySetup {
   const slots = RULESET.lineup.slots
   const aware = plan === 'weakness'
   const ranked = roster.map(hero => ({ id: hero.id, heroClass: hero.heroClass, value: aware ? expectedDamage(hero, monster) : hero.value }))
@@ -108,7 +108,7 @@ function setup(plan: Plan, roster: readonly Hero[], monster: Encounter | null): 
 }
 
 /** One party's damage for a week: the engine's Classic battle (buildSide) with the monster's modifiers per hero */
-function partyDamage(roster: readonly Hero[], party: PartySetup, points: ReadonlyMap<string, number>, monster: Encounter | null): number {
+function partyDamage(roster: readonly Hero[], party: PartySetup, points: ReadonlyMap<string, number>, monster: CoopMonster | null): number {
   const { slots, classMultipliers, autoSwapMultiplier } = RULESET.lineup
   const round2 = (value: number) => Math.round(value * 100) / 100
   const starters = new Set(Object.values(party.lineup))
@@ -166,11 +166,9 @@ function draftLeague(season: number, size: number, seed: string, candidates: Awa
   return parties.map(party => picks.filter(pick => pick.partyId === party.id).flatMap(pick => byId.get(pick.heroId) ?? []))
 }
 
-/** The league's five monsters: four of the ten encounters, then the boss with a fifth encounter's modifiers */
-const monstersFor = (seed: string): Encounter[] => createRng(seed, 'campaign').shuffle(ENCOUNTERS).slice(0, DEADLINES.length)
-
 function runLeague(season: number, size: number, plan: Plan, seed: string, rosters: Hero[][], weeks: WeekPoints): LeagueRun {
-  const monsters = monstersFor(seed)
+  // The league's monsters as the engine sets them (only their weaknesses matter for the damage table)
+  const monsters = coopMonsters(seed, season, size, COOP)
   // Each party with its plan's setup per monster, and with no monster for the plain measure
   const parties = rosters.map(roster => ({
     roster,
@@ -201,49 +199,35 @@ interface Campaign {
   cascades: number
 }
 
-/** Runs the campaign rules from the spec on a league's damage table. */
-function campaign(run: LeagueRun, hp: readonly number[]): Campaign {
-  let chapter = 0
-  let remaining = hp[0] ?? 0
-  let livesLost = 0
-  let cascades = 0
-  let bossStart = (DEADLINES[DEADLINES.length - 2] ?? 0) + 1
-  const failed: number[] = []
-  for (let week = 1; week <= LAST_MATCHUP_WEEK; week++) {
-    if (chapter === DEADLINES.length - 1 && remaining === hp[chapter]) bossStart = Math.min(bossStart, week)
-    let dealt = run.damage[week]?.[chapter] ?? 0
-    // A fall this week: overkill carries into the next monster, and may bring it down too.
-    let falls = 0
-    while (dealt >= remaining) {
-      dealt -= remaining
-      falls++
-      chapter++
-      if (chapter === DEADLINES.length) return { won: true, livesLost, failed, lostAt: null, bossStart, cascades: cascades + Math.max(0, falls - 1) }
-      remaining = hp[chapter] ?? 0
-    }
-    cascades += Math.max(0, falls - 1)
-    remaining -= dealt
-    // The deadline passes with the monster standing: a life is lost and the story moves on.
-    if (week === DEADLINES[chapter]) {
-      failed.push(chapter + 1)
-      livesLost++
-      if (chapter === DEADLINES.length - 1 || livesLost >= LIVES) return { won: false, livesLost, failed, lostAt: chapter + 1, bossStart, cascades }
-      chapter++
-      remaining = hp[chapter] ?? 0
-    }
+/** The Co-op rules with this run's measured damage and the factors being tried */
+function rulesFor(chapterFactor: number, bossFactor: number): CoopRules {
+  return {
+    ...COOP,
+    partyDamage: Object.fromEntries(perParty),
+    // Without --season-hp every season counts as average.
+    seasonFactors: SEASON_HP ? Object.fromEntries(seasonFactor) : {},
+    chapterFactor,
+    bossFactor,
+    hpVariation: JITTER
   }
-  return { won: false, livesLost, failed, lostAt: chapter + 1, bossStart, cascades }
 }
 
-/** Each monster's HP: the spec's formula, optionally scaled to the hidden season and varied per monster */
-function hpFor(run: LeagueRun, chapterFactor: number, bossFactor: number): number[] {
-  const rng = createRng(run.seed, 'hp')
-  const season = SEASON_HP ? (seasonFactor.get(run.season) ?? 1) : 1
-  return WINDOW_WEEKS.map((weeks, index) => {
-    const factor = index === DEADLINES.length - 1 ? bossFactor : chapterFactor
-    const jitter = 1 + (rng.next() * 2 - 1) * JITTER
-    return run.size * (perParty.get(run.size) ?? 0) * season * weeks * factor * jitter
-  })
+/** Plays a league's damage table through the engine's campaign rules (season/campaign.ts). */
+function campaign(run: LeagueRun, rules: CoopRules): Campaign {
+  const monsters = coopMonsters(run.seed, run.season, run.size, rules)
+  let state = startCampaign(monsters, rules)
+  let cascades = 0
+  let bossStart = (rules.deadlines.at(-2) ?? 0) + 1
+  const failed: number[] = []
+  for (let week = 1; week <= LAST_MATCHUP_WEEK && state.outcome === 'ongoing'; week++) {
+    if (state.chapter === monsters.length) bossStart = Math.min(bossStart, week)
+    const played = playCampaignWeek(state, run.damage[week]?.[state.chapter - 1] ?? 0, week, monsters)
+    if (played.fallen.length > 1) cascades++
+    if (played.failed !== null) failed.push(played.failed)
+    state = played.state
+  }
+  const won = state.outcome === 'won'
+  return { won, livesLost: rules.lives - state.livesLeft, failed, lostAt: won ? null : state.chapter, bossStart, cascades }
 }
 
 const pct = (part: number, whole: number) => `${((100 * part) / Math.max(1, whole)).toFixed(0)}%`
@@ -288,7 +272,8 @@ console.log(`HP: ${SEASON_HP ? 'scaled to the season' : 'the same every season'}
 
 const winRate = (plan: Plan, chapterFactor: number, bossFactor: number) => {
   const ofPlan = runs.filter(run => run.plan === plan)
-  return ofPlan.filter(run => campaign(run, hpFor(run, chapterFactor, bossFactor)).won).length / ofPlan.length
+  const rules = rulesFor(chapterFactor, bossFactor)
+  return ofPlan.filter(run => campaign(run, rules).won).length / ofPlan.length
 }
 
 if (values.chapter === undefined || values.boss === undefined) {
@@ -314,7 +299,8 @@ if (values.chapter === undefined || values.boss === undefined) {
   if (!(chapterFactor > 0 && bossFactor > 0)) throw new Error('--chapter and --boss must be positive numbers')
   console.log(`Chapter factor ${String(chapterFactor)}, boss factor ${String(bossFactor)}\n`)
 
-  const results = runs.map(run => ({ run, result: campaign(run, hpFor(run, chapterFactor, bossFactor)) }))
+  const rules = rulesFor(chapterFactor, bossFactor)
+  const results = runs.map(run => ({ run, result: campaign(run, rules) }))
   const report = (label: string, rows: typeof results) => {
     const won = rows.filter(row => row.result.won)
     const lives = [0, 1, 2, 3].map(lost => rows.filter(row => row.result.livesLost === lost).length)
@@ -330,14 +316,14 @@ if (values.chapter === undefined || values.boss === undefined) {
 
   console.log('\nWhere Level-plan leagues lost')
   const losses = level.filter(row => !row.result.won)
-  for (let chapter = 1; chapter <= DEADLINES.length; chapter++) {
-    console.log(`  chapter ${String(chapter)}${chapter === DEADLINES.length ? ' (boss)' : ''}: ${pct(losses.filter(row => row.result.lostAt === chapter).length, level.length)} of leagues`)
+  for (let chapter = 1; chapter <= CHAPTERS; chapter++) {
+    console.log(`  chapter ${String(chapter)}${chapter === CHAPTERS ? ' (boss)' : ''}: ${pct(losses.filter(row => row.result.lostAt === chapter).length, level.length)} of leagues`)
   }
   console.log('\nHow often each chapter is failed (Level plan)')
-  for (let chapter = 1; chapter <= DEADLINES.length; chapter++) {
+  for (let chapter = 1; chapter <= CHAPTERS; chapter++) {
     console.log(`  chapter ${String(chapter)}: ${pct(level.filter(row => row.result.failed.includes(chapter)).length, level.length)}`)
   }
-  const reachedBoss = level.filter(row => row.result.lostAt === DEADLINES.length || row.result.won)
+  const reachedBoss = level.filter(row => row.result.lostAt === CHAPTERS || row.result.won)
   console.log(`\nBoss reached in ${pct(reachedBoss.length, level.length)}; average boss start week ${mean(reachedBoss.map(row => row.result.bossStart)).toFixed(1)} (window starts week 13)`)
   console.log(`Overkill felled a second monster the same week in ${pct(level.filter(row => row.result.cascades > 0).length, level.length)} of leagues`)
 

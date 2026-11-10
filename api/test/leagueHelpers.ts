@@ -27,14 +27,18 @@ export const DAY = CADENCE_MS.daily
 
 /**
  * A daily league hosted by `host`, with `members` joined and the draft already run. Without playoffs unless asked,
- * so the season is the 14-week regular season (playoffs: playoffs.test.ts).
+ * so the season is the 14-week regular season (playoffs: playoffs.test.ts). Classic unless another mode is asked for.
  */
-export async function draftedLeague(members: readonly Player[], { playoffs = false }: { playoffs?: boolean } = {}) {
+export async function draftedLeague(
+  members: readonly Player[],
+  { playoffs = false, mode = 'classic' }: { playoffs?: boolean; mode?: 'classic' | 'coop' } = {}
+) {
   const created = await host.post('/api/leagues', {
     name: 'Season League',
     visibility: 'private',
     cadence: 'daily',
     maxParties: 6,
+    mode,
     playoffs,
     party: { name: 'Host Party', crest: { emblem: 'crown', banner: 'crimson' } }
   })

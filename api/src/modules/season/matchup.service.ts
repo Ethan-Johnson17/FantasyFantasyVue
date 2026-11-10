@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { BadRequest, NotFound } from '../../lib/errors.js'
+import { BadRequest, Conflict, NotFound } from '../../lib/errors.js'
 import { createRng } from '../../lib/random.js'
 import type { AccountDocument } from '../accounts/account.model.js'
 import { toHeroView, type HeroView } from '../draft/draft.service.js'
@@ -97,6 +97,7 @@ interface LiveWeek {
 /** A preview of an upcoming battle: the next one by default, or a later week. */
 export async function getMatchup(member: AccountDocument, leagueId: string, requestedWeek?: number): Promise<MatchupView> {
   const { league, party } = await loadLeagueAsMember(member, leagueId)
+  if (league.mode === 'coop') throw new Conflict('Co-op leagues have no matchups: see the campaign')
   const upcoming = nextWeek(league)
   if (!upcoming) throw new NotFound('There is no upcoming battle')
   const week = requestedWeek ?? upcoming.week
