@@ -144,7 +144,8 @@ export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueVi
       return {
         ...toSummary(league, viewer, profiles, true),
         myParty: { id: party.id, name: party.name, crest: crestOf(party) },
-        standing: league.resolvedWeeks > 0 ? await standingOf(league, party.id) : null,
+        // Co-op has no standings: its outlook carries the campaign instead.
+        standing: league.resolvedWeeks > 0 && league.mode !== 'coop' ? await standingOf(league, party.id) : null,
         outlook: await partyOutlook(league, party),
         unreadChat: await unreadCount(party)
       }
@@ -184,21 +185,26 @@ export async function previewLeagueByPin(viewer: AccountDocument, pin: string): 
 export interface CreateOptions {
   /** Crossover leagues can be created only once the mode is finished (CROSSOVER_ENABLED) */
   crossoverEnabled: boolean
+  /** Co-op leagues likewise (COOP_ENABLED) */
+  coopEnabled: boolean
 }
 
 export async function createLeague(host: AccountDocument, input: CreateLeagueInput, options: CreateOptions): Promise<LeagueDetailView> {
   const { party, dynastySeasons, ...requested } = input
   const crossover = requested.mode === 'crossover'
-  if (crossover && dynastySeasons) throw new BadRequest('Dynasty leagues are Classic for now')
+  const coop = requested.mode === 'coop'
+  if ((crossover || coop) && dynastySeasons) throw new BadRequest('Dynasty leagues are Classic for now')
+  if (coop && !options.coopEnabled) throw new Conflict('Co-op leagues aren’t available yet')
   if (crossover) {
     if (!options.crossoverEnabled) throw new Conflict('Crossover leagues aren’t available yet')
     // Refuse up front when the NFL season is nearly over (or hasn't been scheduled), not only at the draft.
     await crossoverWindow(new Date())
   }
-  // Crossover follows the NFL's weeks, whatever cadence was sent.
+  // Crossover follows the NFL's weeks, whatever cadence was sent. Co-op has no playoffs: the boss raid is the finale.
   const settings = {
     ...requested,
     ...(crossover ? { cadence: 'weekly' as const } : {}),
+    ...(coop ? { playoffs: false } : {}),
     rulesetVersion: RULESET_FOR_MODE[requested.mode]
   }
   for (let attempt = 1; ; attempt++) {

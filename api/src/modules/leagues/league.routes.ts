@@ -29,6 +29,8 @@ import {
 } from './league.schemas.js'
 import * as dynasty from '../dynasty/dynasty.service.js'
 import * as leagues from './league.service.js'
+import type { CreateOptions } from './league.service.js'
+import { getCampaign } from '../season/campaign.service.js'
 
 export const PIN_ATTEMPTS_PER_MINUTE = 20
 
@@ -44,7 +46,7 @@ const pinLimiter = () =>
     message: { error: { status: 429, message: 'Too many attempts, try again in a minute' } }
   })
 
-export function leagueRouter({ crossoverEnabled }: { crossoverEnabled: boolean }) {
+export function leagueRouter(modes: CreateOptions) {
   const limitPinAttempts = pinLimiter()
   return Router()
     // Every /:id route first brings the league up to date (runs a due draft, resolves due weeks).
@@ -54,7 +56,7 @@ export function leagueRouter({ crossoverEnabled }: { crossoverEnabled: boolean }
       }, next)
     })
     .post('/', async (req, res) => {
-      res.status(201).json(await leagues.createLeague(currentAccount(req), CreateLeagueSchema.parse(req.body), { crossoverEnabled }))
+      res.status(201).json(await leagues.createLeague(currentAccount(req), CreateLeagueSchema.parse(req.body), modes))
     })
     .get('/mine', async (req, res) => {
       res.json(await leagues.listMyLeagues(currentAccount(req)))
@@ -154,6 +156,9 @@ export function leagueRouter({ crossoverEnabled }: { crossoverEnabled: boolean }
     .get('/:id/results/:week', async (req, res) => {
       const week = WeekParamSchema.parse(req.params.week)
       res.json(await season.getWeekResult(currentAccount(req), parseId(req.params.id), week))
+    })
+    .get('/:id/campaign', async (req, res) => {
+      res.json(await getCampaign(currentAccount(req), parseId(req.params.id)))
     })
     .get('/:id/finale', async (req, res) => {
       res.json(await getFinale(currentAccount(req), parseId(req.params.id)))

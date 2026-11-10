@@ -100,6 +100,30 @@ export interface QuestRules {
   natural1Multiplier: number
 }
 
+/**
+ * Co-op's campaign (docs/COOP_SPEC.md): every party's damage goes to one shared monster per chapter. HP is
+ * parties x partyDamage[parties] x seasonFactors[season] x weeks in the chapter's window x the chapter or boss factor,
+ * varied by up to +/- hpVariation from the league seed.
+ */
+export interface CoopRules {
+  /** The last game week each chapter's monster may fall by; the last chapter is the boss raid */
+  deadlines: readonly number[]
+  /** Missed deadlines the league survives: losing the last one ends the campaign */
+  lives: number
+  /** Damage multiplier for a class the monster is weak to */
+  weakMultiplier: number
+  /** Damage multiplier for the class the monster resists */
+  resistMultiplier: number
+  /** Expected plain damage per party per week, by league size (bigger leagues spread talent thinner) */
+  partyDamage: Readonly<Record<number, number>>
+  /** How high-scoring each hidden season was against the average; 1 for a season not listed. Server-only. */
+  seasonFactors: Readonly<Record<number, number>>
+  chapterFactor: number
+  bossFactor: number
+  /** Each monster's HP varies by up to this share, from the seed */
+  hpVariation: number
+}
+
 export interface Ruleset {
   readonly version: number
   /** The game mode this ruleset is for; a league's mode and ruleset always match */
@@ -112,6 +136,8 @@ export interface Ruleset {
   readonly crits: Readonly<CritRules>
   /** Crossover only: the Quest board. Its presence means two scoreboards. */
   readonly quest?: Readonly<QuestRules>
+  /** Co-op only: the campaign against shared monsters, instead of matchups between parties */
+  readonly coop?: Readonly<CoopRules>
   /**
    * Average class damage per battle at Level 1..10, by class: what a Level is worth. Turns a mystery recruit's
    * damage into a "playing like Lv X" estimate.
@@ -234,11 +260,41 @@ export const CROSSOVER_V1: Ruleset = {
   quest: { partySize: 5, weakMultiplier: 1.25, resistMultiplier: 0.75, natural20Multiplier: 1.25, natural1Multiplier: 0 }
 }
 
-const RULESETS = new Map<number, Ruleset>([RULESET_V1, CROSSOVER_V1].map(ruleset => [ruleset.version, ruleset]))
+/**
+ * Co-op (docs/COOP_SPEC.md): Classic's hidden seasons, draft, lineup and strategy, with every party fighting the same
+ * campaign monsters. Balanced with `npm run simulate:coop` on 2012-2025 (decided 2026-11-09): lineups by Level with
+ * a Champion win 66% of campaigns, lineups set against each monster 93%, never naming a Champion 12%; 60-71% at
+ * every league size and 49-73% in every season.
+ */
+export const COOP_V1: Ruleset = {
+  ...RULESET_V1,
+  version: 3,
+  mode: 'coop',
+  coop: {
+    deadlines: [3, 6, 9, 12, 14],
+    lives: 3,
+    weakMultiplier: 1.25,
+    resistMultiplier: 0.75,
+    partyDamage: { 2: 110, 3: 109, 4: 105, 5: 104, 6: 102, 7: 100, 8: 99, 9: 97, 10: 96, 11: 94, 12: 93 },
+    seasonFactors: {
+      2012: 1.04, 2013: 1.03, 2014: 1.04, 2015: 0.96, 2016: 0.93, 2017: 0.93, 2018: 1.11,
+      2019: 0.96, 2020: 0.98, 2021: 1, 2022: 1.08, 2023: 1.04, 2024: 0.92, 2025: 0.96
+    },
+    chapterFactor: 1,
+    bossFactor: 1.25,
+    hpVariation: 0.15
+  }
+}
+
+const RULESETS = new Map<number, Ruleset>([RULESET_V1, CROSSOVER_V1, COOP_V1].map(ruleset => [ruleset.version, ruleset]))
 
 export const CURRENT_RULESET_VERSION = RULESET_V1.version
 /** The ruleset new leagues of each mode start with */
-export const RULESET_FOR_MODE: Readonly<Record<LeagueMode, number>> = { classic: RULESET_V1.version, crossover: CROSSOVER_V1.version }
+export const RULESET_FOR_MODE: Readonly<Record<LeagueMode, number>> = {
+  classic: RULESET_V1.version,
+  crossover: CROSSOVER_V1.version,
+  coop: COOP_V1.version
+}
 
 export function getRuleset(version: number): Ruleset {
   const ruleset = RULESETS.get(version)

@@ -1,4 +1,4 @@
-import { model, Schema, type InferSchemaType } from 'mongoose'
+import { model, Schema, type HydratedDocument, type InferSchemaType } from 'mongoose'
 import { SYNERGIES } from './strategy.js'
 
 /*
@@ -75,7 +75,39 @@ const weekResultSchema = new Schema(
   {
     leagueId: { type: Schema.Types.ObjectId, ref: 'League', required: true, immutable: true },
     week: { type: Number, required: true, immutable: true },
+    // Co-op has no matchups: this is empty, and `sides` holds every party's week instead.
     matchups: { type: [matchupResultSchema], required: true },
+    // Co-op only: each party's damage against the chapter's monster
+    sides: { type: [sideSchema], default: undefined },
+    // Co-op only: the campaign this week (playCampaignWeek in campaign.ts)
+    campaign: {
+      type: new Schema(
+        {
+          chapter: { type: Number, required: true },
+          monster: { type: String, required: true },
+          hpBefore: { type: Number, required: true },
+          dealt: { type: Number, required: true },
+          fallen: { type: [Number], default: [] },
+          failed: { type: Number, default: null },
+          failedHpLeft: { type: Number, default: null },
+          // The campaign after the week
+          state: {
+            type: new Schema(
+              {
+                chapter: { type: Number, required: true },
+                hpLeft: { type: Number, required: true },
+                livesLeft: { type: Number, required: true },
+                outcome: { type: String, required: true, enum: ['ongoing', 'won', 'lost'] }
+              },
+              { _id: false }
+            ),
+            required: true
+          }
+        },
+        { _id: false }
+      ),
+      default: null
+    },
     // Crossover only: the week's encounter
     encounter: {
       type: new Schema(
@@ -90,5 +122,6 @@ const weekResultSchema = new Schema(
 weekResultSchema.index({ leagueId: 1, week: 1 }, { unique: true })
 
 export type WeekResult = InferSchemaType<typeof weekResultSchema>
+export type WeekResultDocument = HydratedDocument<WeekResult>
 
 export const WeekResultModel = model('WeekResult', weekResultSchema)

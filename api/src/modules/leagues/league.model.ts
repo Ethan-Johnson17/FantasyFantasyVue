@@ -3,8 +3,11 @@ import { CURRENT_RULESET_VERSION } from '../scoring/rulesets.js'
 
 export const LEAGUE_STATUSES = ['forming', 'drafting', 'active', 'complete', 'canceled'] as const
 export const LEAGUE_VISIBILITIES = ['private', 'public'] as const
-/** Classic hides each hero's player; Crossover (docs/CROSSOVER_SPEC.md, in progress) shows real, current players. */
-export const LEAGUE_MODES = ['classic', 'crossover'] as const
+/**
+ * Classic hides each hero's player; Crossover (docs/CROSSOVER_SPEC.md) shows real, current players; Co-op
+ * (docs/COOP_SPEC.md) plays Classic with every party against the same campaign monsters, and no matchups.
+ */
+export const LEAGUE_MODES = ['classic', 'crossover', 'coop'] as const
 export type LeagueMode = (typeof LEAGUE_MODES)[number]
 export const LEAGUE_CADENCES = ['daily', 'weekly'] as const
 export const MIN_PARTIES = 2
@@ -127,6 +130,32 @@ const leagueSchema = new Schema(
         })
       ],
       default: []
+    },
+    // Co-op only, set when the draft runs: the campaign's monsters in chapter order, the boss last. HP is shown to
+    // players; the hidden season behind it is not (the seeded variation keeps it from being worked out).
+    campaign: {
+      type: new Schema(
+        {
+          monsters: {
+            type: [
+              new Schema(
+                {
+                  name: { type: String, required: true },
+                  weak: { type: [String], required: true },
+                  resists: { type: String, required: true },
+                  boss: { type: Boolean, required: true },
+                  hp: { type: Number, required: true },
+                  deadline: { type: Number, required: true }
+                },
+                { _id: false }
+              )
+            ],
+            required: true
+          }
+        },
+        { _id: false }
+      ),
+      default: null
     },
     // Crossover only, set when the draft runs: the NFL week each game week uses and when it goes final
     nflWeeks: {

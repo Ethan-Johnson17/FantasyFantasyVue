@@ -148,10 +148,37 @@ Co-op gets its own ruleset version: chapter count and deadlines, lives, weakness
 party damage by size, the season factors, the difficulty factors and the ±15% variation from the simulation. It's
 added with the API (build phase 3), along with the `coop` league mode.
 
+## API
+
+Built 2026-11-09. The campaign rules are pure (`api/src/modules/season/campaign.ts`), shared by the season engine and
+the balancing simulation, and the Co-op ruleset is version 3 (`COOP_V1`).
+
+- **Creating:** `POST /api/leagues` with `mode: "coop"`; refused (409) unless the API's `COOP_ENABLED` setting is on.
+  Never a dynasty for now, and never playoffs (sent `playoffs` is ignored).
+- **The draft** runs as in Classic, then sets the league's five monsters from its seed, hidden season and party count.
+  There's no schedule.
+- **Each game week** adds every party's Classic damage, with the monster's ×1.25 / ×0.75 per class, and plays it
+  against the current chapter. The league completes as soon as the campaign is won or lost.
+- **`GET /api/leagues/:id/campaign`** (the quest board): lives, outcome, every chapter (name, weaknesses, HP, deadline,
+  status, HP left, the week it ended), the next game week, each party's damage last week, this chapter and in all
+  (listed by this chapter's damage), and whether the viewer's party has a Champion, for the reminder.
+- **`GET /api/leagues/:id/results/:week`** returns `sides` (every party, most damage first) and `campaign` (the
+  chapter fought, damage dealt, monsters fallen, any missed deadline); `matchups` is empty.
+- **`GET /api/leagues/:id/finale`** returns `mode: "coop"`: victory or defeat, every chapter's result, each party's
+  damage, and the awards (Monster Slayer, a Final Blow for each fallen monster, Natural 20, Cursed Dice).
+- **My leagues:** the outlook carries `campaign` (chapter, monster, HP, lives, this party's damage last week) and the
+  next battle names the monster; there's no standing.
+- **Matchup and standings** are refused (409) in Co-op; the schedule is empty.
+- **Rules:** `GET /api/rules` gains `coop` (whether it's available, deadlines, lives, class modifiers, the boss's name).
+- The boss is **The Dragon Tyrant**.
+- **Rechecked** with the engine's own campaign code (whole-number HP): lineups by Level with a Champion win 67%, set
+  against each monster 93%, never naming a Champion 12%; 63-71% by league size and 48-80% by season.
+
 ## Build phases
 
 1. **Spec review** (this document): done 2026-11-09.
 2. **Balancing simulation:** HP, difficulty factors, and the default values above: done 2026-11-09.
 3. **API:** the `coop` league mode, campaign state, resolving a week against the monster, lives, chapter advance,
-   finale; tests on both sides of the hidden-player line.
+   finale; tests on both sides of the hidden-player line: built 2026-11-09 (see "API" below). Co-op leagues can be
+   created only once `COOP_ENABLED` is on, after the app phase.
 4. **App:** create a Co-op league, the quest board, chapter and finale screens, How it works.

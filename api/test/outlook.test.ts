@@ -41,7 +41,7 @@ describe('My leagues outlook', () => {
     })
     const { id, pin } = created.body as { id: string; pin: string }
     await alice.post('/api/leagues/join', { pin, party: { name: 'Elves', crest: { emblem: 'moon', banner: 'sapphire' } } })
-    expect(await outlookOf(alice, id)).toEqual({ ranking: null, nextBattle: null, lastBattle: null })
+    expect(await outlookOf(alice, id)).toEqual({ ranking: null, nextBattle: null, lastBattle: null, campaign: null })
 
     await host.post(`/api/leagues/${id}/draft`, { draftAt: new Date(Date.now() + 3_600_000).toISOString() })
     const heroes = (await alice.get(`/api/leagues/${id}/heroes`)).body as { id: string }[]
