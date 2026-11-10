@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "import:stats": "tsx --env-file=.env src/scripts/import-stats.ts",
     "import:stats:ci": "tsx src/scripts/import-stats.ts",
-    "dev:league": "tsx --env-file=.env src/scripts/dev-league.ts"
+    "dev:league": "tsx --env-file=.env src/scripts/dev-league.ts",
+    "simulate:coop": "tsx --env-file=.env src/scripts/simulate-coop.ts"
   },
   "dependencies": {
     "cors": "2.8.6",
