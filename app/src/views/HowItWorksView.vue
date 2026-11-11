@@ -32,6 +32,8 @@ const crossover = computed(() => (rules.value?.crossover?.available ? rules.valu
 const multiplierText = (value: number) => `×${String(value)}`
 // Co-op too (docs/COOP_SPEC.md).
 const coop = computed(() => (rules.value?.coop?.available ? rules.value.coop : null))
+// And Solo (docs/SOLO_SPEC.md).
+const solo = computed(() => (rules.value?.solo?.available ? rules.value.solo : null))
 
 const champion = computed(() =>
   rules.value
@@ -75,6 +77,7 @@ function back() {
       <a href="#season">The season</a>
       <a v-if="crossover" href="#crossover">Crossover</a>
       <a v-if="coop" href="#coop">Co-op</a>
+      <a v-if="solo" href="#solo">Solo</a>
     </nav>
 
     <section id="strength" class="section">
@@ -308,6 +311,46 @@ function back() {
         <li>
           <strong>Name a Champion.</strong> A league where every party names one wins far more often. It stays named from week
           to week.
+        </li>
+      </ul>
+    </section>
+
+    <section v-if="solo" id="solo" class="section">
+      <h2 class="section-title">Solo</h2>
+      <p>
+        Your party alone, with real NFL players from this season, against a campaign of monsters. No league, no draft and no
+        opponents: you build the party yourself, under a budget.
+      </p>
+      <ul class="points">
+        <li>
+          <strong>Buy your heroes.</strong> {{ solo.rosterSize }} heroes from every player and defense who has played this season. A
+          hero costs their Level squared ({{ solo.costs[0] }} gold at Level 1, {{ solo.costs.at(-1) }} at Level 10), and the cap is
+          {{ solo.cap }} gold: one star and a cheap party, or several solid fighters. At most {{ solo.classLimits.Paladin ?? 2 }} Paladins.
+        </li>
+        <li>
+          <strong>Prices are locked when you sign.</strong> Levels follow the season, so a breakout you signed early stays cheap,
+          and a slump never puts you over the cap.
+        </li>
+        <li>
+          <strong>A Quest party of {{ solo.partySize }}.</strong> They fight each week, led by your Champion; the rest wait on the
+          bench to cover byes. There's no auto-swap and no football lineup. Each player locks when their game kicks off.
+        </li>
+        <li>
+          <strong>{{ solo.swapsPerWeek }} swaps a week.</strong> Release a hero and sign another at today's price, as long as you stay
+          under the cap. Unused swaps don't carry over.
+        </li>
+        <li>
+          <strong>The campaign.</strong> {{ solo.chapters - 1 }} monsters, then a boss raid against {{ solo.boss }}, each weak to two
+          classes ({{ multiplierText(solo.weakMultiplier) }}) and resisting one ({{ multiplierText(solo.resistMultiplier) }}). Their
+          deadlines fit the weeks left in the NFL season, through week {{ solo.lastWeek }}.
+        </li>
+        <li>
+          <strong>{{ solo.lives }} lives.</strong> A monster still standing at its deadline costs a life, and the story moves on. The run
+          is won when the boss falls, and lost when the last life goes. Abandoning a run counts as a loss.
+        </li>
+        <li>
+          <strong>When to play.</strong> Runs start once NFL week 1 has gone final, and need {{ solo.minWeeks }} weeks of the season
+          left. One run at a time.
         </li>
       </ul>
     </section>

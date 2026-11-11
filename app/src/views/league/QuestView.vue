@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useApi } from '../../api/inject'
-import type { Campaign, CoopRules, ResultHero, WeekResult } from '../../api/types'
+import type { Campaign, Lineup, ResultHero, WeekResult } from '../../api/types'
 import CampaignBoard from '../../components/CampaignBoard.vue'
 import CrestShield from '../../components/CrestShield.vue'
 import D20Badge from '../../components/D20Badge.vue'
@@ -10,12 +10,13 @@ import FormError from '../../components/FormError.vue'
 import { chapterTitle, damageText, hpShown, weekStory } from '../../campaign'
 import { critLabel } from '../../heroes'
 import { useLeague } from '../../league'
-import { timeUntil } from '../../time'
+import { kickoffText, timeUntil } from '../../time'
 
 /*
  * Co-op's quest board (docs/COOP_SPEC.md): the monster the whole league is fighting, the lives left, who's dealing
  * the damage, every chapter of the campaign, and each played week. No party plays another: the list of parties is a
- * friendly ranking of who helped most.
+ * friendly ranking of who helped most. Solo (docs/SOLO_SPEC.md) is the same board for one party, with its Quest
+ * party's kickoffs this week in place of the ranking.
  */
 
 const api = useApi()
@@ -23,7 +24,10 @@ const route = useRoute()
 const { league, myParty } = useLeague()
 
 const campaign = ref<Campaign | null>(null)
-const rules = ref<CoopRules | null>(null)
+const rules = ref<{ weakMultiplier: number; resistMultiplier: number } | null>(null)
+const solo = computed(() => league.value?.mode === 'solo')
+/** Solo, while the run is played: this week's Quest party and their games */
+const lineup = ref<Lineup | null>(null)
 const result = ref<WeekResult | null>(null)
 const error = ref<unknown>(null)
 const started = computed(() => league.value?.status === 'active' || league.value?.status === 'complete')
@@ -40,11 +44,29 @@ async function loadCampaign() {
 watch(() => league.value?.resolvedWeeks, loadCampaign, { immediate: true })
 onMounted(async () => {
   try {
-    rules.value = (await api.getRules()).coop ?? null
+    const all = await api.getRules()
+    rules.value = (solo.value ? all.solo : all.coop) ?? null
   } catch {
     // The board falls back to the standard ×1.25 / ×0.75.
   }
 })
+onMounted(async () => {
+  const id = league.value?.id
+  if (!id || !solo.value || league.value?.status !== 'active') return
+  try {
+    lineup.value = await api.getLineup(id)
+  } catch {
+    // The board reads well without this week's kickoffs.
+  }
+})
+const questThisWeek = computed(() => {
+  const value = lineup.value
+  if (!value?.nextWeek) return []
+  const byId = new Map(value.roster.map(hero => [hero.id, hero]))
+  return (value.questParty ?? []).flatMap(id => byId.get(id) ?? [])
+})
+const gameText = (hero: Lineup['roster'][number]) =>
+  hero.restingNextWeek ? 'Bye this week' : hero.locked ? 'Kicked off · locked' : hero.kickoff ? kickoffText(new Date(hero.kickoff)) : ''
 
 /** The played week to show: the one asked for, or the latest */
 const playedWeeks = computed(() => Array.from({ length: campaign.value?.lastWeek ?? 0 }, (_, index) => index + 1))
@@ -89,12 +111,19 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/quest/${S
     <h1 class="title">The quest</h1>
   </header>
 
-  <p v-if="!started" class="card muted">The campaign begins once the draft has run.</p>
+  <p v-if="!started && solo" class="card muted">
+    The run begins once you confirm your party. <RouterLink v-if="league" :to="`/leagues/${league.id}/solo`">Build your party ›</RouterLink>
+  </p>
+  <p v-else-if="!started" class="card muted">The campaign begins once the draft has run.</p>
   <FormError :error="error" />
 
   <template v-if="campaign && league">
-    <CampaignBoard :campaign="campaign" :weak-multiplier="rules?.weakMultiplier" :resist-multiplier="rules?.resistMultiplier" />
-    <p v-if="campaign.nextWeek && campaign.outcome === 'ongoing'" class="muted small">
+    <CampaignBoard :campaign="campaign" :weak-multiplier="rules?.weakMultiplier" :resist-multiplier="rules?.resistMultiplier" :solo="solo" />
+    <p v-if="campaign.nextWeek && campaign.outcome === 'ongoing' && solo" class="muted small">
+      Week {{ campaign.nextWeek.week }} goes final {{ timeUntil(new Date(campaign.nextWeek.at)) }}. Your Quest party's damage counts against the
+      monster.
+    </p>
+    <p v-else-if="campaign.nextWeek && campaign.outcome === 'ongoing'" class="muted small">
       Week {{ campaign.nextWeek.week }}'s battle {{ timeUntil(new Date(campaign.nextWeek.at)) }}. Every party's damage counts against the
       monster.
     </p>
@@ -106,12 +135,32 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/quest/${S
       class="card reminder"
     >
       <span class="crown" aria-hidden="true">♛</span>
-      <span><strong>Name a Champion.</strong> They deal extra damage every battle until you choose another. Your league needs it. ›</span>
+      <span>
+        <strong>Name a Champion.</strong> They deal extra damage every battle until you choose another.
+        {{ solo ? 'Runs with one win far more often.' : 'Your league needs it.' }} ›
+      </span>
     </RouterLink>
 
-    <h2 class="section-title spaced">Who's dealing the damage</h2>
-    <p class="muted small">This chapter so far, and last week. Everyone fights the same monster.</p>
-    <ol class="helpers">
+    <template v-if="solo && questThisWeek.length">
+      <div class="row-heading">
+        <h2 class="section-title">This week's Quest party</h2>
+        <RouterLink :to="`/leagues/${league.id}/party`" class="small">Change ›</RouterLink>
+      </div>
+      <ul class="heroes">
+        <li v-for="hero in questThisWeek" :key="hero.id" class="hero week-hero" :class="{ bench: hero.restingNextWeek }">
+          <RouterLink :to="`/leagues/${league.id}/heroes/${hero.id}`" class="hero-name">
+            <span v-if="hero.id === lineup?.champion" class="crown" aria-label="Champion">♛</span>
+            {{ hero.name }}
+          </RouterLink>
+          <span class="muted small"><span v-if="hero.locked" aria-hidden="true">🔒 </span>{{ gameText(hero) }}</span>
+          <span class="num small">proj {{ hero.projected }}</span>
+        </li>
+      </ul>
+    </template>
+
+    <h2 v-if="!solo" class="section-title spaced">Who's dealing the damage</h2>
+    <p v-if="!solo" class="muted small">This chapter so far, and last week. Everyone fights the same monster.</p>
+    <ol v-if="!solo" class="helpers">
       <li v-for="row in campaign.contributions" :key="row.partyId" class="helper" :class="{ mine: isMine(row.partyId) }">
         <CrestShield :crest="row.crest" :size="26" decorative />
         <span class="helper-name">{{ row.name }} <span v-if="isMine(row.partyId)" class="you">you</span></span>
@@ -146,8 +195,8 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/quest/${S
         </li>
       </ol>
       <template v-if="result">
-        <p class="story">{{ weekStory(result, campaign.chapters) }}</p>
-        <ol class="sides">
+        <p class="story">{{ weekStory(result, campaign.chapters, solo) }}</p>
+        <ol v-if="!solo" class="sides">
           <li v-for="side in result.sides ?? []" :key="side.partyId" class="side" :class="{ mine: isMine(side.partyId) }">
             <CrestShield :crest="side.crest" :size="22" decorative />
             <span class="helper-name">{{ side.name }}</span>
@@ -317,6 +366,16 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/quest/${S
 }
 .story {
   margin: 0 0 8px;
+}
+.row-heading {
+  margin: 18px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.week-hero {
+  grid-template-columns: 1fr auto auto;
 }
 .sub-title {
   margin: 16px 0 0;

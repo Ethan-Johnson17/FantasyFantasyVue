@@ -15,17 +15,32 @@ onMounted(reload)
 watch(() => route.params.id, reload)
 
 const base = computed(() => `/leagues/${leagueId()}`)
-// Icons on a 24x24 grid: castle, shield, crossed swords, star, speech bubble.
-const tabs = computed(() => [
-  { to: base.value, label: 'League', exact: true, icon: 'M4 21V9l3 2V6l3 2V4h4v4l3-2v5l3-2v12zM10 21v-5h4v5' },
-  { to: `${base.value}/party`, label: 'Party', exact: false, icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z' },
-  // Co-op has no matchups: every party fights the campaign's monster on the Quest tab.
-  league.value?.mode === 'coop'
-    ? { to: `${base.value}/quest`, label: 'Quest', exact: false, icon: 'M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7zM9 10l6 6M15 10l-6 6' }
-    : { to: `${base.value}/matchup`, label: 'Matchup', exact: false, icon: 'M5 4l10 10M4 14l4 4 M19 4L9 14M20 14l-4 4M3 19l2 2M21 19l-2 2' },
-  { to: `${base.value}/heroes`, label: 'Heroes', exact: false, icon: 'M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z' },
-  { to: `${base.value}/chat`, label: 'Chat', exact: false, icon: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5', badge: onChat.value ? 0 : unread.value }
-])
+const solo = computed(() => league.value?.mode === 'solo')
+interface Tab {
+  to: string
+  label: string
+  exact: boolean
+  icon: string
+  badge?: number
+}
+// Icons on a 24x24 grid: castle, shield, crossed swords, star, speech bubble, coin.
+const tabs = computed((): Tab[] => {
+  const home = { to: base.value, label: solo.value ? 'Run' : 'League', exact: true, icon: 'M4 21V9l3 2V6l3 2V4h4v4l3-2v5l3-2v12zM10 21v-5h4v5' }
+  const party = { to: `${base.value}/party`, label: 'Party', exact: false, icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z' }
+  const quest = { to: `${base.value}/quest`, label: 'Quest', exact: false, icon: 'M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7zM9 10l6 6M15 10l-6 6' }
+  // A Solo run is private: no matchups, free agency or chat. Its market signs and releases heroes.
+  if (solo.value) {
+    return [home, party, quest, { to: `${base.value}/solo`, label: 'Market', exact: false, icon: 'M12 3a9 9 0 100 18 9 9 0 000-18zM14.5 9a2.5 2 0 00-2.5-1.5c-1.4 0-2.5.7-2.5 1.8 0 2.6 5 1.4 5 4 0 1.1-1.1 1.9-2.5 1.9A2.6 2 0 019.5 15M12 6v1.5M12 16.5V18' }]
+  }
+  return [
+    home,
+    party,
+    // Co-op has no matchups: every party fights the campaign's monster on the Quest tab.
+    league.value?.mode === 'coop' ? quest : { to: `${base.value}/matchup`, label: 'Matchup', exact: false, icon: 'M5 4l10 10M4 14l4 4 M19 4L9 14M20 14l-4 4M3 19l2 2M21 19l-2 2' },
+    { to: `${base.value}/heroes`, label: 'Heroes', exact: false, icon: 'M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z' },
+    { to: `${base.value}/chat`, label: 'Chat', exact: false, icon: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5', badge: onChat.value ? 0 : unread.value }
+  ]
+})
 // Tabs matter once the league has a hero pool; before that the League tab has everything.
 const showTabs = computed(() => !!league.value && league.value.status !== 'forming' && league.value.status !== 'canceled')
 
@@ -33,7 +48,8 @@ const showTabs = computed(() => !!league.value && league.value.status !== 'formi
 const unread = ref(0)
 const onChat = computed(() => route.path.endsWith('/chat'))
 async function checkUnread() {
-  if (!showTabs.value || onChat.value || document.visibilityState === 'hidden') return
+  // Solo runs have no chat.
+  if (!showTabs.value || solo.value || onChat.value || document.visibilityState === 'hidden') return
   try {
     unread.value = (await api.getChatUnread(leagueId())).unread
   } catch {

@@ -6,9 +6,10 @@ export type Visibility = 'private' | 'public'
 export type Cadence = 'daily' | 'weekly'
 /**
  * Classic hides each hero's player; Crossover (docs/CROSSOVER_SPEC.md) shows real, current players; Co-op
- * (docs/COOP_SPEC.md) is Classic with every party against the same campaign monsters, and no matchups.
+ * (docs/COOP_SPEC.md) is Classic with every party against the same campaign monsters, and no matchups. Solo
+ * (docs/SOLO_SPEC.md) is a run of one party, bought from Crossover's players, against a Co-op campaign.
  */
-export type LeagueMode = 'classic' | 'crossover' | 'coop'
+export type LeagueMode = 'classic' | 'crossover' | 'coop' | 'solo'
 
 export interface Account {
   id: string
@@ -211,6 +212,74 @@ export interface GameRules {
   crossover?: CrossoverRules
   /** Co-op's campaign rules, and whether its leagues can be created yet */
   coop?: CoopRules | null
+  /** Solo's budget, swaps and campaign, and whether runs can be started yet */
+  solo?: SoloRules | null
+}
+
+export interface SoloRules {
+  available: boolean
+  version: number
+  rosterSize: number
+  /** The Quest party: the heroes who fight */
+  partySize: number
+  classLimits: Partial<Record<HeroClass, number>>
+  /** Gold by Level, Level 1 first */
+  costs: number[]
+  cap: number
+  swapsPerWeek: number
+  /** Runs play NFL weeks firstWeek (at the earliest) through lastWeek, and need minWeeks of them */
+  firstWeek: number
+  lastWeek: number
+  minWeeks: number
+  chapters: number
+  lives: number
+  weakMultiplier: number
+  resistMultiplier: number
+  boss: string
+}
+
+/** A hero in a Solo run's pool: the price to sign them now, and their game in the run's next week. */
+export interface SoloHero extends Hero {
+  cost: number
+  /** What the run paid, for heroes in the party */
+  price: number | null
+  projected: number
+  /** Null on a bye, or before the run starts */
+  kickoff: string | null
+  locked: boolean
+}
+
+/** A Solo run's market and budget (GET /api/leagues/:id/solo). */
+export interface SoloRun {
+  status: LeagueStatus
+  /** The party is confirmed and the campaign under way (or over) */
+  confirmed: boolean
+  rosterSize: number
+  partySize: number
+  cap: number
+  costs: number[]
+  paladinLimit: number
+  /** The prices paid for the party, added up */
+  spent: number
+  swapsPerWeek: number
+  /** Swaps left this NFL week, while the run is played */
+  swapsLeft: number | null
+  /** The latest final NFL week the Levels reflect */
+  poolWeek: number | null
+  /** Before confirming: when the run would start if confirmed now, and each monster's window in weeks */
+  start: { firstWeek: number; weeks: number; windows: number[] } | null
+  /** Before confirming: why the run can't start now */
+  startProblem: string | null
+  /** The five monsters in order, with their weaknesses */
+  monsters: { name: string; weak: HeroClass[]; resists: HeroClass; boss: boolean }[]
+  /** The whole pool, the party first */
+  pool: SoloHero[]
+}
+
+export interface SoloConfirmInput {
+  heroIds: string[]
+  questParty: string[]
+  champion: string | null
 }
 
 export interface CoopRules {
@@ -257,6 +326,8 @@ export interface Campaign {
   contributions: (PartyRef & { lastWeek: number; chapter: number; total: number })[]
   /** My party, if I'm in the league; no Champion means a reminder */
   myParty: { partyId: string; hasChampion: boolean } | null
+  /** Solo: the run was abandoned, which counts as a loss */
+  abandoned?: boolean
 }
 
 export type CoopAward =
@@ -277,7 +348,36 @@ export interface CoopFinale {
   awards: CoopAward[]
 }
 
-export const isCoopFinale = (finale: Finale | CoopFinale): finale is CoopFinale => 'mode' in finale && finale.mode === 'coop'
+export const isCoopFinale = (finale: Finale | CoopFinale | SoloFinale): finale is CoopFinale => 'mode' in finale && finale.mode === 'coop'
+
+/** A hero named in a Solo award, with the real player behind them */
+export interface SoloHeroRef {
+  heroId: string
+  name: string
+  heroClass: HeroClass
+  player: { name: string; team: string; position: string } | null
+}
+
+export type SoloAward =
+  | { kind: 'biggestWeek'; week: number; damage: number }
+  | { kind: 'topHero'; hero: SoloHeroRef; damage: number }
+  | { kind: 'natural20'; count: number; hero: SoloHeroRef }
+
+/** The end of a Solo run (GET /api/leagues/:id/finale in a Solo run). */
+export interface SoloFinale {
+  mode: 'solo'
+  outcome: 'won' | 'lost'
+  /** Abandoned before the campaign ended, which counts as a loss */
+  abandoned: boolean
+  lives: number
+  livesLeft: number
+  chapters: CampaignChapter[]
+  weeksPlayed: number
+  total: number
+  awards: SoloAward[]
+}
+
+export const isSoloFinale = (finale: Finale | CoopFinale | SoloFinale): finale is SoloFinale => 'mode' in finale && finale.mode === 'solo'
 
 export interface CrossoverRules {
   available: boolean

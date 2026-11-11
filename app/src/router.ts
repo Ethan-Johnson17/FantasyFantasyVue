@@ -12,6 +12,7 @@ export const routes: RouteRecordRaw[] = [
   { path: '/leagues', name: 'leagues', component: () => import('./views/LeaguesView.vue'), meta: { auth: true } },
   { path: '/leagues/find', name: 'find', component: () => import('./views/FindLeaguesView.vue'), meta: { auth: true } },
   { path: '/leagues/new', name: 'host', component: () => import('./views/HostLeagueView.vue'), meta: { auth: true } },
+  { path: '/solo/new', name: 'solo-start', component: () => import('./views/SoloStartView.vue'), meta: { auth: true } },
   { path: '/join', name: 'join', component: () => import('./views/JoinLeagueView.vue'), meta: { auth: true } },
   {
     path: '/leagues/:id',
@@ -31,6 +32,7 @@ export const routes: RouteRecordRaw[] = [
       { path: 'heroes', name: 'heroes', component: () => import('./views/league/HeroesView.vue') },
       { path: 'heroes/:heroId', name: 'hero', component: () => import('./views/league/HeroDetailView.vue') },
       { path: 'finale', name: 'finale', component: () => import('./views/league/FinaleView.vue') },
+      { path: 'solo', name: 'solo', component: () => import('./views/league/SoloRunView.vue') },
       { path: 'draft', name: 'draft', component: () => import('./views/league/DraftRecapView.vue') },
       { path: 'chat', name: 'chat', component: () => import('./views/league/ChatView.vue') },
       { path: 'keepers', name: 'keepers', component: () => import('./views/league/KeepersView.vue') },

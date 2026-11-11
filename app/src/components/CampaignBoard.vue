@@ -6,12 +6,18 @@ import { CLASS_COLOR } from '../heroes'
 
 /*
  * Co-op's campaign at a glance: the monster the whole league is fighting, its HP, its weaknesses and deadline, and
- * the league's lives. Once the campaign is over, its outcome.
+ * the league's lives. Once the campaign is over, its outcome. Solo: the same board for one party's run.
  */
 
 const props = withDefaults(
-  defineProps<{ campaign: Campaign; weakMultiplier?: number | undefined; resistMultiplier?: number | undefined; leagueId?: string | null }>(),
-  { weakMultiplier: 1.25, resistMultiplier: 0.75, leagueId: null }
+  defineProps<{
+    campaign: Campaign
+    weakMultiplier?: number | undefined
+    resistMultiplier?: number | undefined
+    leagueId?: string | null
+    solo?: boolean
+  }>(),
+  { weakMultiplier: 1.25, resistMultiplier: 0.75, leagueId: null, solo: false }
 )
 
 const chapter = computed(() => currentChapter(props.campaign))
@@ -34,11 +40,12 @@ const lives = computed(() => Array.from({ length: props.campaign.lives }, (_, in
     </div>
 
     <template v-if="campaign.outcome === 'won'">
-      <p class="headline">The boss has fallen. The league wins the campaign!</p>
+      <p class="headline">The boss has fallen. {{ solo ? 'Your party wins the run!' : 'The league wins the campaign!' }}</p>
     </template>
     <template v-else-if="campaign.outcome === 'lost'">
-      <p class="headline">
-        The campaign is lost<template v-if="chapter"> at {{ chapter.boss ? 'the boss raid' : `chapter ${chapter.chapter}` }}</template>.
+      <p v-if="campaign.abandoned" class="headline">The run was abandoned<template v-if="chapter"> at {{ chapter.boss ? 'the boss raid' : `chapter ${chapter.chapter}` }}</template>.</p>
+      <p v-else class="headline">
+        The {{ solo ? 'run' : 'campaign' }} is lost<template v-if="chapter"> at {{ chapter.boss ? 'the boss raid' : `chapter ${chapter.chapter}` }}</template>.
       </p>
     </template>
     <template v-else-if="chapter">
