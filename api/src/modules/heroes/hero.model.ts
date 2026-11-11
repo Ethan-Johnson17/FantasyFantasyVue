@@ -30,6 +30,8 @@ const heroSchema = new Schema(
     // trait earned at the top XP tier. Both reset when the hero changes party. See modules/dynasty/xp.ts.
     xp: { type: Number, default: 0, min: 0 },
     earnedTrait: { type: String, enum: HERO_TRAITS, default: null },
+    // Solo only: the gold paid when signed, locked for as long as the hero stays (docs/SOLO_SPEC.md, "The budget")
+    price: { type: Number, default: null, min: 0 },
     // Crossover only: the real player shown with the hero. Always null in Classic, whose players stay hidden.
     player: {
       type: new Schema(

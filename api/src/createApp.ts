@@ -15,7 +15,7 @@ import { healthRouter } from './routes/health.js'
 import { rulesRouter } from './routes/rules.js'
 
 export interface AppDependencies {
-  env: Pick<Env, 'CORS_ORIGINS' | 'TRUST_PROXY_HOPS'> & Partial<Pick<Env, 'CROSSOVER_ENABLED' | 'COOP_ENABLED'>>
+  env: Pick<Env, 'CORS_ORIGINS' | 'TRUST_PROXY_HOPS'> & Partial<Pick<Env, 'CROSSOVER_ENABLED' | 'COOP_ENABLED' | 'SOLO_ENABLED'>>
   logger: Logger
   /** Validates the bearer token and populates req.auth. Injected so tests can use a local signing key. */
   authenticate: RequestHandler
@@ -47,7 +47,11 @@ export function createApp({ env, logger, authenticate }: AppDependencies) {
   )
 
   // Modes that can be switched on once finished; leagues already created keep working either way.
-  const modes = { crossoverEnabled: env.CROSSOVER_ENABLED ?? false, coopEnabled: env.COOP_ENABLED ?? false }
+  const modes = {
+    crossoverEnabled: env.CROSSOVER_ENABLED ?? false,
+    coopEnabled: env.COOP_ENABLED ?? false,
+    soloEnabled: env.SOLO_ENABLED ?? false
+  }
 
   app.use('/health', healthRouter)
   // Public, so the rules can be read before signing in. Mounted ahead of the authenticated API.

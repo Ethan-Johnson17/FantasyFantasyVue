@@ -35,10 +35,15 @@ export interface CrossoverCandidates {
  * breakout season rises week by week. Traits come from last season's weeks, so players without one have
  * none. No mystery recruits: Crossover rookies are known players, ranked by how they've played.
  */
-export async function loadCrossoverCandidates(season: number, ruleset: Ruleset): Promise<CrossoverCandidates> {
+export async function loadCrossoverCandidates(season: number, ruleset: Ruleset, throughWeek?: number): Promise<CrossoverCandidates> {
+  // Solo: only weeks that have gone final, so a game in progress never moves a Level.
+  const weeks = throughWeek === undefined ? {} : { week: trusted({ $lte: throughWeek }) }
   const [thisSeason, defenseLines] = await Promise.all([
-    PlayerWeekStatModel.find({ season, seasonType: 'REG' }, 'playerId position team week stats').sort({ week: 1 }).lean(),
-    DefenseWeekStatModel.find({ season: trusted({ $in: [season, season - 1] }), seasonType: 'REG' }, 'team season stats').lean()
+    PlayerWeekStatModel.find({ season, seasonType: 'REG', ...weeks }, 'playerId position team week stats').sort({ week: 1 }).lean(),
+    DefenseWeekStatModel.find(
+      { $or: [{ season, ...weeks }, { season: season - 1 }], seasonType: 'REG' },
+      'team season stats'
+    ).lean()
   ])
   const current = new Map<string, { position: keyof typeof CLASS_BY_POSITION; team: string; points: number[] }>()
   for (const line of thisSeason) {

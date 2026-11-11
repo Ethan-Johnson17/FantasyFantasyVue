@@ -18,14 +18,14 @@ import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models
 import { decideBattle, decideMonsterBattle, monsterDamage, scoreParty, type Outcome } from './battle.js'
 import { monsterName } from './monsters.js'
 import { byeSeeds, gameWinner, roundGames } from './bracket.js'
-import { leaguePlayoffs, nflWeekOf, resolvesAt, seasonLength, weeksDueByTime, weeksReady, type LeaguePlayoffs } from './calendar.js'
+import { followsNfl, leaguePlayoffs, nflWeekOf, resolvesAt, seasonLength, weeksDueByTime, weeksReady, type LeaguePlayoffs } from './calendar.js'
 import { xpMultiplier } from '../dynasty/xp.js'
-import { encounterFor, encounterMultiplier, type Encounter } from './encounters.js'
+import { encounterFor, encounterMultiplier } from './encounters.js'
 import { heroGames, lockedHeroes, type HeroGame } from './nflWeeks.js'
 import { critOf, type Crit } from './crits.js'
 import { heroForm, type HeroForm } from './form.service.js'
 import { applyStrategy, type Synergy } from './strategy.js'
-import { monsterMultiplier, playCampaignWeek, readMonsters, startCampaign, type CampaignState } from './campaign.js'
+import { campaignRulesOf, monsterMultiplier, playCampaignWeek, readMonsters, startCampaign, type CampaignState, type CoopMonster } from './campaign.js'
 import { WeekResultModel, type WeekResultDocument } from './weekResult.model.js'
 
 /*
@@ -128,7 +128,7 @@ export async function seasonChampion(league: LeagueDocument, standings?: readonl
 }
 
 async function resolveWeek(league: LeagueDocument, week: number): Promise<boolean> {
-  if (league.mode === 'coop') return resolveCoopWeek(league, week)
+  if (league.mode === 'coop' || league.mode === 'solo') return resolveCampaignWeek(league, week)
   const { season, seed } = league
   await schedulePlayoffWeek(league, week)
   const scheduled = league.schedule?.find(entry => entry.week === week)
@@ -156,7 +156,12 @@ async function resolveWeek(league: LeagueDocument, week: number): Promise<boolea
     // Crossover's Quest is fought against the week's encounter; Classic has none.
     const encounter = ruleset.quest ? encounterFor(seed, week) : null
     const sides = new Map(
-      parties.map(party => [party.id, encounter ? buildCrossoverSide(party, heroes, points, ruleset, encounter) : buildSide(party, heroes, points, ruleset)])
+      parties.map(party => [
+        party.id,
+        encounter
+          ? buildQuestSide(party, heroes, points, ruleset, heroClass => encounterMultiplier(encounter, heroClass, quest(ruleset)))
+          : buildSide(party, heroes, points, ruleset)
+      ])
     )
     const monsterTotal = monsterDamage([...sides.values()].map(side => side.total))
     const monsterGridiron = encounter ? monsterDamage([...sides.values()].map(side => side.gridiron?.total ?? 0)) : null
@@ -219,8 +224,9 @@ export async function campaignBefore(
   session: ClientSession | null = null
 ): Promise<CampaignState> {
   const monsters = readMonsters(league.campaign)
-  if (!ruleset.coop || monsters.length === 0) throw new Error('This league has no campaign')
-  if (week <= 1) return startCampaign(monsters, ruleset.coop)
+  const rules = campaignRulesOf(ruleset)
+  if (!rules || monsters.length === 0) throw new Error('This league has no campaign')
+  if (week <= 1) return startCampaign(monsters, rules)
   const previous = await WeekResultModel.findOne({ leagueId: league._id, week: week - 1 }).session(session)
   if (!previous?.campaign) throw new Error(`Week ${String(week - 1)} has no campaign result`)
   const { chapter, hpLeft, livesLeft, outcome } = previous.campaign.state
@@ -228,13 +234,14 @@ export async function campaignBefore(
 }
 
 /**
- * A Co-op game week (docs/COOP_SPEC.md): every party's Classic damage, with the chapter monster's weaknesses, goes to
- * that monster. The league ends as soon as the campaign is won or lost.
+ * A campaign game week. Co-op (docs/COOP_SPEC.md): every party's Classic damage, with the chapter monster's
+ * weaknesses, goes to that monster. Solo (docs/SOLO_SPEC.md): the one party's Quest damage, from the NFL week the game
+ * week follows. The league ends as soon as the campaign is won or lost.
  */
-async function resolveCoopWeek(league: LeagueDocument, week: number): Promise<boolean> {
+async function resolveCampaignWeek(league: LeagueDocument, week: number): Promise<boolean> {
   const { season } = league
   const ruleset = getRuleset(league.rulesetVersion)
-  const rules = ruleset.coop
+  const rules = campaignRulesOf(ruleset)
   const monsters = readMonsters(league.campaign)
   if (season === undefined || season === null || !rules || monsters.length === 0) throw new Error(`League ${league.id} is missing campaign data`)
 
@@ -256,8 +263,11 @@ async function resolveCoopWeek(league: LeagueDocument, week: number): Promise<bo
         .select('+source')
         .session(session)
     ])
-    const points = await heroPoints(heroes, season, week, ruleset, session)
-    const sides = parties.map(party => buildSide(party, heroes, points, ruleset, heroClass => monsterMultiplier(monster, heroClass, rules)))
+    const points = await heroPoints(heroes, season, nflWeekOf(league, week), ruleset, session)
+    const modifier = (heroClass: HeroClass) => monsterMultiplier(monster, heroClass, rules)
+    const sides = parties.map(party =>
+      ruleset.quest ? buildQuestSide(party, heroes, points, ruleset, modifier) : buildSide(party, heroes, points, ruleset, modifier)
+    )
     const played = playCampaignWeek(before, sides.reduce((sum, side) => sum + side.total, 0), week, monsters)
 
     await WeekResultModel.create(
@@ -347,22 +357,28 @@ function buildSide(
   }
 }
 
+const quest = (ruleset: Ruleset) => {
+  if (!ruleset.quest) throw new Error('This ruleset has no Quest rules')
+  return ruleset.quest
+}
+
 /**
- * One Crossover party's week: two boards (docs/CROSSOVER_SPEC.md). Gridiron: the football lineup's plain fantasy
- * points. Quest: the Quest party's class damage against the encounter, with natural 20s and 1s that count, the
- * Champion (who must be in the Quest party) and synergies.
+ * One party's Quest week. Crossover (docs/CROSSOVER_SPEC.md) has two boards. Gridiron: the football lineup's plain
+ * fantasy points. Quest: the Quest party's class damage against the encounter, with natural 20s and 1s that count,
+ * the Champion (who must be in the Quest party) and synergies. Solo (docs/SOLO_SPEC.md) has only the Quest board,
+ * against the campaign's monster; `modifier` is the encounter's or monster's weakness or resistance per class.
  */
-function buildCrossoverSide(
+function buildQuestSide(
   party: PartyDocument,
   heroes: readonly HeroDocument[],
   points: ReadonlyMap<string, HeroPoints>,
   ruleset: Ruleset,
-  encounter: Encounter
+  modifier: (heroClass: HeroClass) => number
 ) {
-  const quest = ruleset.quest
-  if (!quest) throw new Error('A Crossover ruleset needs Quest rules')
-  const lineup = readLineup(party.lineup)
-  if (!lineup) throw new Error(`Party ${party.id} has no lineup`)
+  const rules = quest(ruleset)
+  const footballLineup = ruleset.lineup.slots.length > 0
+  const lineup = readLineup(party.lineup) ?? {}
+  if (footballLineup && Object.keys(lineup).length === 0) throw new Error(`Party ${party.id} has no lineup`)
   const slotByHero = new Map(Object.entries(lineup).map(([slot, heroId]) => [heroId, slot]))
   const questParty = new Set((party.questParty ?? []).map(String))
   const roster = heroes.filter(hero => hero.partyId?.equals(party._id))
@@ -378,9 +394,9 @@ function buildCrossoverSide(
     let questDamage = damage
     if (inQuest) {
       const crit = critOf({ slot: 'quest', points: earned.points, resting: earned.resting }, hero.heroClass, ruleset)
-      if (crit === 'success') questDamage *= quest.natural20Multiplier
-      if (crit === 'fail') questDamage *= quest.natural1Multiplier
-      questDamage *= encounterMultiplier(encounter, hero.heroClass, quest)
+      if (crit === 'success') questDamage *= rules.natural20Multiplier
+      if (crit === 'fail') questDamage *= rules.natural1Multiplier
+      questDamage *= modifier(hero.heroClass)
     }
     const line = { heroId: hero._id, slot, ...earned, swappedInto: null, counted: inQuest ? round2(questDamage) : 0, quest: inQuest }
     return { hero, line, fights: inQuest && !earned.resting, damage: round2(damage) }
@@ -396,11 +412,13 @@ function buildCrossoverSide(
     fighting.map(({ line }) => line.counted),
     lines.filter(entry => !entry.line.quest).map(entry => entry.damage)
   )
-  // Gridiron: the football starters' plain fantasy points; the bench's points break ties.
-  const gridiron = scoreParty(
-    lines.filter(entry => entry.line.slot !== 'Bench').map(entry => entry.line.points),
-    lines.filter(entry => entry.line.slot === 'Bench').map(entry => entry.line.points)
-  )
+  // Gridiron: the football starters' plain fantasy points; the bench's points break ties. Solo has no Gridiron.
+  const gridiron = footballLineup
+    ? scoreParty(
+        lines.filter(entry => entry.line.slot !== 'Bench').map(entry => entry.line.points),
+        lines.filter(entry => entry.line.slot === 'Bench').map(entry => entry.line.points)
+      )
+    : null
   return {
     partyId: party._id,
     ...score,
@@ -429,10 +447,13 @@ export interface LineupView {
    * that week (null on a bye), and `locked` once it has started, so they can't move in or out of the lineup.
    */
   roster: (HeroView & { restingNextWeek: boolean; projected: number; kickoff: Date | null; locked: boolean })[]
-  /** Crossover only: the Quest party's hero ids, and how many it holds; null in Classic */
+  /** Crossover and Solo: the Quest party's hero ids, and how many it holds; null in Classic */
   questParty: string[] | null
   questPartySize: number | null
-  /** Crossover only: what the next week's Quest is fought with: the encounter, its modifiers, and class multipliers */
+  /**
+   * Crossover and Solo: what the next week's Quest is fought with: the encounter (Solo: the campaign's current
+   * monster), its modifiers, and class multipliers
+   */
   quest: {
     encounter: { name: string; weak: string[]; resists: string } | null
     weakMultiplier: number
@@ -476,6 +497,7 @@ export async function getLineup(member: AccountDocument, leagueId: string): Prom
 
 export async function setLineup(member: AccountDocument, leagueId: string, lineup: Lineup): Promise<LineupView> {
   const { league, party } = await loadLeagueAsMember(member, leagueId)
+  if (league.mode === 'solo') throw new BadRequest('Solo runs have no football lineup: set your Quest party')
   if (league.status !== 'active') throw new Conflict('Lineups can be set after the draft and until the season ends')
 
   const heroes = await HeroModel.find({ leagueId: league._id, partyId: party._id }).select('+source')
@@ -527,8 +549,15 @@ export async function setChampion(member: AccountDocument, leagueId: string, her
 }
 
 async function questInfo(league: LeagueDocument, ruleset: Ruleset, week: number | null): Promise<NonNullable<LineupView['quest']>> {
-  const seed = week === null ? null : (await LeagueModel.findById(league._id).select('+seed'))?.seed
-  const encounter = seed && week !== null ? encounterFor(seed, week) : null
+  let encounter: Pick<CoopMonster, 'name' | 'weak' | 'resists'> | null = null
+  if (league.mode === 'solo') {
+    // Solo fights the campaign's current monster.
+    const monsters = readMonsters(league.campaign)
+    if (week !== null && monsters.length) encounter = monsters[(await campaignBefore(league, week, ruleset)).chapter - 1] ?? null
+  } else {
+    const seed = week === null ? null : (await LeagueModel.findById(league._id).select('+seed'))?.seed
+    encounter = seed && week !== null ? encounterFor(seed, week) : null
+  }
   return {
     encounter: encounter ? { name: encounter.name, weak: [...encounter.weak], resists: encounter.resists } : null,
     weakMultiplier: ruleset.quest?.weakMultiplier ?? 1,
@@ -544,7 +573,7 @@ async function questInfo(league: LeagueDocument, ruleset: Ruleset, week: number 
 export async function setQuestParty(member: AccountDocument, leagueId: string, heroIds: readonly string[]): Promise<LineupView> {
   const { league, party } = await loadLeagueAsMember(member, leagueId)
   const quest = getRuleset(league.rulesetVersion).quest
-  if (!quest) throw new BadRequest('Only Crossover leagues have a Quest party')
+  if (!quest) throw new BadRequest('Only Crossover leagues and Solo runs have a Quest party')
   if (league.status !== 'active') throw new Conflict('The Quest party can be set after the draft and until the season ends')
   const chosen = new Set(heroIds)
   if (chosen.size !== heroIds.length) throw new BadRequest('Each hero can join the Quest party once')
@@ -578,7 +607,7 @@ async function seasonOf(league: LeagueDocument): Promise<number | null> {
  * only know byes ahead of time (no game that NFL week).
  */
 export async function restingHeroes(league: LeagueDocument, roster: readonly HeroDocument[], week: number): Promise<Set<string>> {
-  if (league.mode === 'crossover') {
+  if (followsNfl(league.mode)) {
     const games = await weekGames(league, roster, week)
     return new Set([...games].filter(([, game]) => game === null).map(([id]) => id))
   }
@@ -589,9 +618,9 @@ export async function restingHeroes(league: LeagueDocument, roster: readonly Her
   return new Set([...points].filter(([, value]) => value.resting).map(([id]) => id))
 }
 
-/** Crossover: each hero's NFL game in a game week (empty for Classic, which has no real kickoffs). */
+/** Crossover and Solo: each hero's NFL game in a game week (empty for Classic, which has no real kickoffs). */
 export async function weekGames(league: LeagueDocument, heroes: readonly HeroDocument[], week: number): Promise<Map<string, HeroGame | null>> {
-  if (league.mode !== 'crossover' || !league.nflWeeks?.length) return new Map()
+  if (!followsNfl(league.mode) || !league.nflWeeks?.length) return new Map()
   const season = await seasonOf(league)
   return season === null ? new Map() : heroGames(heroes, season, nflWeekOf(league, week))
 }
@@ -649,7 +678,7 @@ export async function getSchedule(viewer: AccountDocument, leagueId: string): Pr
     const result = resultByWeek.get(scheduled.week)
     return {
       week: scheduled.week,
-      nflWeek: league.mode === 'crossover' ? nflWeekOf(league, scheduled.week) : null,
+      nflWeek: followsNfl(league.mode) ? nflWeekOf(league, scheduled.week) : null,
       resolvesAt: resolvesAt(league, scheduled.week),
       matchups: scheduled.matchups.map(matchup => {
         const played = result?.matchups.find(m => m.home.partyId.equals(matchup.home))
@@ -810,6 +839,7 @@ export interface StandingView extends PartyRef {
 export async function getStandings(viewer: AccountDocument, leagueId: string): Promise<StandingView[]> {
   const league = await loadVisibleLeague(viewer, leagueId)
   if (league.mode === 'coop') throw new Conflict('Co-op leagues have no standings: every party fights the same campaign')
+  if (league.mode === 'solo') throw new Conflict('Solo runs have no standings: see the campaign')
   return computeStandings(league)
 }
 

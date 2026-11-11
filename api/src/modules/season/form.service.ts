@@ -3,7 +3,7 @@ import type { HeroDocument } from '../heroes/hero.model.js'
 import { expectedLevel } from '../heroes/pool.js'
 import { LeagueModel, type LeagueDocument } from '../leagues/league.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
-import { nflWeekOf } from './calendar.js'
+import { followsNfl, nflWeekOf } from './calendar.js'
 import { scoreDefense, scoreOffense } from '../scoring/scoring.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../stats/stats.models.js'
 
@@ -45,7 +45,7 @@ export const PROJECTION_PRIOR_BATTLES = 3
  * their whole season counts: every week before the next battle, or before the draft, every game so far.
  */
 export function formThroughWeek(league: LeagueDocument): number {
-  if (league.mode !== 'crossover') return league.resolvedWeeks
+  if (!followsNfl(league.mode)) return league.resolvedWeeks
   return league.nflWeeks?.length ? nflWeekOf(league, league.resolvedWeeks) : Number.MAX_SAFE_INTEGER
 }
 

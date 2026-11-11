@@ -5,16 +5,18 @@ import { loadVisibleLeague } from '../leagues/league.access.js'
 import { DEFAULT_CREST, toCrest, type Crest } from '../leagues/crests.js'
 import type { LeagueDocument } from '../leagues/league.model.js'
 import { PartyModel } from '../leagues/party.model.js'
+import type { PlayerCard } from '../draft/crossoverCandidates.js'
 import { getRuleset } from '../scoring/rulesets.js'
-import { readMonsters, startCampaign, type CampaignOutcome, type CampaignState } from './campaign.js'
+import { campaignRulesOf, readMonsters, startCampaign, type CampaignOutcome, type CampaignState } from './campaign.js'
 import { critOf } from './crits.js'
 import { foughtLine, nextWeek } from './season.service.js'
 import { WeekResultModel } from './weekResult.model.js'
 
 /*
- * Co-op's quest board and finale (docs/COOP_SPEC.md, "Parties and contribution"). There are no standings: parties are
- * listed by the damage they dealt, highest first, as a friendly ranking of who helped most. Party totals are exact;
- * nothing here names a hero's player or the hidden season.
+ * The campaign's quest board and finale. Co-op (docs/COOP_SPEC.md, "Parties and contribution") has no standings:
+ * parties are listed by the damage they dealt, highest first, as a friendly ranking of who helped most; nothing names
+ * a hero's player or the hidden season. Solo (docs/SOLO_SPEC.md) is the same board for one party, whose players are
+ * real and shown. Party totals are exact.
  */
 
 export interface PartyRef {
@@ -40,6 +42,8 @@ export interface ChapterView {
 }
 
 export interface CampaignView {
+  /** Solo: the run was abandoned, which counts as a loss */
+  abandoned: boolean
   lives: number
   livesLeft: number
   outcome: CampaignOutcome
@@ -70,7 +74,10 @@ async function campaignView(viewer: AccountDocument, league: LeagueDocument): Pr
     PartyModel.findOne({ leagueId: league._id, accountId: viewer._id }, 'champion')
   ])
   const last = results.at(-1)
-  const state: CampaignState = last?.campaign ? plainState(last.campaign.state) : startCampaign(monsters, rules)
+  const played: CampaignState = last?.campaign ? plainState(last.campaign.state) : startCampaign(monsters, rules)
+  // Solo: abandoning a run loses it where it stands.
+  const abandoned = league.solo?.abandoned ?? false
+  const state: CampaignState = abandoned && played.outcome === 'ongoing' ? { ...played, outcome: 'lost' } : played
 
   // Each chapter's end: the week it fell, or the week its deadline passed.
   const fell = new Map<number, number>()
@@ -108,6 +115,7 @@ async function campaignView(viewer: AccountDocument, league: LeagueDocument): Pr
     .sort((a, b) => b.chapter - a.chapter || b.total - a.total || a.name.localeCompare(b.name))
 
   return {
+    abandoned,
     lives: rules.lives,
     livesLeft: state.livesLeft,
     outcome: state.outcome,
@@ -204,11 +212,104 @@ export async function getCoopFinale(viewer: AccountDocument, league: LeagueDocum
   }
 }
 
+export interface SoloHeroRef {
+  heroId: string
+  name: string
+  heroClass: string
+  player: PlayerCard | null
+}
+
+export type SoloAward =
+  /** The run's highest weekly damage */
+  | { kind: 'biggestWeek'; week: number; damage: number }
+  /** The hero who dealt the most Quest damage over the run */
+  | { kind: 'topHero'; hero: SoloHeroRef; damage: number }
+  /** The run's natural 20s (critical successes), and the hero who rolled the most */
+  | { kind: 'natural20'; count: number; hero: SoloHeroRef }
+
+export interface SoloFinaleView {
+  mode: 'solo'
+  outcome: Exclude<CampaignOutcome, 'ongoing'>
+  abandoned: boolean
+  lives: number
+  livesLeft: number
+  chapters: ChapterView[]
+  /** Game weeks played, and the run's damage over them */
+  weeksPlayed: number
+  total: number
+  awards: SoloAward[]
+}
+
+/**
+ * The end of a Solo run (docs/SOLO_SPEC.md, "What users see"): victory or defeat, every chapter, and the run's best
+ * moments. Hero damage is rounded, as on every board.
+ */
+export async function getSoloFinale(viewer: AccountDocument, league: LeagueDocument): Promise<SoloFinaleView> {
+  const { rules } = campaignOf(league)
+  const campaign = await campaignView(viewer, league)
+  if (campaign.outcome === 'ongoing') throw new Conflict("The campaign isn't over yet")
+  const [results, heroes] = await Promise.all([
+    WeekResultModel.find({ leagueId: league._id }).sort({ week: 1 }),
+    HeroModel.find({ leagueId: league._id }, 'name heroClass player')
+  ])
+  const ruleset = getRuleset(league.rulesetVersion)
+  const heroById = new Map(heroes.map(hero => [hero.id, hero]))
+  const ref = (id: string): SoloHeroRef => {
+    const hero = heroById.get(id)
+    const player = hero?.player ? { name: hero.player.name, team: hero.player.team, position: hero.player.position } : null
+    return { heroId: id, name: hero?.name ?? 'Unknown hero', heroClass: hero?.heroClass ?? '', player }
+  }
+
+  const weeks = results.map(result => ({ week: result.week, total: result.sides?.[0]?.total ?? 0, lines: result.sides?.[0]?.heroes ?? [] }))
+  const damage = new Map<string, number>()
+  const natural20s = new Map<string, number>()
+  for (const { lines } of weeks) {
+    for (const line of lines) {
+      if (!line.quest) continue
+      const id = line.heroId.toString()
+      damage.set(id, add(damage.get(id), line.counted))
+      if (critOf(foughtLine(line, true), heroById.get(id)?.heroClass ?? 'Mage', ruleset) === 'success') {
+        natural20s.set(id, (natural20s.get(id) ?? 0) + 1)
+      }
+    }
+  }
+  /** The hero with the most of something; ties go to the hero who dealt more damage, then the first by id. */
+  const most = (counts: ReadonlyMap<string, number>) =>
+    [...counts]
+      .filter(([, count]) => count > 0)
+      .sort(([a, x], [b, y]) => y - x || (damage.get(b) ?? 0) - (damage.get(a) ?? 0) || a.localeCompare(b))[0]
+
+  const awards: SoloAward[] = []
+  const biggest = [...weeks].sort((a, b) => b.total - a.total || a.week - b.week)[0]
+  if (biggest && biggest.total > 0) awards.push({ kind: 'biggestWeek', week: biggest.week, damage: Math.round(biggest.total) })
+  const top = most(damage)
+  if (top) awards.push({ kind: 'topHero', hero: ref(top[0]), damage: Math.round(top[1]) })
+  const lucky = most(natural20s)
+  if (lucky) {
+    const count = [...natural20s.values()].reduce((sum, value) => sum + value, 0)
+    awards.push({ kind: 'natural20', count, hero: ref(lucky[0]) })
+  }
+
+  return {
+    mode: 'solo',
+    outcome: campaign.outcome,
+    abandoned: campaign.abandoned,
+    lives: rules.lives,
+    livesLeft: campaign.livesLeft,
+    chapters: campaign.chapters,
+    weeksPlayed: weeks.length,
+    total: weeks.reduce((sum, week) => add(sum, week.total), 0),
+    awards
+  }
+}
+
 function campaignOf(league: LeagueDocument) {
-  const rules = getRuleset(league.rulesetVersion).coop
-  if (!rules) throw new Conflict('Only Co-op leagues have a campaign')
+  const rules = campaignRulesOf(getRuleset(league.rulesetVersion))
+  if (!rules) throw new Conflict('Only Co-op leagues and Solo runs have a campaign')
   const monsters = readMonsters(league.campaign)
-  if (monsters.length === 0) throw new Conflict('The campaign begins once the draft has run')
+  if (monsters.length === 0) {
+    throw new Conflict(league.mode === 'solo' ? 'The campaign begins once your party is confirmed' : 'The campaign begins once the draft has run')
+  }
   return { rules, monsters }
 }
 

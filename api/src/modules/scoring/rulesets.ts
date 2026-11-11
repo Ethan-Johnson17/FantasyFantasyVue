@@ -124,6 +124,42 @@ export interface CoopRules {
   hpVariation: number
 }
 
+/**
+ * Solo (docs/SOLO_SPEC.md): one party, bought under a budget from the whole current-season pool, against a campaign
+ * scaled to the weeks left. HP is the best buyable party's projected damage at the start x projectionScale x weeks in
+ * the chapter's window x the chapter or boss factor, varied by up to +/- hpVariation from the run's seed.
+ */
+export interface SoloRules {
+  /** A hero's price in gold by Level, Level 1 first */
+  costs: readonly number[]
+  /** Gold for the whole roster, at the prices paid */
+  cap: number
+  /** Swaps (release one hero, sign another) per NFL week; unused swaps don't carry over */
+  swapsPerWeek: number
+  /** A run starts no earlier than this NFL week: the pool needs a played week */
+  firstWeek: number
+  /** Runs play through this NFL week */
+  lastWeek: number
+  /** Weeks a run needs, from its first through lastWeek */
+  minWeeks: number
+  /** Monsters in the campaign; the last is the boss */
+  chapters: number
+  /** Missed deadlines the run survives: losing the last one ends it */
+  lives: number
+  /** Damage multiplier for a class the monster is weak to */
+  weakMultiplier: number
+  /** Damage multiplier for the class the monster resists */
+  resistMultiplier: number
+  /** Turns the best party's projection into what such a party deals (Champion, synergies, crits) */
+  projectionScale: number
+  /** A bench spot's worth against a fighter's 1 when finding the best party: it only covers byes */
+  benchWeight: number
+  chapterFactor: number
+  bossFactor: number
+  /** Each monster's HP varies by up to this share, from the seed */
+  hpVariation: number
+}
+
 export interface Ruleset {
   readonly version: number
   /** The game mode this ruleset is for; a league's mode and ruleset always match */
@@ -138,6 +174,8 @@ export interface Ruleset {
   readonly quest?: Readonly<QuestRules>
   /** Co-op only: the campaign against shared monsters, instead of matchups between parties */
   readonly coop?: Readonly<CoopRules>
+  /** Solo only: the budget, swaps and the campaign scaled to the weeks left */
+  readonly solo?: Readonly<SoloRules>
   /**
    * Average class damage per battle at Level 1..10, by class: what a Level is worth. Turns a mystery recruit's
    * damage into a "playing like Lv X" estimate.
@@ -286,14 +324,55 @@ export const COOP_V1: Ruleset = {
   }
 }
 
-const RULESETS = new Map<number, Ruleset>([RULESET_V1, CROSSOVER_V1, COOP_V1].map(ruleset => [ruleset.version, ruleset]))
+/**
+ * Solo (docs/SOLO_SPEC.md): Crossover's players, Quest damage and kickoff locks, a roster of 8 bought under a budget,
+ * and Co-op's campaign for one party. Balanced with `npm run simulate:solo` on 2012-2025 (decided 2026-11-10): a
+ * sensible build wins 68% of runs, two stars 69%, even fighters 64%, never naming a Champion 43%.
+ */
+export const SOLO_V1: Ruleset = {
+  ...CROSSOVER_V1,
+  version: 4,
+  mode: 'solo',
+  lineup: {
+    ...CROSSOVER_V1.lineup,
+    rosterSize: 8,
+    // No football lineup: only the Quest party of 5 fights, the other 3 are the bench.
+    slots: []
+  },
+  pool: {
+    // The whole pool: every current-season player and defense who has played, Levels as deciles of each class.
+    perParty: { Mage: Infinity, Warrior: Infinity, Ranger: Infinity, Rogue: Infinity, Paladin: Infinity },
+    minPerParty: 8
+  },
+  solo: {
+    // Level squared, 1 to 100 gold
+    costs: [1, 4, 9, 16, 25, 36, 49, 64, 81, 100],
+    cap: 116,
+    swapsPerWeek: 2,
+    firstWeek: 2,
+    lastWeek: 17,
+    minWeeks: 8,
+    chapters: 5,
+    lives: 3,
+    weakMultiplier: 1.25,
+    resistMultiplier: 0.75,
+    projectionScale: 1.12,
+    benchWeight: 0.35,
+    chapterFactor: 1,
+    bossFactor: 1,
+    hpVariation: 0.15
+  }
+}
+
+const RULESETS = new Map<number, Ruleset>([RULESET_V1, CROSSOVER_V1, COOP_V1, SOLO_V1].map(ruleset => [ruleset.version, ruleset]))
 
 export const CURRENT_RULESET_VERSION = RULESET_V1.version
 /** The ruleset new leagues of each mode start with */
 export const RULESET_FOR_MODE: Readonly<Record<LeagueMode, number>> = {
   classic: RULESET_V1.version,
   crossover: CROSSOVER_V1.version,
-  coop: COOP_V1.version
+  coop: COOP_V1.version,
+  solo: SOLO_V1.version
 }
 
 export function getRuleset(version: number): Ruleset {

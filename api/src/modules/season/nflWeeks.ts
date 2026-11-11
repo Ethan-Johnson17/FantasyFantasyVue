@@ -74,6 +74,25 @@ export async function crossoverWeeks(season: number, firstWeek: number): Promise
   return weeks.map(week => ({ nflWeek: week._id, finalAt: weekFinalAt(week.lastKickoff) }))
 }
 
+/**
+ * The latest regular-season week through `lastWeek` that has gone final by `at` (its final time has passed and its
+ * data is in), or null if none has: what Solo's pool reflects, so Levels move once a week, not during games.
+ */
+export async function latestFinalWeek(season: number, lastWeek: number, at = new Date()): Promise<number | null> {
+  const weeks = await NflGameModel.aggregate<{ _id: number; lastKickoff: Date }>([
+    { $match: { season, seasonType: 'REG', week: trusted({ $lte: lastWeek }) } },
+    { $group: { _id: '$week', lastKickoff: { $max: '$kickoff' } } },
+    { $sort: { _id: -1 } }
+  ])
+  for (const week of weeks) {
+    const finalAt = weekFinalAt(week.lastKickoff)
+    if (finalAt > at) continue
+    // Weeks go final in order, so the first ready one is the latest.
+    if (await nflWeekReady(season, week._id, finalAt)) return week._id
+  }
+  return null
+}
+
 /** Every game of the NFL week is final, and the season was imported after the week's final time. */
 export async function nflWeekReady(season: number, nflWeek: number, finalAt: Date): Promise<boolean> {
   const [unfinished, games, imported] = await Promise.all([

@@ -67,7 +67,7 @@ export function cleanMessage(text: string): string {
 }
 
 export async function listMessages(viewer: AccountDocument, leagueId: string, before?: string): Promise<ChatPageView> {
-  const { league, party } = await loadLeagueAsMember(viewer, leagueId)
+  const { league, party } = await loadChatMember(viewer, leagueId)
   const found = await ChatMessageModel.find({ leagueId: league._id, ...(before ? { _id: trusted({ $lt: before }) } : {}) })
     .sort({ _id: -1 })
     .limit(CHAT_PAGE_SIZE + 1)
@@ -82,6 +82,13 @@ export async function listMessages(viewer: AccountDocument, leagueId: string, be
     canModerate,
     readOnly: league.status === 'canceled'
   }
+}
+
+/** A member of a league with chat: Solo runs are private to their one player, so they have none. */
+async function loadChatMember(viewer: AccountDocument, leagueId: string): Promise<{ league: LeagueDocument; party: PartyDocument }> {
+  const member = await loadLeagueAsMember(viewer, leagueId)
+  if (member.league.mode === 'solo') throw new NotFound()
+  return member
 }
 
 /** Moves a party's read marker forward (never back, if requests arrive out of order). */
@@ -105,7 +112,7 @@ export async function unreadCount(party: Pick<PartyDocument, 'leagueId' | 'accou
 }
 
 export async function getUnread(viewer: AccountDocument, leagueId: string): Promise<{ unread: number }> {
-  const { party } = await loadLeagueAsMember(viewer, leagueId)
+  const { party } = await loadChatMember(viewer, leagueId)
   return { unread: await unreadCount(party) }
 }
 
@@ -116,7 +123,7 @@ export async function forgetChatAuthor(accountId: Types.ObjectId): Promise<void>
 }
 
 export async function postMessage(viewer: AccountDocument, leagueId: string, text: string): Promise<ChatMessageView> {
-  const { league, party } = await loadLeagueAsMember(viewer, leagueId)
+  const { league, party } = await loadChatMember(viewer, leagueId)
   if (league.status === 'canceled') throw new Conflict('This league was canceled, so its chat is closed')
   const message = await ChatMessageModel.create({
     leagueId: league._id,
@@ -130,7 +137,7 @@ export async function postMessage(viewer: AccountDocument, leagueId: string, tex
 
 /** Authors can remove their own messages; the host can remove anyone's. */
 export async function deleteMessage(viewer: AccountDocument, leagueId: string, messageId: string): Promise<void> {
-  const { league } = await loadLeagueAsMember(viewer, leagueId)
+  const { league } = await loadChatMember(viewer, leagueId)
   const message = await ChatMessageModel.findOne({ _id: messageId, leagueId: league._id })
   if (!message) throw new NotFound()
   if (!message.accountId.equals(viewer._id) && !league.hostId.equals(viewer._id)) {
@@ -141,7 +148,7 @@ export async function deleteMessage(viewer: AccountDocument, leagueId: string, m
 
 /** Flags a message for the host. Reporting twice counts once; your own messages can't be reported. */
 export async function reportMessage(viewer: AccountDocument, leagueId: string, messageId: string): Promise<ChatMessageView> {
-  const { league } = await loadLeagueAsMember(viewer, leagueId)
+  const { league } = await loadChatMember(viewer, leagueId)
   const message = await ChatMessageModel.findOne({ _id: messageId, leagueId: league._id })
   if (!message) throw new NotFound()
   if (message.accountId.equals(viewer._id)) throw new BadRequest('You can’t report your own message')

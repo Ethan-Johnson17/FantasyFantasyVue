@@ -1,12 +1,21 @@
 import { createRng } from '../../lib/random.js'
 import { HERO_CLASSES, type HeroClass } from '../heroes/classes.js'
-import type { CoopRules } from '../scoring/rulesets.js'
+import type { CoopRules, Ruleset } from '../scoring/rulesets.js'
 import { ENCOUNTERS } from './encounters.js'
 
 /*
- * Co-op's campaign rules (docs/COOP_SPEC.md, "The campaign"). Pure, so the season engine and the balancing simulation
- * (scripts/simulate-coop.ts) play exactly the same rules.
+ * Co-op's campaign rules (docs/COOP_SPEC.md, "The campaign"), which Solo plays for one party (docs/SOLO_SPEC.md).
+ * Pure, so the season engine and the balancing simulations (scripts/simulate-coop.ts, simulate-solo.ts) play exactly
+ * the same rules.
  */
+
+/** What playing a campaign needs from a ruleset: Co-op's or Solo's */
+export type CampaignRules = Pick<CoopRules, 'lives' | 'weakMultiplier' | 'resistMultiplier'>
+
+/** The ruleset's campaign rules, or null for modes without a campaign. */
+export function campaignRulesOf(ruleset: Ruleset): CampaignRules | null {
+  return ruleset.coop ?? ruleset.solo ?? null
+}
 
 /** The boss raid's monster: an eleventh, stronger monster, with a fifth encounter's weaknesses and resistance */
 export const BOSS_NAME = 'The Dragon Tyrant'
@@ -74,7 +83,7 @@ export function readMonsters(campaign: { monsters: readonly StoredMonster[] } | 
 }
 
 /** A monster's damage multiplier for a class: weak, resisted, or neither. */
-export function monsterMultiplier(monster: Pick<CoopMonster, 'weak' | 'resists'>, heroClass: HeroClass, rules: CoopRules): number {
+export function monsterMultiplier(monster: Pick<CoopMonster, 'weak' | 'resists'>, heroClass: HeroClass, rules: CampaignRules): number {
   if (monster.weak.includes(heroClass)) return rules.weakMultiplier
   if (monster.resists === heroClass) return rules.resistMultiplier
   return 1
@@ -109,7 +118,7 @@ export interface CampaignWeek {
 
 const hundredths = (value: number) => Math.round(value * 100)
 
-export function startCampaign(monsters: readonly CoopMonster[], rules: CoopRules): CampaignState {
+export function startCampaign(monsters: readonly CoopMonster[], rules: Pick<CampaignRules, 'lives'>): CampaignState {
   const first = monsters[0]
   if (!first) throw new Error('A campaign needs monsters')
   return { chapter: 1, hpLeft: first.hp, livesLeft: rules.lives, outcome: 'ongoing' }

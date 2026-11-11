@@ -5,12 +5,15 @@ export const LEAGUE_STATUSES = ['forming', 'drafting', 'active', 'complete', 'ca
 export const LEAGUE_VISIBILITIES = ['private', 'public'] as const
 /**
  * Classic hides each hero's player; Crossover (docs/CROSSOVER_SPEC.md) shows real, current players; Co-op
- * (docs/COOP_SPEC.md) plays Classic with every party against the same campaign monsters, and no matchups.
+ * (docs/COOP_SPEC.md) plays Classic with every party against the same campaign monsters, and no matchups. Solo
+ * (docs/SOLO_SPEC.md) is a private run for one party: Crossover's players against a campaign.
  */
-export const LEAGUE_MODES = ['classic', 'crossover', 'coop'] as const
+export const LEAGUE_MODES = ['classic', 'crossover', 'coop', 'solo'] as const
 export type LeagueMode = (typeof LEAGUE_MODES)[number]
 export const LEAGUE_CADENCES = ['daily', 'weekly'] as const
 export const MIN_PARTIES = 2
+/** A Solo run has exactly one party */
+export const SOLO_PARTIES = 1
 export const MAX_PARTIES = 12
 export const LEAGUE_NAME_MAX = 50
 
@@ -69,7 +72,8 @@ const leagueSchema = new Schema(
     playoffs: { type: Boolean, default: false, immutable: true },
     visibility: { type: String, required: true, enum: LEAGUE_VISIBILITIES },
     cadence: { type: String, required: true, enum: LEAGUE_CADENCES },
-    maxParties: { type: Number, required: true, min: MIN_PARTIES, max: MAX_PARTIES },
+    // MIN_PARTIES for every league, SOLO_PARTIES for a Solo run (league.schemas.ts and solo.service.ts check which)
+    maxParties: { type: Number, required: true, min: SOLO_PARTIES, max: MAX_PARTIES },
     // Maintained transactionally alongside Party inserts/deletes so capacity checks are atomic.
     partyCount: { type: Number, required: true, default: 0, min: 0 },
     // Locked at creation so later ruleset changes never alter this league's results.
@@ -157,7 +161,18 @@ const leagueSchema = new Schema(
       ),
       default: null
     },
-    // Crossover only, set when the draft runs: the NFL week each game week uses and when it goes final
+    // Solo only: the last final NFL week the pool's Levels and traits reflect, and whether the run was abandoned
+    // (which counts as a loss). Solo runs are private: they have a PIN only because every league does, and it's
+    // never shown or accepted.
+    solo: {
+      type: new Schema(
+        { poolWeek: { type: Number, required: true }, abandoned: { type: Boolean, default: false } },
+        { _id: false }
+      ),
+      default: null
+    },
+    // Crossover and Solo, set when the draft runs (Solo: when the party is confirmed): the NFL week each game week
+    // uses and when it goes final
     nflWeeks: {
       type: [new Schema({ nflWeek: { type: Number, required: true }, finalAt: { type: Date, required: true } }, { _id: false })],
       default: undefined

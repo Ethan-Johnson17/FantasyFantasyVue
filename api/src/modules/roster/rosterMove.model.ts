@@ -2,10 +2,11 @@ import { model, Schema, type InferSchemaType } from 'mongoose'
 
 /*
  * A record of every roster change after the draft, shown to the league as recent moves.
- * Free-agent claims only in the MVP; post-MVP trades would add their own kind.
+ * Free-agent claims, and Solo's swaps (docs/SOLO_SPEC.md, "Lineup, swaps and locks"); post-MVP trades would add
+ * their own kind.
  */
 
-export const ROSTER_MOVE_KINDS = ['claim'] as const
+export const ROSTER_MOVE_KINDS = ['claim', 'swap'] as const
 
 const rosterMoveSchema = new Schema(
   {
@@ -20,6 +21,8 @@ const rosterMoveSchema = new Schema(
   { timestamps: { createdAt: true, updatedAt: false } }
 )
 rosterMoveSchema.index({ leagueId: 1, createdAt: -1 })
+// Solo: a run's swaps in a game week
+rosterMoveSchema.index({ leagueId: 1, effectiveWeek: 1 })
 
 export type RosterMove = InferSchemaType<typeof rosterMoveSchema>
 

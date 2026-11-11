@@ -19,7 +19,9 @@ const EnvSchema = z.object({
   // Crossover leagues can be created only when this is "true": off until every build phase is done.
   CROSSOVER_ENABLED: z.stringbool().default(false),
   // Co-op leagues likewise (docs/COOP_SPEC.md): off until the app's Co-op screens ship.
-  COOP_ENABLED: z.stringbool().default(false)
+  COOP_ENABLED: z.stringbool().default(false),
+  // Solo runs likewise (docs/SOLO_SPEC.md): off until the app's Solo screens ship.
+  SOLO_ENABLED: z.stringbool().default(false)
 })
 
 export type Env = z.infer<typeof EnvSchema>
