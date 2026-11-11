@@ -98,6 +98,7 @@ interface LiveWeek {
 export async function getMatchup(member: AccountDocument, leagueId: string, requestedWeek?: number): Promise<MatchupView> {
   const { league, party } = await loadLeagueAsMember(member, leagueId)
   if (league.mode === 'coop') throw new Conflict('Co-op leagues have no matchups: see the campaign')
+  if (league.mode === 'solo') throw new Conflict('Solo runs have no matchups: see the campaign')
   const upcoming = nextWeek(league)
   if (!upcoming) throw new NotFound('There is no upcoming battle')
   const week = requestedWeek ?? upcoming.week

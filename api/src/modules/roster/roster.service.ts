@@ -9,7 +9,7 @@ import { LeagueModel } from '../leagues/league.model.js'
 import { PartyModel, readLineup, storedLineup } from '../leagues/party.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
 import { getLineup, lockedThisWeek, readyWeekCount, type LineupView } from '../season/season.service.js'
-import { RosterMoveModel } from './rosterMove.model.js'
+import { RosterMoveModel, type ROSTER_MOVE_KINDS } from './rosterMove.model.js'
 
 const { trusted } = mongoose
 
@@ -26,6 +26,7 @@ export async function claimFreeAgent(
   dropHeroId: string
 ): Promise<LineupView> {
   const { league, party } = await loadLeagueAsMember(member, leagueId)
+  if (league.mode === 'solo') throw new BadRequest('Solo runs have no free agency: swap heroes instead')
   if (league.status !== 'active') throw new Conflict('Free agents can be claimed after the draft and until the season ends')
   if (heroId === dropHeroId) throw new BadRequest('Choose a different hero to drop')
   const { slots, classLimits } = getRuleset(league.rulesetVersion).lineup
@@ -136,7 +137,8 @@ interface MoveHero {
 }
 
 export interface RosterMoveView {
-  kind: 'claim'
+  /** A free-agent claim, or a Solo swap */
+  kind: (typeof ROSTER_MOVE_KINDS)[number]
   party: { partyId: string; name: string }
   added: MoveHero
   dropped: MoveHero

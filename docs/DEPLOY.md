@@ -144,4 +144,14 @@ Co-op screens appear once it's on, so deploy the app first.
 2. **Deployments → the latest → Redeploy**, so the setting takes effect. To switch it off again, remove the variable
    and redeploy; existing Co-op leagues keep playing.
 
+## 11. Switch on Solo
+
+Solo runs can be started only when the API's `SOLO_ENABLED` setting is `true` (docs/SOLO_SPEC.md). Leave it off until
+the app's Solo screens ship, then deploy the app first.
+
+1. Vercel → the API project (`fantasy-fantasy`) → **Settings → Environment Variables → Add**: name `SOLO_ENABLED`,
+   value `true`, environment **Production**.
+2. **Deployments → the latest → Redeploy**, so the setting takes effect. To switch it off again, remove the variable
+   and redeploy; runs already started keep playing.
+
 Remaining launch items (Google sign-in keys, and so on) are in `ROADMAP.md` under "Before public launch".

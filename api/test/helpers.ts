@@ -8,12 +8,22 @@ const AUDIENCE = 'https://fantasyfantasy.test/api'
 const SECRET = 'test-only-signing-secret-at-least-32-bytes!'
 
 /**
- * Builds the real app, with token validation pointed at a local HS256 key instead of Auth0. Crossover and Co-op
- * are on, so their tests can create leagues; production keeps a mode off until it's finished.
+ * Builds the real app, with token validation pointed at a local HS256 key instead of Auth0. Crossover, Co-op and
+ * Solo are on, so their tests can create leagues and runs; production keeps a mode off until it's finished.
  */
-export function buildTestApp({ crossoverEnabled = true, coopEnabled = true }: { crossoverEnabled?: boolean; coopEnabled?: boolean } = {}) {
+export function buildTestApp({
+  crossoverEnabled = true,
+  coopEnabled = true,
+  soloEnabled = true
+}: { crossoverEnabled?: boolean; coopEnabled?: boolean; soloEnabled?: boolean } = {}) {
   return createApp({
-    env: { CORS_ORIGINS: ['http://localhost:8080'], TRUST_PROXY_HOPS: 0, CROSSOVER_ENABLED: crossoverEnabled, COOP_ENABLED: coopEnabled },
+    env: {
+      CORS_ORIGINS: ['http://localhost:8080'],
+      TRUST_PROXY_HOPS: 0,
+      CROSSOVER_ENABLED: crossoverEnabled,
+      COOP_ENABLED: coopEnabled,
+      SOLO_ENABLED: soloEnabled
+    },
     logger: createLogger({ NODE_ENV: 'test', LOG_LEVEL: 'silent' }),
     authenticate: jwtAuthenticator({ issuer: ISSUER, audience: AUDIENCE, secret: SECRET, tokenSigningAlg: 'HS256' })
   })

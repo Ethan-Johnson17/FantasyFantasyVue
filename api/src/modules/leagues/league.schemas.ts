@@ -110,6 +110,23 @@ export const QuestPartySchema = z
   .object({ heroIds: z.array(ObjectIdSchema.transform(id => id.toLowerCase())).min(1).max(10) })
   .strict()
 
+const HeroIdSchema = ObjectIdSchema.transform(id => id.toLowerCase())
+
+/** Solo: start a run with this party's name and crest */
+export const StartSoloSchema = z.object({ party: PartyInputSchema }).strict()
+
+/** Solo: the party to confirm. Sizes and the budget depend on the ruleset (checked in the service). */
+export const ConfirmSoloSchema = z
+  .object({
+    heroIds: z.array(HeroIdSchema).min(1).max(20),
+    questParty: z.array(HeroIdSchema).min(1).max(10),
+    champion: HeroIdSchema.nullable()
+  })
+  .strict()
+
+/** Solo: release one hero and sign another */
+export const SwapSchema = z.object({ releaseHeroId: HeroIdSchema, signHeroId: HeroIdSchema }).strict()
+
 export const MatchupQuerySchema = z.object({ week: WeekParamSchema.optional() }).strict()
 
 export const PageQuerySchema = z.object({ page: z.coerce.number().int().min(1).max(100).default(1) })

@@ -177,12 +177,63 @@ variation), so later tuning never changes running campaigns.
 **Launch switch:** Solo runs can be started only when the API's `SOLO_ENABLED` setting is `true`, off in production
 until every build phase is done.
 
+## API
+
+Built 2026-11-10. The rules are pure (`api/src/modules/solo/soloRules.ts`: prices, the best-party search, windows,
+monsters), shared by the server and the balancing simulation, and the Solo ruleset is version 4 (`SOLO_V1`). A run is
+a league of one with `mode: "solo"`, so the calendar, week results, campaign board and finale are the league's own.
+
+- **Starting:** `POST /api/leagues/solo` with `{ party: { name, crest } }`; refused (409) unless the API's
+  `SOLO_ENABLED` setting is on, while the account has another run being built or played, before NFL week 1 has gone
+  final, and once the first NFL week still to kick off is after week 10. `POST /api/leagues` with `mode: "solo"` is
+  refused (400): runs aren't hosted.
+- **Private:** a run is named "Solo run" and has one party. It has a PIN only because every league does: the PIN is
+  never shown, previewed or accepted for joining, and there's no chat, draft, free agency, football lineup, matchup,
+  standings or league settings.
+- **The pool** fills when the run is first opened and follows the latest NFL week that has gone final (Tuesday
+  morning, with the data in): every player and defense who has played, with Levels as deciles of each class and traits
+  from last season. Players new to the pool get heroes; heroes already in it keep their names and looks. A game in
+  progress never moves a Level.
+- **`GET /api/leagues/:id/solo`** (only the run's player): the cap, prices by Level, the roster and party sizes, the
+  Paladin limit, gold spent, swaps left this week, the NFL week the Levels reflect, when the run would start if
+  confirmed now (its first NFL week, weeks and each monster's window) or why it can't, the five monsters with their
+  weaknesses, and the whole pool (each hero's player, Level, price now, price paid, projection, kickoff and lock).
+- **`POST /api/leagues/:id/solo/confirm`** with `{ heroIds, questParty, champion }`: 8 different heroes from the
+  pool, at most 2 Paladins, under the cap at the prices of the moment (so if Levels moved since the pool was shown,
+  the total is checked again); a Quest party of 5 from them; a Champion from the Quest party, or null. Week 1 is the
+  first NFL week kicking off afterwards; the monsters' HP comes from the best party the cap could buy from the same
+  pool, so every run starting that week faces the same strength. Prices paid are stored with each hero.
+- **`POST /api/leagues/:id/solo/swaps`** with `{ releaseHeroId, signHeroId }`: up to 2 per NFL week, counted until
+  the week resolves; neither hero may have kicked off; the party stays under the cap at the prices paid and within the
+  Paladin limit, or nothing changes. The signed hero takes the released hero's place in the Quest party *(default)*,
+  and releasing the Champion leaves the party without one until another is named *(default)*. Swaps show in
+  `GET /api/leagues/:id/moves` as `kind: "swap"`.
+- **The Quest party and Champion** are set with Crossover's `PUT /api/leagues/:id/quest-party` and `PUT /champion`,
+  with kickoff locks; the lineup's `quest.encounter` is the campaign's current monster.
+- **Each game week** plays the Quest party's Crossover damage (class damage, natural 20s and 1s, Champion, synergies)
+  with the monster's ×1.25 / ×0.75, against the current chapter, from the NFL week it follows. There's no Gridiron.
+  The run completes as soon as the campaign is won or lost.
+- **Abandoning:** `POST /api/leagues/:id/cancel`. A run still being built is canceled; once confirmed, it ends as a
+  loss (`abandoned: true` on the campaign and finale) *(default, as above)*. Either way the account can start a new
+  run.
+- **`GET /api/leagues/:id/campaign`** and **`/results/:week`** are Co-op's, for one party, with the players' real
+  points.
+- **`GET /api/leagues/:id/finale`** returns `mode: "solo"`: victory or defeat, whether it was abandoned, every
+  chapter, the weeks played and total damage, and the awards: Biggest Week, the hero who dealt the most, and the run's
+  natural 20s with the hero who rolled the most *(default: the moments listed under "What users see")*.
+- **My leagues:** the run is listed like a league, with the campaign in its outlook (chapter, monster, HP, lives) and
+  the next battle naming the monster; there's no standing.
+- **Rules:** `GET /api/rules` gains `solo` (whether it's available, roster and party sizes, the Paladin limit, prices,
+  cap, swaps, first and last weeks, weeks needed, chapters, lives, class modifiers, the boss's name).
+- **The simulation** (`npm run simulate:solo`) now plays the server's own prices, best-party search and monsters.
+
 ## Build phases
 
 1. **Spec review** (this document): done 2026-11-09.
 2. **Balancing simulation:** the cap, costs, HP and difficulty factors, on real seasons: done 2026-11-10.
 3. **API:** the `solo` mode, the pool with costs, building and confirming a party, swaps and locks, the scaled
-   campaign, finale; tests on both sides of the visible-player line.
+   campaign, finale; tests on both sides of the visible-player line: built 2026-11-10 (see "API" above). Solo runs
+   can be started only once `SOLO_ENABLED` is on.
 4. **App:** start a run, build your party, the quest board, party and swaps, finale, How it works.
 
 Each phase is its own branch and pull request.

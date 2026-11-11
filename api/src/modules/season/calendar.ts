@@ -12,10 +12,15 @@ import { SEASON_WEEKS } from './schedule.js'
 
 type CalendarLeague = Pick<LeagueDocument, 'mode' | 'weekOneAt' | 'cadence' | 'nflWeeks' | 'playoffs' | 'partyCount'>
 
+/** Crossover and Solo play the real NFL season as it happens; Classic and Co-op replay a hidden one. */
+export function followsNfl(mode: LeagueDocument['mode']): boolean {
+  return mode === 'crossover' || mode === 'solo'
+}
+
 /** Game weeks in the league's season: Classic adds its playoff rounds to the 14-week regular season, and
  * Crossover's playoffs fit inside its NFL weeks. */
 export function seasonLength(league: CalendarLeague): number {
-  if (league.mode === 'crossover') return league.nflWeeks?.length ?? 0
+  if (followsNfl(league.mode)) return league.nflWeeks?.length ?? 0
   return SEASON_WEEKS + (league.playoffs ? playoffFormat(league.partyCount).rounds : 0)
 }
 
@@ -43,7 +48,7 @@ export function leaguePlayoffs(
 
 /** The NFL week whose stats a game week uses. Week 0 is the week before the league's first. */
 export function nflWeekOf(league: CalendarLeague, week: number): number {
-  if (league.mode !== 'crossover') return week
+  if (!followsNfl(league.mode)) return week
   const first = league.nflWeeks?.[0]?.nflWeek
   if (first === undefined) throw new Error('This Crossover league has no calendar yet')
   return first + week - 1
@@ -51,7 +56,7 @@ export function nflWeekOf(league: CalendarLeague, week: number): number {
 
 /** When a game week is due to resolve, or null before the calendar exists. */
 export function resolvesAt(league: CalendarLeague, week: number): Date | null {
-  if (league.mode === 'crossover') return league.nflWeeks?.[week - 1]?.finalAt ?? null
+  if (followsNfl(league.mode)) return league.nflWeeks?.[week - 1]?.finalAt ?? null
   return league.weekOneAt ? new Date(league.weekOneAt.getTime() + (week - 1) * CADENCE_MS[league.cadence]) : null
 }
 
@@ -76,7 +81,7 @@ export async function weeksReady(
   now = Date.now()
 ): Promise<number> {
   const due = weeksDueByTime(league, now)
-  if (league.mode !== 'crossover') return due
+  if (!followsNfl(league.mode)) return due
   for (let week = league.resolvedWeeks + 1; week <= due; week++) {
     const finalAt = resolvesAt(league, week)
     if (!finalAt || !(await nflWeekReady(season, nflWeekOf(league, week), finalAt))) return week - 1

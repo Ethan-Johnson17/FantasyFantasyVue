@@ -144,8 +144,8 @@ export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueVi
       return {
         ...toSummary(league, viewer, profiles, true),
         myParty: { id: party.id, name: party.name, crest: crestOf(party) },
-        // Co-op has no standings: its outlook carries the campaign instead.
-        standing: league.resolvedWeeks > 0 && league.mode !== 'coop' ? await standingOf(league, party.id) : null,
+        // Co-op and Solo have no standings: their outlook carries the campaign instead.
+        standing: league.resolvedWeeks > 0 && league.mode !== 'coop' && league.mode !== 'solo' ? await standingOf(league, party.id) : null,
         outlook: await partyOutlook(league, party),
         unreadChat: await unreadCount(party)
       }
@@ -174,7 +174,8 @@ export async function listPublicLeagues(viewer: AccountDocument, page: number): 
 /** What someone holding a PIN sees before joining. */
 export async function previewLeagueByPin(viewer: AccountDocument, pin: string): Promise<LeagueSummaryView> {
   const league = await LeagueModel.findOne({ pin })
-  if (!league) throw new NotFound('No league found with that PIN')
+  // Solo runs are private: their PIN is never accepted.
+  if (!league || league.mode === 'solo') throw new NotFound('No league found with that PIN')
   const profiles = await loadProfiles([league.hostId])
   return toSummary(league, viewer, profiles, true)
 }
@@ -193,6 +194,7 @@ export async function createLeague(host: AccountDocument, input: CreateLeagueInp
   const { party, dynastySeasons, ...requested } = input
   const crossover = requested.mode === 'crossover'
   const coop = requested.mode === 'coop'
+  if (requested.mode === 'solo') throw new BadRequest('Solo runs are started on their own, not hosted as a league')
   if ((crossover || coop) && dynastySeasons) throw new BadRequest('Dynasty leagues are Classic for now')
   if (coop && !options.coopEnabled) throw new Conflict('Co-op leagues aren’t available yet')
   if (crossover) {
@@ -245,7 +247,12 @@ export async function joinLeague(member: AccountDocument, pin: string, party: Pa
           { session, returnDocument: 'before' }
         )
       : await LeagueModel.findOneAndUpdate(
-          { pin, status: 'forming', $expr: trusted({ $lt: [{ $add: ['$partyCount', { $size: '$openParties' }] }, '$maxParties'] }) },
+          {
+            pin,
+            status: 'forming',
+            mode: trusted({ $ne: 'solo' }),
+            $expr: trusted({ $lt: [{ $add: ['$partyCount', { $size: '$openParties' }] }, '$maxParties'] })
+          },
           { $inc: { partyCount: 1 } },
           { session, returnDocument: 'after' }
         )
@@ -277,6 +284,7 @@ export async function updateLeague(
   input: UpdateLeagueInput
 ): Promise<LeagueDetailView> {
   const league = await loadLeagueAsHost(viewer, leagueId)
+  if (league.mode === 'solo') throw new BadRequest('Solo runs have no league settings to change')
   if (league.mode === 'crossover' && input.cadence !== undefined && input.cadence !== 'weekly') {
     throw new BadRequest('Crossover leagues follow the NFL’s weeks, so they’re always weekly')
   }
@@ -296,9 +304,21 @@ export async function updateLeague(
   return getLeague(viewer, leagueId)
 }
 
+/**
+ * Cancels a league. A Solo run being built is canceled too, but once its party is confirmed, abandoning it ends the
+ * run as a loss (docs/SOLO_SPEC.md, "Starting a run").
+ */
 export async function cancelLeague(viewer: AccountDocument, leagueId: string): Promise<LeagueDetailView> {
-  await loadLeagueAsHost(viewer, leagueId)
+  const league = await loadLeagueAsHost(viewer, leagueId)
   const endedAt = new Date()
+  if (league.mode === 'solo' && league.status === 'active') {
+    const abandoned = await LeagueModel.updateOne(
+      { _id: league._id, status: 'active' },
+      { $set: { status: 'complete', endedAt, 'solo.abandoned': true } }
+    )
+    if (abandoned.modifiedCount === 0) throw new Conflict('This run has already ended')
+    return getLeague(viewer, leagueId)
+  }
   const canceled = await LeagueModel.findOneAndUpdate(
     { _id: leagueId, status: trusted({ $in: ACTIVE_STATUSES }) },
     { $set: { status: 'canceled', endedAt } }
@@ -372,7 +392,7 @@ export async function removePartyFromLeague(league: LeagueDocument, party: Party
 
 async function explainJoinFailure(pin: string, session: ClientSession, takeOver?: string): Promise<Error> {
   const league = await LeagueModel.findOne({ pin }).session(session)
-  if (!league) return new NotFound('No league found with that PIN')
+  if (!league || league.mode === 'solo') return new NotFound('No league found with that PIN')
   if (league.status !== 'forming') return new Conflict('This league is no longer accepting parties')
   if (takeOver) return new Conflict('That party has already been taken over')
   return new Conflict('This league is full')
@@ -411,7 +431,8 @@ function toSummary(
   profiles: ReadonlyMap<string, ProfileView>,
   canSeePin: boolean
 ): LeagueSummaryView {
-  const showPin = canSeePin || league.visibility === 'public'
+  // Solo runs are private to their player: no PIN to share.
+  const showPin = league.mode !== 'solo' && (canSeePin || league.visibility === 'public')
   return {
     id: league.id,
     name: league.name,

@@ -61,6 +61,7 @@ export interface HeroView {
 
 export async function scheduleDraft(host: AccountDocument, leagueId: string, draftAt: Date): Promise<void> {
   const league = await loadLeagueAsHost(host, leagueId)
+  if (league.mode === 'solo') throw new BadRequest('Solo runs have no draft: build your party and confirm it')
   const now = Date.now()
   if (draftAt.getTime() < now + MIN_DRAFT_LEAD_MS || draftAt.getTime() > now + MAX_DRAFT_LEAD_MS) {
     throw new BadRequest('The draft must be between 10 minutes and 14 days from now')

@@ -23,6 +23,9 @@ import {
   QuestPartySchema,
   RankingsSchema,
   ScheduleDraftSchema,
+  ConfirmSoloSchema,
+  StartSoloSchema,
+  SwapSchema,
   UpdateLeagueSchema,
   UpdatePartySchema,
   WeekParamSchema
@@ -31,6 +34,8 @@ import * as dynasty from '../dynasty/dynasty.service.js'
 import * as leagues from './league.service.js'
 import type { CreateOptions } from './league.service.js'
 import { getCampaign } from '../season/campaign.service.js'
+import * as solo from '../solo/solo.service.js'
+import type { SoloOptions } from '../solo/solo.service.js'
 
 export const PIN_ATTEMPTS_PER_MINUTE = 20
 
@@ -46,7 +51,7 @@ const pinLimiter = () =>
     message: { error: { status: 429, message: 'Too many attempts, try again in a minute' } }
   })
 
-export function leagueRouter(modes: CreateOptions) {
+export function leagueRouter(modes: CreateOptions & SoloOptions) {
   const limitPinAttempts = pinLimiter()
   return Router()
     // Every /:id route first brings the league up to date (runs a due draft, resolves due weeks).
@@ -57,6 +62,14 @@ export function leagueRouter(modes: CreateOptions) {
     })
     .post('/', async (req, res) => {
       res.status(201).json(await leagues.createLeague(currentAccount(req), CreateLeagueSchema.parse(req.body), modes))
+    })
+    // Solo (docs/SOLO_SPEC.md): a private run for one party, started on its own rather than hosted
+    .post('/solo', async (req, res) => {
+      const { party } = StartSoloSchema.parse(req.body)
+      const id = await solo.startRun(currentAccount(req), party, modes)
+      // Fill the pool now, so the run opens ready to build.
+      await advanceLeague(id)
+      res.status(201).json(await leagues.getLeague(currentAccount(req), id))
     })
     .get('/mine', async (req, res) => {
       res.json(await leagues.listMyLeagues(currentAccount(req)))
@@ -156,6 +169,20 @@ export function leagueRouter(modes: CreateOptions) {
     .get('/:id/results/:week', async (req, res) => {
       const week = WeekParamSchema.parse(req.params.week)
       res.json(await season.getWeekResult(currentAccount(req), parseId(req.params.id), week))
+    })
+    .get('/:id/solo', async (req, res) => {
+      res.json(await solo.getSolo(currentAccount(req), parseId(req.params.id)))
+    })
+    .post('/:id/solo/confirm', async (req, res) => {
+      const leagueId = parseId(req.params.id)
+      await solo.confirmRun(currentAccount(req), leagueId, ConfirmSoloSchema.parse(req.body))
+      res.json(await solo.getSolo(currentAccount(req), leagueId))
+    })
+    .post('/:id/solo/swaps', async (req, res) => {
+      const leagueId = parseId(req.params.id)
+      const { releaseHeroId, signHeroId } = SwapSchema.parse(req.body)
+      await solo.swapHero(currentAccount(req), leagueId, releaseHeroId, signHeroId)
+      res.json(await solo.getSolo(currentAccount(req), leagueId))
     })
     .get('/:id/campaign', async (req, res) => {
       res.json(await getCampaign(currentAccount(req), parseId(req.params.id)))

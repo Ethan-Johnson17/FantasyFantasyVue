@@ -7,7 +7,7 @@ import { loadVisibleLeague } from '../leagues/league.access.js'
 import { PartyModel } from '../leagues/party.model.js'
 import { computeStandings, foughtLine, seasonChampion, type StandingView } from './season.service.js'
 import { WeekResultModel } from './weekResult.model.js'
-import { getCoopFinale, type CoopFinaleView } from './campaign.service.js'
+import { getCoopFinale, getSoloFinale, type CoopFinaleView, type SoloFinaleView } from './campaign.service.js'
 
 /*
  * The end-of-season finale: the champion, final standings, and awards from the stored results.
@@ -46,11 +46,12 @@ export interface FinaleView {
   awards: Award[]
 }
 
-export async function getFinale(viewer: AccountDocument, leagueId: string): Promise<FinaleView | CoopFinaleView> {
+export async function getFinale(viewer: AccountDocument, leagueId: string): Promise<FinaleView | CoopFinaleView | SoloFinaleView> {
   const league = await loadVisibleLeague(viewer, leagueId)
   if (league.status !== 'complete') throw new Conflict("The season isn't over yet")
   // Co-op has no champion or standings: the campaign's own finale.
   if (league.mode === 'coop') return getCoopFinale(viewer, league)
+  if (league.mode === 'solo') return getSoloFinale(viewer, league)
 
   const [standings, results, heroes, mine] = await Promise.all([
     computeStandings(league),

@@ -219,7 +219,7 @@ describe('the Quest party', () => {
     const id = await draftedLeague([alice])
     const res = await alice.put(`/api/leagues/${id}/quest-party`, { heroIds: ['0123456789abcdef01234567'] })
     expect(res.status).toBe(400)
-    expect(res.body.error.message).toBe('Only Crossover leagues have a Quest party')
+    expect(res.body.error.message).toBe('Only Crossover leagues and Solo runs have a Quest party')
     const lineup = (await alice.get(`/api/leagues/${id}/lineup`)).body as { questParty: unknown; questPartySize: unknown }
     expect(lineup).toMatchObject({ questParty: null, questPartySize: null })
     const matchup = (await alice.get(`/api/leagues/${id}/matchup`)).body as { encounter: unknown; me: { questParty: unknown } }

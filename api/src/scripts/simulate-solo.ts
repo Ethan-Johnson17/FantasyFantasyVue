@@ -2,8 +2,8 @@
  * Solo balancing simulation (docs/SOLO_SPEC.md, "Balancing"). Read-only: it loads past seasons' stats and plays Solo
  * runs entirely in memory, as if each past season were the current one. Heroes are ranked and given Levels the way
  * Crossover does it, week by week; the Quest damage is Crossover's (class damage, natural 20s and 1s, the monster's
- * weaknesses, Champion and synergies); the campaign is the engine's own Co-op code (season/campaign.ts). Nothing is
- * written to the database.
+ * weaknesses, Champion and synergies); prices, the best-party search and the monsters are the server's own Solo code
+ * (solo/soloRules.ts), and the campaign is the engine's (season/campaign.ts). Nothing is written to the database.
  *
  *   npm run simulate:solo                              measure, then search the boss factor (Level² costs, cap 116)
  *   npm run simulate:solo -- --cap 116 --boss 1.1      report one setting in detail
@@ -21,18 +21,18 @@ import { parseArgs } from 'node:util'
 import mongoose from 'mongoose'
 import { loadEnv } from '../config/env.js'
 import { configureMongoose } from '../db/mongoose.js'
-import { createRng } from '../lib/random.js'
 import { FIRST_LEAGUE_SEASON, LAST_LEAGUE_SEASON, MIN_PREVIOUS_GAMES, weeklyProfile } from '../modules/draft/candidates.js'
 import { levelOnePoints } from '../modules/draft/crossoverCandidates.js'
 import { CLASS_BY_POSITION, HERO_CLASSES, type HeroClass } from '../modules/heroes/classes.js'
 import { assignTraits, type HeroTrait, type PoolCandidate } from '../modules/heroes/pool.js'
-import { COOP_V1, CROSSOVER_V1, type CoopRules, type Ruleset } from '../modules/scoring/rulesets.js'
+import { CROSSOVER_V1, SOLO_V1, type Ruleset } from '../modules/scoring/rulesets.js'
 import { scoreDefense, scoreOffense } from '../modules/scoring/scoring.js'
-import { BOSS_NAME, monsterMultiplier, playCampaignWeek, startCampaign, type CoopMonster } from '../modules/season/campaign.js'
+import { monsterMultiplier, playCampaignWeek, startCampaign, type CoopMonster } from '../modules/season/campaign.js'
 import { critOf } from '../modules/season/crits.js'
 import { ENCOUNTERS } from '../modules/season/encounters.js'
 import { projectDamage } from '../modules/season/form.service.js'
 import { applyStrategy } from '../modules/season/strategy.js'
+import { bestParty, soloMonsters, soloWindows, type PartySlots } from '../modules/solo/soloRules.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../modules/stats/stats.models.js'
 
 const { values } = parseArgs({
@@ -68,22 +68,20 @@ const QUEST = (() => {
   if (!RULESET.quest) throw new Error('The Crossover ruleset has no Quest rules')
   return RULESET.quest
 })()
-/** Lives and class modifiers as in Co-op (docs/SOLO_SPEC.md, "The campaign") */
-const COOP = (() => {
-  if (!COOP_V1.coop) throw new Error('The Co-op ruleset has no campaign rules')
-  return COOP_V1.coop
+/** Solo's rules (docs/SOLO_SPEC.md): lives and class modifiers, the budget, swaps and calendar */
+const SOLO = (() => {
+  if (!SOLO_V1.solo) throw new Error('The Solo ruleset has no Solo rules')
+  return SOLO_V1.solo
 })()
-
-/** Solo's spec values (docs/SOLO_SPEC.md) */
-const ROSTER = 8
-const PARTY = 5
-const SWAPS_PER_WEEK = 2
-const MAX_PALADINS = 2
-const LAST_WEEK = 17
+const ROSTER = SOLO_V1.lineup.rosterSize
+const PARTY = SOLO_V1.quest?.partySize ?? 5
+const SWAPS_PER_WEEK = SOLO.swapsPerWeek
+const MAX_PALADINS = SOLO_V1.lineup.classLimits.Paladin ?? 2
+const LAST_WEEK = SOLO.lastWeek
 /** Decided 2026-11-10: with fewer, most monsters get one week and a bad Sunday costs a life */
-const MIN_WEEKS = 8
+const MIN_WEEKS = SOLO.minWeeks
 /** The pool only has players who have played this season, so the earliest start is NFL week 2. */
-const FIRST_START = 2
+const FIRST_START = SOLO.firstWeek
 const LAST_START = LAST_WEEK - MIN_WEEKS + 1
 /** A league-sized pool, for comparison: what a six-party Crossover league would draw */
 const LEAGUE_PARTIES = 6
@@ -99,7 +97,7 @@ const PLAN_NAMES: Record<Plan, string> = {
   noChampion: 'Sensible, never a Champion'
 }
 /** How much a bench spot is worth when buying, against a fighter's 1: it only covers byes */
-const BENCH_WEIGHT = 0.35
+const BENCH_WEIGHT = SOLO.benchWeight
 
 // ---------------------------------------------------------------------------
 // Stats: each season's weekly points and the season before (for priors and traits)
@@ -195,78 +193,13 @@ function poolAsOf(sources: readonly Source[], week: number, kind: PoolKind): Map
 }
 
 // ---------------------------------------------------------------------------
-// Buying a party under the cap: an exact knapsack over fighters (worth 1) and bench spots (worth BENCH_WEIGHT)
+// Buying a party under the cap: the server's exact search over fighters (worth 1) and bench spots (worth BENCH_WEIGHT)
 
-interface Slots {
-  fighters: number
-  bench: number
-  /** Paladins still allowed */
-  paladins: number
-}
+type Slots = PartySlots
 
 function buy(pool: Iterable<Hero>, cap: number, slots: Slots, maxCost = Infinity): Hero[] {
-  // Within one class and cost only the best few can matter.
-  const groups = new Map<string, Hero[]>()
-  for (const hero of pool) {
-    if (hero.cost > maxCost) continue
-    const key = `${hero.heroClass}:${String(hero.level)}`
-    groups.set(key, [...(groups.get(key) ?? []), hero])
-  }
-  const items = [...groups.values()].flatMap(group => group.sort((a, b) => b.value - a.value || a.id.localeCompare(b.id)).slice(0, ROSTER))
-  // dp[f][b][p][c]: best worth with f fighters, b bench, p Paladins, cost exactly c
-  const F = slots.fighters + 1
-  const B = slots.bench + 1
-  const P = slots.paladins + 1
-  const C = cap + 1
-  const index = (f: number, b: number, p: number, c: number) => ((f * B + b) * P + p) * C + c
-  const size = F * B * P * C
-  let dp = new Float64Array(size).fill(-Infinity)
-  dp[index(0, 0, 0, 0)] = 0
-  // choices[item][state]: 0 skip, 1 fighter, 2 bench
-  const choices: Uint8Array[] = []
-  for (const item of items) {
-    const next = Float64Array.from(dp)
-    const choice = new Uint8Array(size)
-    const paladin = item.heroClass === 'Paladin' ? 1 : 0
-    for (let f = 0; f < F; f++)
-      for (let b = 0; b < B; b++)
-        for (let p = 0; p + paladin < P; p++)
-          for (let c = 0; c + item.cost < C; c++) {
-            const from = dp[index(f, b, p, c)] ?? -Infinity
-            if (from === -Infinity) continue
-            const offer = (to: number, worth: number, kind: number) => {
-              if (worth > (next[to] ?? -Infinity)) {
-                next[to] = worth
-                choice[to] = kind
-              }
-            }
-            if (f + 1 < F) offer(index(f + 1, b, p + paladin, c + item.cost), from + item.value, 1)
-            if (b + 1 < B) offer(index(f, b + 1, p + paladin, c + item.cost), from + item.value * BENCH_WEIGHT, 2)
-          }
-    choices.push(choice)
-    dp = next
-  }
-  let best = -Infinity
-  let state = { f: slots.fighters, b: slots.bench, p: 0, c: 0 }
-  for (let p = 0; p < P; p++)
-    for (let c = 0; c < C; c++) {
-      const worth = dp[index(slots.fighters, slots.bench, p, c)] ?? -Infinity
-      if (worth > best) {
-        best = worth
-        state = { f: slots.fighters, b: slots.bench, p, c }
-      }
-    }
-  if (best === -Infinity) throw new Error(`No party fits a cap of ${String(cap)}`)
-  const bought: Hero[] = []
-  for (let i = items.length - 1; i >= 0; i--) {
-    const item = items[i]
-    const choice = choices[i]?.[index(state.f, state.b, state.p, state.c)] ?? 0
-    if (!item || choice === 0) continue
-    bought.push(item)
-    const paladin = item.heroClass === 'Paladin' ? 1 : 0
-    state = { f: state.f - (choice === 1 ? 1 : 0), b: state.b - (choice === 2 ? 1 : 0), p: state.p - paladin, c: state.c - item.cost }
-  }
-  return bought
+  const found = bestParty(pool, cap, slots, BENCH_WEIGHT, maxCost)
+  return [...found.fighters, ...found.bench]
 }
 
 const FULL: Slots = { fighters: PARTY, bench: ROSTER - PARTY, paladins: MAX_PALADINS }
@@ -299,36 +232,15 @@ function build(plan: Plan, pool: Map<string, Hero>, cap: number): Hero[] {
 // ---------------------------------------------------------------------------
 // The campaign, scaled to the weeks left (docs/SOLO_SPEC.md, "The campaign")
 
-/** Each monster's window in weeks: the boss round(W / 7) (at least 1), the rest shared, spare weeks to later chapters */
-function soloWindows(weeks: number, chapters = 5): number[] {
-  const boss = Math.max(1, Math.round(weeks / 7))
-  const rest = weeks - boss
-  const base = Math.floor(rest / (chapters - 1))
-  const spare = rest - base * (chapters - 1)
-  return [...Array.from({ length: chapters - 1 }, (_, index) => base + (index >= chapters - 1 - spare ? 1 : 0)), boss]
-}
-
-/** The run's monsters: Co-op's draw from the seed, with HP from the expected weekly damage and the window */
+/** The run's monsters, from the server's own code (soloRules.ts), with HP from the expected weekly damage */
 function monstersFor(seed: string, weeks: number, perWeek: number, chapterFactor: number, bossFactor: number) {
-  const order = createRng(seed, 'campaign').shuffle(ENCOUNTERS)
-  const variation = createRng(seed, 'campaign-hp')
-  const windows = soloWindows(weeks)
-  let deadline = 0
-  return windows.map((window, index) => {
-    const encounter = order[index] ?? ENCOUNTERS[0]
-    if (!encounter) throw new Error('No encounters defined')
-    const boss = index === windows.length - 1
-    deadline += window
-    const varied = 1 + (variation.next() * 2 - 1) * JITTER
-    const monster: CoopMonster = {
-      name: boss ? BOSS_NAME : encounter.name,
-      weak: [...encounter.weak],
-      resists: encounter.resists,
-      boss,
-      hp: Math.max(1, Math.round(perWeek * window * (boss ? bossFactor : chapterFactor) * varied)),
-      deadline
-    }
-    return { monster, encounter: ENCOUNTERS.indexOf(encounter) }
+  // perWeek is already what a party deals, so no projection scale here
+  const monsters = soloMonsters(seed, weeks, perWeek, { ...SOLO, projectionScale: 1, hpVariation: JITTER, chapterFactor, bossFactor })
+  return monsters.map(monster => {
+    // Each encounter has its own pair of weaknesses, so they identify it (the boss carries the next one's).
+    const encounter = ENCOUNTERS.findIndex(entry => entry.resists === monster.resists && entry.weak.join() === monster.weak.join())
+    if (encounter < 0) throw new Error(`Monster ${monster.name} matches no encounter`)
+    return { monster, encounter }
   })
 }
 
@@ -370,7 +282,7 @@ function questDamage(fighters: readonly Hero[], champion: string | null, points:
     const crit = critOf({ slot: 'quest', points: earned, resting: false }, hero.heroClass, RULESET)
     if (crit === 'success') damage *= QUEST.natural20Multiplier
     if (crit === 'fail') damage *= QUEST.natural1Multiplier
-    if (monster) damage *= monsterMultiplier(monster, hero.heroClass, COOP)
+    if (monster) damage *= monsterMultiplier(monster, hero.heroClass, SOLO)
     return [{ heroId: hero.id, traits: hero.traits, damage: Math.round(damage * 100) / 100, isChampion: hero.id === champion }]
   })
   return applyStrategy(lines, RULESET.strategy).total
@@ -378,7 +290,7 @@ function questDamage(fighters: readonly Hero[], champion: string | null, points:
 
 /** The plan's five fighters and Champion for a week, from the heroes not resting */
 function setup(plan: Plan, roster: readonly Hero[], points: Points, monster: Modifiers) {
-  const worth = (hero: Hero) => hero.value * (plan === 'planner' && monster ? monsterMultiplier(monster, hero.heroClass, COOP) : 1)
+  const worth = (hero: Hero) => hero.value * (plan === 'planner' && monster ? monsterMultiplier(monster, hero.heroClass, SOLO) : 1)
   const fighters = roster
     .filter(hero => points.has(hero.id))
     .sort((a, b) => worth(b) - worth(a) || a.id.localeCompare(b.id))
@@ -472,7 +384,7 @@ function campaign(run: Run, n: number, perWeek: number, chapterFactor: number, b
   const weeks = LAST_WEEK - run.start + 1
   const drawn = monstersFor(`solo-sim:${String(run.season)}:${String(run.start)}:${String(n)}`, weeks, perWeek, chapterFactor, bossFactor)
   const monsters = drawn.map(entry => entry.monster)
-  const rules: CoopRules = COOP
+  const rules = SOLO
   let state = startCampaign(monsters, rules)
   for (let week = 1; week <= weeks && state.outcome === 'ongoing'; week++) {
     const encounter = drawn[state.chapter - 1]?.encounter ?? 0
@@ -630,7 +542,7 @@ if (values.boss === undefined) {
   console.log('\nBy start week (sensible)')
   for (let start = FIRST_START; start <= LAST_START; start++) {
     const weeks = LAST_WEEK - start + 1
-    report(`  NFL week ${String(start)} (${String(weeks)} weeks: ${soloWindows(weeks).join('/')})`, sensible.filter(row => row.run.start === start))
+    report(`  NFL week ${String(start)} (${String(weeks)} weeks: ${soloWindows(weeks, SOLO.chapters).join('/')})`, sensible.filter(row => row.run.start === start))
   }
   console.log('\nWhere sensible runs lost')
   for (let chapter = 1; chapter <= 5; chapter++) {
