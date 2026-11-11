@@ -146,8 +146,9 @@ Co-op screens appear once it's on, so deploy the app first.
 
 ## 11. Switch on Solo
 
-Solo runs can be started only when the API's `SOLO_ENABLED` setting is `true` (docs/SOLO_SPEC.md). Leave it off until
-the app's Solo screens ship, then deploy the app first.
+Solo runs can be started only when the API's `SOLO_ENABLED` setting is `true` (docs/SOLO_SPEC.md). The app's Solo
+screens (built 2026-11-10) stay hidden until then, so deploy the app first, then switch it on. To try Solo locally,
+add `SOLO_ENABLED=true` to `api/.env` and restart the API.
 
 1. Vercel → the API project (`fantasy-fantasy`) → **Settings → Environment Variables → Add**: name `SOLO_ENABLED`,
    value `true`, environment **Production**.

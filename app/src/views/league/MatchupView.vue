@@ -24,8 +24,8 @@ const route = useRoute()
 const router = useRouter()
 const { league, myParty } = useLeague()
 
-// Co-op has no matchups: an old or shared link goes to the quest board instead.
-const coop = computed(() => league.value?.mode === 'coop')
+// Co-op and Solo have no matchups: an old or shared link goes to the quest board instead.
+const coop = computed(() => league.value?.mode === 'coop' || league.value?.mode === 'solo')
 watch(
   coop,
   value => {

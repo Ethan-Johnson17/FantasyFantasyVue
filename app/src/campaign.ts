@@ -27,19 +27,19 @@ export function deadlineText(chapter: CampaignChapter, nextWeek: number | null):
 
 export const livesText = (left: number, total: number): string => `${String(left)} of ${String(total)} ${total === 1 ? 'life' : 'lives'} left`
 
-/** What a played week did to the campaign, in a sentence */
-export function weekStory(result: WeekResult, chapters: readonly CampaignChapter[]): string {
+/** What a played week did to the campaign, in a sentence. Solo: one party's run. */
+export function weekStory(result: WeekResult, chapters: readonly CampaignChapter[], solo = false): string {
   const campaign = result.campaign
   if (!campaign) return ''
   const name = (chapter: number) => chapters[chapter - 1]?.name ?? 'The monster'
-  const parts = [`The league dealt ${damageText(campaign.dealt)} damage to ${campaign.monster}.`]
+  const parts = [`${solo ? 'Your party' : 'The league'} dealt ${damageText(campaign.dealt)} damage to ${campaign.monster}.`]
   for (const [index, chapter] of campaign.fallen.entries()) {
     parts.push(index === 0 ? `${name(chapter)} fell!` : `The overkill brought down ${name(chapter)} too!`)
   }
   if (campaign.failed !== null) {
     parts.push(`${name(campaign.failed)} outlasted its deadline${campaign.state.outcome === 'lost' ? '.' : ': a life was lost, and the story moves on.'}`)
   }
-  if (campaign.state.outcome === 'won') parts.push('The campaign is won!')
-  else if (campaign.state.outcome === 'lost') parts.push('The campaign is lost.')
+  if (campaign.state.outcome === 'won') parts.push(solo ? 'The run is won!' : 'The campaign is won!')
+  else if (campaign.state.outcome === 'lost') parts.push(solo ? 'The run is lost.' : 'The campaign is lost.')
   return parts.join(' ')
 }

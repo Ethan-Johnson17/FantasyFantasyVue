@@ -3,7 +3,7 @@ import { useAuth0 } from '@auth0/auth0-vue'
 import { computed, onMounted, ref } from 'vue'
 import { ApiError } from '../api/client'
 import { useApi } from '../api/inject'
-import type { MyLeague } from '../api/types'
+import type { MyLeague, SoloRules } from '../api/types'
 import { hpShown } from '../campaign'
 import { unreadText } from '../chat'
 import CrestShield from '../components/CrestShield.vue'
@@ -19,6 +19,8 @@ const { logout } = useAuth0()
 
 const leagues = ref<MyLeague[] | null>(null)
 const error = ref('')
+/** Solo runs can be started once the API switches them on */
+const solo = ref<SoloRules | null>(null)
 
 onMounted(async () => {
   try {
@@ -27,6 +29,16 @@ onMounted(async () => {
     error.value = caught instanceof ApiError ? caught.message : 'We could not load your leagues.'
   }
 })
+onMounted(async () => {
+  try {
+    const rules = (await api.getRules()).solo
+    solo.value = rules?.available ? rules : null
+  } catch {
+    // Without the rules, Solo isn't offered.
+  }
+})
+/** One run at a time: a run being built or played hides the way to start another */
+const runInProgress = computed(() => !!leagues.value?.some(league => league.mode === 'solo' && (league.status === 'forming' || league.status === 'active')))
 
 const initial = computed(() => session.account?.displayName.charAt(0).toUpperCase() ?? '?')
 const spotlight = computed(() => (leagues.value ? pickSpotlight(leagues.value) : null))
@@ -37,11 +49,13 @@ const ordinal = (n: number) => {
   return `${String(n)}${suffix}`
 }
 const OUTCOME = { win: 'Victory', loss: 'Defeat', draw: 'Draw' } as const
-const SPOTLIGHT_TITLE = { battle: 'Up next', draft: 'Draft day', gather: 'Gather your party', finale: 'Season complete' } as const
+const SPOTLIGHT_TITLE = { battle: 'Up next', draft: 'Draft day', gather: 'Gather your party', build: 'Build your party', finale: 'Season complete' } as const
 const plural = (n: number, word: string) => `${String(n)} ${word}${n === 1 ? '' : 's'}`
-const MODE_TAG = { classic: null, crossover: 'Crossover', coop: 'Co-op' } as const
-/** Where a league's battles are shown: Co-op's quest board, or the matchup */
-const battlePath = (league: MyLeague) => `/leagues/${league.id}/${league.mode === 'coop' ? 'quest' : 'matchup'}`
+const MODE_TAG = { classic: null, crossover: 'Crossover', coop: 'Co-op', solo: 'Solo' } as const
+/** Co-op and Solo fight a campaign: no matchups or standings */
+const campaignMode = (league: MyLeague) => league.mode === 'coop' || league.mode === 'solo'
+/** Where a league's battles are shown: the quest board, or the matchup */
+const battlePath = (league: MyLeague) => `/leagues/${league.id}/${campaignMode(league) ? 'quest' : 'matchup'}`
 
 /** Co-op: the campaign on a card, in place of a record */
 function campaignLine(league: MyLeague): string | null {
@@ -55,6 +69,7 @@ function campaignLine(league: MyLeague): string | null {
 function finishText(league: MyLeague): string {
   const outcome = league.outlook.campaign?.outcome
   if (league.mode === 'coop') return outcome === 'won' ? 'Campaign won!' : outcome === 'lost' ? 'Campaign lost' : 'The campaign is over'
+  if (league.mode === 'solo') return outcome === 'won' ? 'Run won!' : outcome === 'lost' ? 'Run lost' : 'The run is over'
   if (league.standing?.rank === 1) return 'Champions!'
   return league.standing ? `You finished ${ordinal(league.standing.rank)}` : 'The season is over'
 }
@@ -74,6 +89,7 @@ function cardLink(league: MyLeague): string {
   const battle = league.status === 'active' ? league.outlook.nextBattle : null
   if (battle && (battle.noChampion || battle.restingStarters)) return `${base}/party`
   if (league.status === 'drafting') return `${base}/heroes`
+  if (league.mode === 'solo' && league.status === 'forming') return `${base}/solo`
   if (league.status === 'complete') return `${base}/finale`
   return base
 }
@@ -99,12 +115,13 @@ function statusLine(league: MyLeague): { label: string; detail: string; callout?
           : 'Rank your heroes before the draft ›'
       }
     case 'forming':
+      if (league.mode === 'solo') return { label: 'Building', detail: 'Not started yet', callout: 'Build your party ›' }
       return { label: 'Gathering', detail: `${String(league.partyCount)} of ${String(league.maxParties)} parties` }
     case 'complete':
       return {
         label: 'Complete',
         detail:
-          league.mode === 'coop'
+          campaignMode(league)
             ? finishText(league)
             : league.standing
               ? `Finished ${ordinal(league.standing.rank)}`
@@ -112,7 +129,7 @@ function statusLine(league: MyLeague): { label: string; detail: string; callout?
         callout: 'See the finale ›'
       }
     case 'canceled':
-      return { label: 'Canceled', detail: 'This league was canceled' }
+      return { label: 'Canceled', detail: league.mode === 'solo' ? 'This run was canceled' : 'This league was canceled' }
   }
 }
 
@@ -167,7 +184,7 @@ function signOut() {
           </ul>
           <div class="spot-actions">
             <RouterLink :to="battlePath(spotlight.league)" class="btn btn-primary">
-              {{ spotlight.league.mode === 'coop' ? 'See the quest' : 'See matchup' }}
+              {{ campaignMode(spotlight.league) ? 'See the quest' : 'See matchup' }}
             </RouterLink>
             <RouterLink :to="`/leagues/${spotlight.league.id}/party`" class="btn btn-secondary">Set lineup</RouterLink>
           </div>
@@ -194,6 +211,13 @@ function signOut() {
           </template>
           <div class="spot-actions single">
             <RouterLink :to="`/leagues/${spotlight.league.id}/heroes`" class="btn btn-primary">Rank heroes</RouterLink>
+          </div>
+        </template>
+
+        <template v-else-if="spotlight.kind === 'build'">
+          <p class="spot-text">Your Solo run starts once you sign your heroes and confirm your party.</p>
+          <div class="spot-actions single">
+            <RouterLink :to="`/leagues/${spotlight.league.id}/solo`" class="btn btn-primary">Build your party</RouterLink>
           </div>
         </template>
 
@@ -243,7 +267,7 @@ function signOut() {
               <span class="muted">· {{ statusLine(league).detail }}</span>
             </div>
             <div
-              v-if="league.status === 'forming'"
+              v-if="league.status === 'forming' && league.mode !== 'solo'"
               class="slots"
               role="img"
               :aria-label="`${league.partyCount} of ${league.maxParties} parties joined`"
@@ -278,6 +302,7 @@ function signOut() {
       <RouterLink to="/leagues/new" class="btn btn-primary">Host a league</RouterLink>
       <RouterLink to="/join" class="btn btn-secondary">Join with PIN</RouterLink>
       <RouterLink to="/leagues/find" class="btn btn-secondary find">Find a public league</RouterLink>
+      <RouterLink v-if="solo && !runInProgress" to="/solo/new" class="btn btn-secondary find">Start a Solo run</RouterLink>
     </div>
     <InstallCard />
     <RouterLink to="/how-it-works" class="how-link">How it works</RouterLink>

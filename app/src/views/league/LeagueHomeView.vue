@@ -18,9 +18,11 @@ const { league, myParty, reload } = useLeague()
 const standings = ref<Standing[]>([])
 const schedule = ref<ScheduleWeek[]>([])
 const playoffs = ref<Playoffs | null>(null)
-/** Co-op: the campaign, in place of standings and battles */
+/** Co-op and Solo: the campaign, in place of standings and battles */
 const campaign = ref<Campaign | null>(null)
 const coop = computed(() => league.value?.mode === 'coop')
+/** Solo (docs/SOLO_SPEC.md): a private run of one party, with no PIN, draft, standings or chat */
+const solo = computed(() => league.value?.mode === 'solo')
 const busy = ref(false)
 const error = ref<unknown>(null)
 const copied = ref(false)
@@ -65,7 +67,7 @@ const inviteLink = computed(() => (league.value?.pin ? `${window.location.origin
 async function loadSeason() {
   if (!league.value || !inSeason.value) return
   const id = league.value.id
-  if (coop.value) {
+  if (coop.value || solo.value) {
     try {
       campaign.value = await api.getCampaign(id)
     } catch (caught) {
@@ -104,6 +106,19 @@ function scheduleDraft() {
 function cancelLeague() {
   const id = league.value?.id
   if (!id || !window.confirm('Cancel this league for everyone? This cannot be undone.')) return
+  void act(() => api.cancelLeague(id))
+}
+
+/** Solo: before the party is confirmed the run is canceled; after, it ends as a loss */
+function abandonRun() {
+  const id = league.value?.id
+  if (!id) return
+  const message =
+    league.value?.status === 'forming'
+      ? 'Cancel this run? Nothing has been played, and you can start a new one.'
+      : 'Abandon this run? It ends now as a loss, and can’t be resumed. You can start a new one.'
+  if (!window.confirm(message)) return
+  // The reload changes the status, which reloads the campaign with its outcome.
   void act(() => api.cancelLeague(id))
 }
 
@@ -167,14 +182,21 @@ async function startNextSeason() {
       <h1 class="title">{{ league.name }}</h1>
       <span v-if="league.mode === 'crossover'" class="mode-chip">Crossover</span>
       <span v-else-if="coop" class="mode-chip">Co-op</span>
+      <span v-else-if="solo" class="mode-chip">Solo</span>
       <RouterLink v-if="dynasty" :to="`/leagues/${league.id}/dynasty`" class="mode-chip">Dynasty · season {{ dynasty.number }} of {{ dynasty.seasons }} ›</RouterLink>
       <div class="muted">
-        <template v-if="league.status === 'forming'">Gathering parties · {{ league.partyCount }} of {{ league.maxParties }}</template>
+        <template v-if="league.status === 'forming' && solo">Building your party</template>
+        <template v-else-if="league.status === 'forming'">Gathering parties · {{ league.partyCount }} of {{ league.maxParties }}</template>
         <template v-else-if="league.status === 'drafting'">Draft {{ league.draftAt ? timeUntil(new Date(league.draftAt)) : 'soon' }}</template>
         <template v-else-if="league.status === 'active'">
-          Week {{ currentWeek }} of {{ seasonWeeks }} · {{ league.mode === 'crossover' ? 'follows the NFL schedule' : `battles resolve ${league.cadence}` }}
+          Week {{ currentWeek }} of {{ seasonWeeks }} ·
+          {{ league.mode === 'crossover' || solo ? 'follows the NFL schedule' : `battles resolve ${league.cadence}` }}
         </template>
         <template v-else-if="league.status === 'complete' && coop">Campaign {{ campaign?.outcome === 'lost' ? 'lost' : campaign?.outcome === 'won' ? 'won' : 'over' }}</template>
+        <template v-else-if="league.status === 'complete' && solo">
+          Run {{ campaign?.abandoned ? 'abandoned' : campaign?.outcome === 'won' ? 'won' : campaign?.outcome === 'lost' ? 'lost' : 'over' }}
+        </template>
+        <template v-else-if="solo">This run was canceled</template>
         <template v-else-if="league.status === 'complete'">Season complete</template>
         <template v-else>This league was canceled</template>
       </div>
@@ -209,8 +231,18 @@ async function startNextSeason() {
     <RouterLink v-if="dynasty?.nextLeagueId" :to="`/leagues/${dynasty.nextLeagueId}`" class="recap-link">Season {{ dynasty.number + 1 }} is open ›</RouterLink>
     <RouterLink v-if="dynasty?.previousLeagueId" :to="`/leagues/${dynasty.previousLeagueId}`" class="recap-link">‹ Season {{ dynasty.number - 1 }}</RouterLink>
 
+    <!-- Solo, before the run: build the party -->
+    <section v-if="solo && league.status === 'forming'" class="card stack">
+      <h2 class="section-title">Build your party</h2>
+      <p class="muted small">Sign heroes under the budget, choose who fights and your Champion, then confirm. Nothing is played until you do.</p>
+      <RouterLink :to="`/leagues/${league.id}/solo`" class="btn btn-primary">Build your party</RouterLink>
+    </section>
+    <RouterLink v-if="solo && (league.status === 'complete' || league.status === 'canceled')" to="/solo/new" class="btn btn-secondary new-run">
+      Start a new run
+    </RouterLink>
+
     <!-- Forming: invite, parties, and getting to the draft -->
-    <template v-if="league.status === 'forming'">
+    <template v-if="league.status === 'forming' && !solo">
       <section v-if="league.pin" class="card invite">
         <div class="muted">Invite friends with this PIN</div>
         <div class="pin">{{ league.pin }}</div>
@@ -246,24 +278,30 @@ async function startNextSeason() {
       </section>
     </template>
 
-    <!-- Co-op in season: the campaign, with no standings or matchups -->
-    <template v-if="inSeason && coop">
+    <!-- Co-op and Solo in season: the campaign, with no standings or matchups -->
+    <template v-if="inSeason && (coop || solo)">
       <RouterLink v-if="league.status === 'complete' && campaign" :to="`/leagues/${league.id}/finale`" class="finale-banner">
-        <span class="finale-eyebrow">Campaign {{ campaign.outcome === 'won' ? 'won' : 'lost' }}</span>
-        <span class="finale-name">{{ campaign.outcome === 'won' ? 'The league brought down the boss' : 'The monsters prevailed' }}</span>
+        <span class="finale-eyebrow">{{ solo ? 'Run' : 'Campaign' }} {{ campaign.abandoned ? 'abandoned' : campaign.outcome === 'won' ? 'won' : 'lost' }}</span>
+        <span class="finale-name">
+          <template v-if="campaign.outcome === 'won'">{{ solo ? 'Your party brought down the boss' : 'The league brought down the boss' }}</template>
+          <template v-else>The monsters prevailed</template>
+        </span>
         <span class="finale-cta">See the finale and awards ›</span>
       </RouterLink>
       <div v-if="league.status === 'active'" class="row-heading">
         <h2 class="section-title">The campaign</h2>
         <span v-if="nextBattle" class="muted small">{{ nextBattle }}</span>
       </div>
-      <CampaignBoard v-if="campaign" :campaign="campaign" :league-id="league.id" />
-      <p class="muted small">Every party fights the same monster. Your damage, and everyone else's, brings it down together.</p>
+      <CampaignBoard v-if="campaign" :campaign="campaign" :league-id="league.id" :solo="solo" />
+      <p v-if="solo && league.status === 'active'" class="muted small">
+        Your Quest party fights each week. Set it and your Champion on the Party tab; sign and release heroes on the Market tab.
+      </p>
+      <p v-else-if="!solo" class="muted small">Every party fights the same monster. Your damage, and everyone else's, brings it down together.</p>
       <RouterLink v-if="league.draft" :to="`/leagues/${league.id}/draft`" class="recap-link">See the draft recap ›</RouterLink>
     </template>
 
     <!-- In season: standings and this week -->
-    <template v-if="inSeason && !coop">
+    <template v-if="inSeason && !coop && !solo">
       <RouterLink v-if="league.status === 'complete'" :to="`/leagues/${league.id}/finale`" class="finale-banner">
         <span class="finale-eyebrow">Season complete</span>
         <span class="finale-name">{{ champion?.name ?? 'The champions' }} take the crown</span>
@@ -337,7 +375,7 @@ async function startNextSeason() {
     </template>
 
     <!-- Parties (before the season) -->
-    <template v-if="league.status === 'forming' || league.status === 'drafting'">
+    <template v-if="(league.status === 'forming' || league.status === 'drafting') && !solo">
       <h2 class="section-title spaced">Parties</h2>
       <ul class="parties">
         <li v-for="party in league.parties" :key="party.id" class="card party">
@@ -360,10 +398,19 @@ async function startNextSeason() {
     </template>
 
     <!-- Before the draft there are no tabs, so chat is linked here -->
-    <RouterLink v-if="league.status === 'forming'" :to="`/leagues/${league.id}/chat`" class="recap-link">League chat ›</RouterLink>
+    <RouterLink v-if="league.status === 'forming' && !solo" :to="`/leagues/${league.id}/chat`" class="recap-link">League chat ›</RouterLink>
 
     <div class="danger-zone">
-      <button v-if="isHost && ['forming', 'drafting', 'active'].includes(league.status)" type="button" class="link-button danger" :disabled="busy" @click="cancelLeague">
+      <button v-if="solo && ['forming', 'active'].includes(league.status)" type="button" class="link-button danger" :disabled="busy" @click="abandonRun">
+        {{ league.status === 'forming' ? 'Cancel run' : 'Abandon run' }}
+      </button>
+      <button
+        v-else-if="isHost && ['forming', 'drafting', 'active'].includes(league.status)"
+        type="button"
+        class="link-button danger"
+        :disabled="busy"
+        @click="cancelLeague"
+      >
         Cancel league
       </button>
       <button v-if="!isHost && league.status === 'forming'" type="button" class="link-button danger" :disabled="busy" @click="leaveLeague">
@@ -376,6 +423,10 @@ async function startNextSeason() {
 <style scoped>
 .title {
   font-size: 30px;
+}
+.new-run {
+  width: 100%;
+  margin-top: 12px;
 }
 .small {
   font-size: 13px;

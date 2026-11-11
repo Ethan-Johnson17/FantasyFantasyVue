@@ -21,6 +21,9 @@ import type {
   PartyInput,
   Playoffs,
   ScheduleWeek,
+  SoloConfirmInput,
+  SoloFinale,
+  SoloRun,
   Standing,
   WeekResult
 } from './types'
@@ -87,8 +90,8 @@ export interface ApiClient {
   getRules(): Promise<GameRules>
   getWeekResult(leagueId: string, week: number): Promise<WeekResult>
   getStandings(leagueId: string): Promise<Standing[]>
-  /** Classic and Crossover: the champion and standings. Co-op: the campaign's finale (isCoopFinale). */
-  getFinale(leagueId: string): Promise<Finale | CoopFinale>
+  /** Classic and Crossover: the champion and standings. Co-op and Solo: the campaign's finale (isCoopFinale, isSoloFinale). */
+  getFinale(leagueId: string): Promise<Finale | CoopFinale | SoloFinale>
   /** Co-op: the quest board */
   getCampaign(leagueId: string): Promise<Campaign>
   getPlayoffs(leagueId: string): Promise<Playoffs>
@@ -98,6 +101,12 @@ export interface ApiClient {
   deleteChat(leagueId: string, messageId: string): Promise<void>
   reportChat(leagueId: string, messageId: string): Promise<ChatMessage>
   getChatUnread(leagueId: string): Promise<{ unread: number }>
+  /** Solo: starts a run (one at a time), returning the new run */
+  startSolo(party: PartyInput): Promise<LeagueDetail>
+  /** Solo: the run's pool, budget, monsters and swaps */
+  getSolo(leagueId: string): Promise<SoloRun>
+  confirmSolo(leagueId: string, input: SoloConfirmInput): Promise<SoloRun>
+  swapSolo(leagueId: string, swap: { releaseHeroId: string; signHeroId: string }): Promise<SoloRun>
 }
 
 export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchImpl: FetchLike = fetch): ApiClient {
@@ -175,7 +184,11 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     postChat: (id, body) => request('POST', `/api/leagues/${segment(id)}/chat`, { body }),
     deleteChat: (id, messageId) => request('DELETE', `/api/leagues/${segment(id)}/chat/${segment(messageId)}`),
     reportChat: (id, messageId) => request('POST', `/api/leagues/${segment(id)}/chat/${segment(messageId)}/report`),
-    getChatUnread: id => request('GET', `/api/leagues/${segment(id)}/chat/unread`)
+    getChatUnread: id => request('GET', `/api/leagues/${segment(id)}/chat/unread`),
+    startSolo: party => request('POST', '/api/leagues/solo', { party }),
+    getSolo: id => request('GET', `/api/leagues/${segment(id)}/solo`),
+    confirmSolo: (id, input) => request('POST', `/api/leagues/${segment(id)}/solo/confirm`, input),
+    swapSolo: (id, swap) => request('POST', `/api/leagues/${segment(id)}/solo/swaps`, swap)
   }
 }
 

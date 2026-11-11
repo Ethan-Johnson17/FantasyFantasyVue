@@ -50,6 +50,10 @@ export function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
     deleteChat: vi.fn(),
     reportChat: vi.fn(),
     getChatUnread: vi.fn().mockResolvedValue({ unread: 0 }),
+    startSolo: vi.fn(),
+    getSolo: vi.fn(),
+    confirmSolo: vi.fn(),
+    swapSolo: vi.fn(),
     ...overrides
   }
 }

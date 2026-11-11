@@ -227,6 +227,42 @@ a league of one with `mode: "solo"`, so the calendar, week results, campaign boa
   cap, swaps, first and last weeks, weeks needed, chapters, lives, class modifiers, the boss's name).
 - **The simulation** (`npm run simulate:solo`) now plays the server's own prices, best-party search and monsters.
 
+## App
+
+Built 2026-11-10. Solo shows only once `GET /api/rules` says `solo.available`.
+
+- **Starting:** My leagues offers **Start a Solo run** while no run is being built or played (`/solo/new`: the party's
+  name and crest), then opens the new run's market.
+- **Build your party** (`/leagues/:id/solo` while the run is forming): the gold left of the cap, when the run would
+  start and each monster's window (or why it can't start now), the five monsters with their weaknesses, the party
+  being built, and the pool. The pool filters by position (QB, RB, WR, TE, DEF) and class, searches player, hero and
+  team names, sorts by Level, projection, price or name, and shows 40 heroes at a time. A hero who would break the cap,
+  the roster size or the Paladin limit can't be signed, with the reason shown. The first 5 signed go to the Quest
+  party and the rest to the bench; either can be moved, and ♛ names a Champion from the Quest party. Confirming asks
+  first, then opens the quest board.
+- **The market** (the same page once the run is under way): swaps left this week and the gold to spend; choose a hero
+  to release, then sign one from the pool. Heroes who have kicked off can't be chosen, and a signing that would break
+  the cap (at prices paid) or the Paladin limit is refused with the reason. Each swap asks first. If the party is left
+  without a Champion, it says so.
+- **Tabs:** Run, Party, Quest and Market. There's no Matchup, Heroes or Chat tab, and old matchup links go to the
+  quest board.
+- **Party:** Crossover's Party tab with the Quest party alone: the monster, Quest projection, Champion, synergies, the
+  bench with each player's game and lock, and swaps left this week linking to the market.
+- **Quest board:** Co-op's, for one party: the monster, HP, deadline and lives, this week's Quest party with each
+  player's kickoff or lock, the chapters, and each played week told as the party's ("Your party dealt…"). There's no
+  ranking of parties.
+- **The run's home:** building the party, the campaign once it's under way, no PIN, draft, parties, standings or chat;
+  **Cancel run** while building and **Abandon run** after (each asks first; abandoning is a loss), and **Start a new
+  run** once it's over.
+- **Finale:** victory, defeat or abandoned, chapters fallen, lives left, the run's damage and weeks, every chapter,
+  and the awards (Biggest Week, Hero of the Run, Natural 20s).
+- **My leagues:** the run's card is tagged Solo, opens the market while the party is being built ("Build your party"
+  is also the spotlight), and shows the current monster, HP and lives while it's played. A run never asks to share a
+  PIN.
+- **How it works:** a Solo section.
+- **Not shown:** "N of M games final" on the quest board during a live week: the campaign API doesn't report game-day
+  progress for Solo yet (the Quest party's kickoffs and locks are shown).
+
 ## Build phases
 
 1. **Spec review** (this document): done 2026-11-09.
@@ -234,6 +270,7 @@ a league of one with `mode: "solo"`, so the calendar, week results, campaign boa
 3. **API:** the `solo` mode, the pool with costs, building and confirming a party, swaps and locks, the scaled
    campaign, finale; tests on both sides of the visible-player line: built 2026-11-10 (see "API" above). Solo runs
    can be started only once `SOLO_ENABLED` is on.
-4. **App:** start a run, build your party, the quest board, party and swaps, finale, How it works.
+4. **App:** start a run, build your party, the quest board, party and swaps, finale, How it works: built 2026-11-10
+   (see "App" above).
 
 Each phase is its own branch and pull request.

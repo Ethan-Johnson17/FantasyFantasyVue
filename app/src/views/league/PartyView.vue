@@ -23,8 +23,9 @@ const saving = ref(false)
 const namingChampion = ref(false)
 const error = ref<unknown>(null)
 const notice = ref('')
-// Crossover has two lineups and kickoff locks: its own screen (components/CrossoverParty.vue).
-const crossover = computed(() => league.value?.mode === 'crossover')
+// Crossover has two lineups and kickoff locks: its own screen (components/CrossoverParty.vue). Solo shares it, with
+// the Quest party alone.
+const crossover = computed(() => league.value?.mode === 'crossover' || league.value?.mode === 'solo')
 
 onMounted(async () => {
   if (crossover.value || !league.value || league.value.status === 'forming' || league.value.status === 'drafting') return

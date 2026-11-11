@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useApi } from '../api/inject'
-import type { Hero, Lineup } from '../api/types'
+import type { Hero, Lineup, SoloRun } from '../api/types'
 import { activeSynergies, levelText, levelValue, projectedTotal, synergyInfo } from '../heroes'
 import { useLeague } from '../league'
+import { goldText } from '../solo'
 import { kickoffText, timeUntil } from '../time'
 import ClassIcon from './ClassIcon.vue'
 import EncounterCard from './EncounterCard.vue'
@@ -15,6 +16,7 @@ import TraitChips from './TraitChips.vue'
 /*
  * Crossover's Party tab: two lineups. The football lineup (QB, RB, WR, TE, FLEX, DEF) scores Gridiron; the Quest
  * party (any 5 heroes) fights the week's encounter, led by the Champion. Players lock when their game kicks off.
+ * Solo (docs/SOLO_SPEC.md) has the Quest party alone, against the campaign's monster, with a bench and weekly swaps.
  */
 
 type RosterHero = Lineup['roster'][number]
@@ -30,11 +32,17 @@ const questDraft = ref<string[]>([])
 const saving = ref(false)
 const error = ref<unknown>(null)
 const notice = ref('')
+const solo = computed(() => league.value?.mode === 'solo')
+/** Solo: swaps left this week and the gold to spend */
+const soloRun = ref<SoloRun | null>(null)
 
 onMounted(async () => {
   if (!league.value || league.value.status === 'forming' || league.value.status === 'drafting') return
+  const id = league.value.id
   try {
-    apply(await api.getLineup(league.value.id))
+    const [lineup, run] = await Promise.all([api.getLineup(id), solo.value && league.value.status === 'active' ? api.getSolo(id) : null])
+    apply(lineup)
+    soloRun.value = run
   } catch (caught) {
     error.value = caught
   }
@@ -51,6 +59,8 @@ const heroById = computed(() => new Map((data.value?.roster ?? []).map(hero => [
 const encounter = computed(() => data.value?.quest?.encounter ?? null)
 const partySize = computed(() => data.value?.questPartySize ?? 5)
 const champion = computed(() => data.value?.champion ?? null)
+/** Solo has no football lineup */
+const gridiron = computed(() => (data.value?.slots.length ?? 0) > 0)
 
 // --- Football lineup ------------------------------------------------------------------------------------------
 const starters = computed(() => (data.value?.slots ?? []).map(slot => ({ slot, hero: heroById.value.get(draft.value[slot.key] ?? '') ?? null })))
@@ -96,6 +106,8 @@ function gameText(hero: RosterHero): string {
 
 // --- Quest party ------------------------------------------------------------------------------------------------
 const questParty = computed(() => (data.value?.questParty ?? []).flatMap(id => heroById.value.get(id) ?? []))
+/** Solo: the heroes outside the Quest party */
+const questBench = computed(() => (data.value?.roster ?? []).filter(hero => !(data.value?.questParty ?? []).includes(hero.id)))
 const questChanged = computed(() => JSON.stringify([...questDraft.value].sort()) !== JSON.stringify([...(data.value?.questParty ?? [])].sort()))
 
 /** The encounter's modifier for a class: ×1.25 for its weak spots, ×0.75 for the class it resists. */
@@ -179,7 +191,10 @@ function cancelQuest() {
     <h1 class="title">{{ myParty?.name ?? 'Your party' }}</h1>
   </header>
 
-  <p v-if="league && (league.status === 'forming' || league.status === 'drafting')" class="card muted">
+  <p v-if="league && solo && league.status === 'forming'" class="card muted">
+    Your run starts once you confirm your party. <RouterLink :to="`/leagues/${league.id}/solo`">Build your party ›</RouterLink>
+  </p>
+  <p v-else-if="league && (league.status === 'forming' || league.status === 'drafting')" class="card muted">
     Your party fills out at the draft. Rank players on the Heroes tab before it runs.
   </p>
 
@@ -192,77 +207,90 @@ function cancelQuest() {
         Goes final {{ data.nextWeekAt ? timeUntil(new Date(data.nextWeekAt)) : 'soon' }} · each player locks when their game kicks off
       </div>
       <div class="projections">
-        <span><strong>{{ gridironProjection }}</strong> <span class="muted small">Gridiron proj</span></span>
+        <span v-if="gridiron"><strong>{{ gridironProjection }}</strong> <span class="muted small">Gridiron proj</span></span>
         <span><strong>{{ questProjection }}</strong> <span class="muted small">Quest proj</span></span>
       </div>
-      <RouterLink :to="`/leagues/${league?.id}/matchup`" class="matchup-link">See the matchup ›</RouterLink>
+      <RouterLink v-if="solo" :to="`/leagues/${league?.id}/quest`" class="matchup-link">See the quest ›</RouterLink>
+      <RouterLink v-else :to="`/leagues/${league?.id}/matchup`" class="matchup-link">See the matchup ›</RouterLink>
     </section>
+
+    <RouterLink v-if="soloRun" :to="`/leagues/${league?.id}/solo`" class="card swaps">
+      <span>
+        <strong>{{ soloRun.swapsLeft ?? 0 }} of {{ soloRun.swapsPerWeek }}</strong> swaps left this week · {{ goldText(soloRun.cap - soloRun.spent) }} to spend
+      </span>
+      <span class="matchup-link">Release and sign heroes ›</span>
+    </RouterLink>
 
     <EncounterCard v-if="encounter && data.quest" :encounter="encounter" :weak-multiplier="data.quest.weakMultiplier" :resist-multiplier="data.quest.resistMultiplier" />
 
     <!-- Football lineup -->
-    <div class="row-heading">
-      <h2 class="section-title">Football lineup</h2>
-      <span class="muted small">Scores Gridiron</span>
-    </div>
-    <ol class="list">
-      <li v-for="{ slot, hero } in starters" :key="slot.key">
-        <button
-          v-if="hero"
-          type="button"
-          class="row"
-          :class="{ selected: selectedSlot === slot.key, locked: hero.locked, resting: hero.restingNextWeek, swapped: justSwapped === hero.id }"
-          :aria-pressed="selectedSlot === slot.key"
-          :disabled="hero.locked"
-          @click="selectSlot(slot.key)"
-        >
-          <span class="slot">{{ slot.label }}</span>
-          <span class="text">
-            <span class="name">{{ hero.name }}</span>
-            <PlayerTag :hero="hero" />
-            <span class="muted small game"><span v-if="hero.locked" aria-hidden="true">🔒 </span>{{ gameText(hero) }}</span>
-          </span>
-          <span v-if="selectedSlot === slot.key" class="swap-tag">Swapping out</span>
-          <span v-else class="numbers">
-            <span class="level">{{ levelText(hero) }}</span>
-            <span class="muted small">proj {{ hero.projected }}</span>
-          </span>
-        </button>
-      </li>
-    </ol>
-    <h3 ref="benchHeading" class="sub-title bench-heading">Bench</h3>
-    <ul class="list">
-      <li v-for="hero in bench" :key="hero.id">
-        <button
-          type="button"
-          class="row bench-row"
-          :class="{ eligible: selectedSlot && canFill(hero) && !hero.locked, locked: hero.locked, resting: hero.restingNextWeek }"
-          :disabled="!selectedSlot || !canFill(hero) || hero.locked"
-          @click="swapIn(hero)"
-        >
-          <ClassIcon :hero-class="hero.heroClass" :size="24" />
-          <span class="text">
-            <span class="name">{{ hero.name }}</span>
-            <PlayerTag :hero="hero" />
-            <span class="muted small game"><span v-if="hero.locked" aria-hidden="true">🔒 </span>{{ gameText(hero) }}</span>
-          </span>
-          <span v-if="selectedSlot && canFill(hero) && !hero.locked" class="swap-tag">Swap in</span>
-          <span v-else class="numbers"><span class="level">{{ levelText(hero) }}</span></span>
-        </button>
-      </li>
-    </ul>
-    <SwapBar v-if="selectedSlot && swappingOut" :hero-name="swappingOut.name" :slot-label="selectedRule?.label ?? ''" :choices="swapChoices" @cancel="selectedSlot = null" />
-    <div v-if="lineupChanged" class="actions">
-      <button type="button" class="btn btn-secondary" :disabled="saving" @click="draft = { ...(data.lineup ?? {}) }">Undo</button>
-      <button type="button" class="btn btn-primary" :disabled="saving" @click="saveLineup">{{ saving ? 'Saving…' : 'Save lineup' }}</button>
-    </div>
+    <template v-if="gridiron">
+      <div class="row-heading">
+        <h2 class="section-title">Football lineup</h2>
+        <span class="muted small">Scores Gridiron</span>
+      </div>
+      <ol class="list">
+        <li v-for="{ slot, hero } in starters" :key="slot.key">
+          <button
+            v-if="hero"
+            type="button"
+            class="row"
+            :class="{ selected: selectedSlot === slot.key, locked: hero.locked, resting: hero.restingNextWeek, swapped: justSwapped === hero.id }"
+            :aria-pressed="selectedSlot === slot.key"
+            :disabled="hero.locked"
+            @click="selectSlot(slot.key)"
+          >
+            <span class="slot">{{ slot.label }}</span>
+            <span class="text">
+              <span class="name">{{ hero.name }}</span>
+              <PlayerTag :hero="hero" />
+              <span class="muted small game"><span v-if="hero.locked" aria-hidden="true">🔒 </span>{{ gameText(hero) }}</span>
+            </span>
+            <span v-if="selectedSlot === slot.key" class="swap-tag">Swapping out</span>
+            <span v-else class="numbers">
+              <span class="level">{{ levelText(hero) }}</span>
+              <span class="muted small">proj {{ hero.projected }}</span>
+            </span>
+          </button>
+        </li>
+      </ol>
+      <h3 ref="benchHeading" class="sub-title bench-heading">Bench</h3>
+      <ul class="list">
+        <li v-for="hero in bench" :key="hero.id">
+          <button
+            type="button"
+            class="row bench-row"
+            :class="{ eligible: selectedSlot && canFill(hero) && !hero.locked, locked: hero.locked, resting: hero.restingNextWeek }"
+            :disabled="!selectedSlot || !canFill(hero) || hero.locked"
+            @click="swapIn(hero)"
+          >
+            <ClassIcon :hero-class="hero.heroClass" :size="24" />
+            <span class="text">
+              <span class="name">{{ hero.name }}</span>
+              <PlayerTag :hero="hero" />
+              <span class="muted small game"><span v-if="hero.locked" aria-hidden="true">🔒 </span>{{ gameText(hero) }}</span>
+            </span>
+            <span v-if="selectedSlot && canFill(hero) && !hero.locked" class="swap-tag">Swap in</span>
+            <span v-else class="numbers"><span class="level">{{ levelText(hero) }}</span></span>
+          </button>
+        </li>
+      </ul>
+      <SwapBar v-if="selectedSlot && swappingOut" :hero-name="swappingOut.name" :slot-label="selectedRule?.label ?? ''" :choices="swapChoices" @cancel="selectedSlot = null" />
+      <div v-if="lineupChanged" class="actions">
+        <button type="button" class="btn btn-secondary" :disabled="saving" @click="draft = { ...(data.lineup ?? {}) }">Undo</button>
+        <button type="button" class="btn btn-primary" :disabled="saving" @click="saveLineup">{{ saving ? 'Saving…' : 'Save lineup' }}</button>
+      </div>
+    </template>
 
     <!-- Quest party -->
     <div class="row-heading">
       <h2 class="section-title">Quest party</h2>
       <button v-if="!editingQuest" type="button" class="link-button" @click="editingQuest = true">Change party</button>
     </div>
-    <p class="muted small">Any {{ partySize }} heroes, starters or bench. They fight {{ encounter?.name ?? 'the encounter' }}; tap ♛ to name your Champion.</p>
+    <p v-if="solo" class="muted small">
+      Any {{ partySize }} of your heroes; the rest wait on the bench. They fight {{ encounter?.name ?? 'the monster' }}; tap ♛ to name your Champion.
+    </p>
+    <p v-else class="muted small">Any {{ partySize }} heroes, starters or bench. They fight {{ encounter?.name ?? 'the encounter' }}; tap ♛ to name your Champion.</p>
 
     <template v-if="!editingQuest">
       <ul class="list">
@@ -295,6 +323,22 @@ function cancelQuest() {
       <ul class="synergies" aria-label="Quest synergies">
         <li v-for="synergy in synergies" :key="synergy" class="synergy" :title="synergyInfo(synergy, data.strategy).description">{{ synergyInfo(synergy).label }}</li>
       </ul>
+      <template v-if="!gridiron && questBench.length">
+        <h3 class="sub-title">Bench</h3>
+        <ul class="list">
+          <li v-for="hero in questBench" :key="hero.id">
+            <span class="row static" :class="{ locked: hero.locked, resting: hero.restingNextWeek }">
+              <ClassIcon :hero-class="hero.heroClass" :size="24" />
+              <span class="text">
+                <span class="name">{{ hero.name }}</span>
+                <PlayerTag :hero="hero" />
+                <span class="muted small game"><span v-if="hero.locked" aria-hidden="true">🔒 </span>{{ gameText(hero) }}</span>
+              </span>
+              <span class="numbers"><span class="level">{{ levelText(hero) }}</span><span class="muted small">proj {{ hero.projected }}</span></span>
+            </span>
+          </li>
+        </ul>
+      </template>
     </template>
 
     <template v-else>
@@ -359,6 +403,14 @@ function cancelQuest() {
 }
 .matchup-link {
   font-size: 14px;
+}
+.swaps {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text);
+  text-decoration: none;
 }
 .row-heading {
   margin: 18px 0 8px;
