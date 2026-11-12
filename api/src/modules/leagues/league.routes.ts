@@ -13,6 +13,7 @@ import {
   ChampionSchema,
   ClaimSchema,
   CreateLeagueSchema,
+  HideLeagueSchema,
   JoinLeagueSchema,
   LineupSchema,
   MatchupQuerySchema,
@@ -94,6 +95,11 @@ export function leagueRouter(modes: CreateOptions & SoloOptions) {
     })
     .post('/:id/cancel', async (req, res) => {
       res.json(await leagues.cancelLeague(currentAccount(req), parseId(req.params.id)))
+    })
+    .put('/:id/hidden', async (req, res) => {
+      const { hidden } = HideLeagueSchema.parse(req.body)
+      await leagues.setLeagueHidden(currentAccount(req), parseId(req.params.id), hidden)
+      res.status(204).end()
     })
     .post('/:id/leave', async (req, res) => {
       await leagues.leaveLeague(currentAccount(req), parseId(req.params.id))

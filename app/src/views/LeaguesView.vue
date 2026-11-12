@@ -41,7 +41,30 @@ onMounted(async () => {
 const runInProgress = computed(() => !!leagues.value?.some(league => league.mode === 'solo' && (league.status === 'forming' || league.status === 'active')))
 
 const initial = computed(() => session.account?.displayName.charAt(0).toUpperCase() ?? '?')
-const spotlight = computed(() => (leagues.value ? pickSpotlight(leagues.value) : null))
+/** Leagues I hid stay out of the list and the spotlight until I show them again */
+const shown = computed(() => (leagues.value ?? []).filter(league => !league.hidden))
+const hidden = computed(() => (leagues.value ?? []).filter(league => league.hidden))
+const showingHidden = ref(false)
+const spotlight = computed(() => (leagues.value ? pickSpotlight(shown.value) : null))
+/** Finished and canceled leagues can be hidden */
+const hideable = (league: MyLeague) => league.status === 'complete' || league.status === 'canceled'
+const hiding = ref<string | null>(null)
+/** Kept apart from the load error, so a failed hide leaves the list on screen */
+const hideError = ref('')
+
+async function setHidden(league: MyLeague, value: boolean) {
+  hiding.value = league.id
+  hideError.value = ''
+  try {
+    await api.setLeagueHidden(league.id, value)
+    leagues.value = (leagues.value ?? []).map(entry => (entry.id === league.id ? { ...entry, hidden: value } : entry))
+    if (!hidden.value.length) showingHidden.value = false
+  } catch (caught) {
+    hideError.value = caught instanceof ApiError ? caught.message : 'We could not update your leagues.'
+  } finally {
+    hiding.value = null
+  }
+}
 
 const ordinal = (n: number) => {
   const tens = n % 100
@@ -157,6 +180,7 @@ function signOut() {
     <p v-else-if="!leagues" class="muted" aria-busy="true">Loading your leagues…</p>
 
     <template v-else>
+      <p v-if="hideError" class="error" role="alert">{{ hideError }}</p>
       <!-- Up next: the soonest battle or draft across my leagues -->
       <section v-if="spotlight" class="spotlight" :class="spotlight.kind" aria-labelledby="spotlight-title">
         <div id="spotlight-title" class="spot-eyebrow">
@@ -242,7 +266,7 @@ function signOut() {
         </template>
       </section>
 
-      <section v-else-if="leagues.length === 0" class="spotlight welcome">
+      <section v-else-if="shown.length === 0 && hidden.length === 0" class="spotlight welcome">
         <svg class="welcome-mark" viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="var(--gold)" stroke-width="2" aria-hidden="true">
           <path d="M32 5l22 8v16c0 14-9.5 23-22 30C19.5 52 10 43 10 29V13z" />
           <path d="M32 20l3.4 7 7.6.9-5.6 5.2 1.5 7.6L32 37l-6.9 3.7 1.5-7.6-5.6-5.2 7.6-.9z" />
@@ -250,9 +274,9 @@ function signOut() {
         <p class="spot-text">You haven't joined a league yet. Host one for your friends, join with a PIN, or find a public league.</p>
       </section>
 
-      <h2 v-if="leagues.length" class="section-title list-title">All leagues</h2>
+      <h2 v-if="shown.length" class="section-title list-title">All leagues</h2>
       <ul class="leagues">
-        <li v-for="league in leagues" :key="league.id">
+        <li v-for="league in shown" :key="league.id">
           <RouterLink :to="cardLink(league)" class="card league" :class="{ highlight: league.status === 'active' }">
             <div class="league-top">
               <span class="league-name">{{ league.name }}<span v-if="MODE_TAG[league.mode]" class="mode-tag"> · {{ MODE_TAG[league.mode] }}</span></span>
@@ -294,8 +318,41 @@ function signOut() {
             </div>
             <div v-if="statusLine(league).callout" class="callout">{{ statusLine(league).callout }}</div>
           </RouterLink>
+          <button
+            v-if="hideable(league)"
+            type="button"
+            class="hide-button"
+            :disabled="hiding === league.id"
+            :aria-label="`Hide ${league.name} from your leagues`"
+            @click="setHidden(league, true)"
+          >
+            Hide
+          </button>
         </li>
       </ul>
+
+      <template v-if="hidden.length">
+        <button type="button" class="hidden-toggle" :aria-expanded="showingHidden" @click="showingHidden = !showingHidden">
+          {{ showingHidden ? 'Hide' : 'Show' }} {{ hidden.length }} hidden {{ hidden.length === 1 ? 'league' : 'leagues' }}
+        </button>
+        <ul v-if="showingHidden" class="hidden-leagues">
+          <li v-for="league in hidden" :key="league.id" class="hidden-league">
+            <RouterLink :to="`/leagues/${league.id}`" class="hidden-name">
+              {{ league.name }}<span v-if="MODE_TAG[league.mode]" class="mode-tag"> · {{ MODE_TAG[league.mode] }}</span>
+              <span class="muted"> · {{ statusLine(league).label }}</span>
+            </RouterLink>
+            <button
+              type="button"
+              class="hide-button"
+              :disabled="hiding === league.id"
+              :aria-label="`Show ${league.name} in your leagues`"
+              @click="setHidden(league, false)"
+            >
+              Show
+            </button>
+          </li>
+        </ul>
+      </template>
     </template>
 
     <div class="actions">
@@ -310,6 +367,49 @@ function signOut() {
 </template>
 
 <style scoped>
+.hide-button,
+.hidden-toggle {
+  min-height: var(--tap);
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.hide-button {
+  display: block;
+  margin-left: auto;
+}
+.hidden-toggle {
+  display: block;
+  margin: 8px auto 0;
+  color: var(--gold);
+}
+.hidden-leagues {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hidden-league {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.hidden-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .top {
   flex-direction: row;
   justify-content: space-between;

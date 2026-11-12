@@ -271,6 +271,81 @@ describe('LeaguesView', () => {
     expect(wrapper.find('#display-name').exists()).toBe(false)
   })
 
+  it('hides a finished or canceled league for me, keeps it out of the spotlight, and shows it again', async () => {
+    const api = fakeApi({
+      listMyLeagues: vi.fn().mockResolvedValue([
+        myLeague({ id: 'f', name: 'Forming League', status: 'forming', isHost: true }),
+        myLeague({ id: 'c', name: 'Canceled League', status: 'canceled' }),
+        myLeague({ id: 'old', name: 'Old League', status: 'complete', hidden: true })
+      ])
+    })
+    const { wrapper } = await mountView(LeaguesView, api)
+    await flushPromises()
+    // Only finished and canceled leagues can be hidden, and hidden ones start out of the list
+    expect(wrapper.findAll('.league').map(card => card.text())).toEqual([expect.stringContaining('Forming League'), expect.stringContaining('Canceled League')])
+    expect(wrapper.findAll('.hide-button').map(button => button.attributes('aria-label'))).toEqual(['Hide Canceled League from your leagues'])
+    const toggle = wrapper.find('.hidden-toggle')
+    expect(toggle.text()).toBe('Show 1 hidden league')
+    expect(wrapper.find('.hidden-leagues').exists()).toBe(false)
+
+    await wrapper.find('button[aria-label="Hide Canceled League from your leagues"]').trigger('click')
+    await flushPromises()
+    expect(api.setLeagueHidden).toHaveBeenCalledWith('c', true)
+    expect(wrapper.findAll('.league')).toHaveLength(1)
+    expect(toggle.text()).toBe('Show 2 hidden leagues')
+
+    await toggle.trigger('click')
+    const hiddenRows = wrapper.findAll('.hidden-league')
+    expect(hiddenRows.map(row => row.find('a').attributes('href'))).toEqual(['/leagues/c', '/leagues/old'])
+    expect(hiddenRows[1]!.text()).toContain('Old League')
+    await wrapper.find('button[aria-label="Show Old League in your leagues"]').trigger('click')
+    await flushPromises()
+    expect(api.setLeagueHidden).toHaveBeenCalledWith('old', false)
+    expect(wrapper.findAll('.league').map(card => card.text())).toEqual([expect.stringContaining('Forming League'), expect.stringContaining('Old League')])
+    expect(wrapper.findAll('.hidden-league')).toHaveLength(1)
+
+    // Showing the last one closes the hidden list
+    await wrapper.find('button[aria-label="Show Canceled League in your leagues"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.hidden-toggle').exists()).toBe(false)
+    expect(wrapper.findAll('.league')).toHaveLength(3)
+    // and the next hide starts it closed again
+    await wrapper.find('button[aria-label="Hide Old League from your leagues"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.hidden-toggle').text()).toBe('Show 1 hidden league')
+    expect(wrapper.find('.hidden-leagues').exists()).toBe(false)
+  })
+
+  it('keeps hidden leagues out of the spotlight, and doesn’t welcome me as new when they’re all hidden', async () => {
+    const won = myLeague({ id: 'w', name: 'Won League', status: 'complete', hidden: true })
+    const api = fakeApi({ listMyLeagues: vi.fn().mockResolvedValue([won]) })
+    const { wrapper } = await mountView(LeaguesView, api)
+    await flushPromises()
+    expect(wrapper.text()).not.toContain("You haven't joined a league yet")
+    expect(wrapper.find('.spotlight').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Won League')
+    expect(wrapper.find('.hidden-toggle').text()).toBe('Show 1 hidden league')
+
+    // Shown, it's the finale in the spotlight again
+    await wrapper.find('.hidden-toggle').trigger('click')
+    await wrapper.find('button[aria-label="Show Won League in your leagues"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.spotlight').classes()).toContain('finale')
+  })
+
+  it('says so when a league can’t be hidden', async () => {
+    const api = fakeApi({
+      listMyLeagues: vi.fn().mockResolvedValue([myLeague({ id: 'c', name: 'Canceled League', status: 'canceled' })]),
+      setLeagueHidden: vi.fn().mockRejectedValue(new ApiError(409, 'Only a finished or canceled league can be hidden'))
+    })
+    const { wrapper } = await mountView(LeaguesView, api)
+    await flushPromises()
+    await wrapper.find('.hide-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Only a finished or canceled league can be hidden')
+    expect(wrapper.findAll('.league')).toHaveLength(1)
+  })
+
   it('welcomes players with no leagues yet', async () => {
     const { wrapper } = await mountView(LeaguesView, fakeApi())
     await flushPromises()

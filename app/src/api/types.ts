@@ -72,6 +72,8 @@ export interface MyLeague extends LeagueSummary {
   outlook: PartyOutlook
   /** Chat messages from others I haven't seen; stops counting at UNREAD_CAP */
   unreadChat: number
+  /** I hid it from my list (finished or canceled leagues only) */
+  hidden?: boolean
 }
 
 /** Next battle, last result, and anything to fix before the lineup locks. */

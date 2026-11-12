@@ -101,6 +101,8 @@ export const ClaimSchema = z
   .object({ heroId: ObjectIdSchema.transform(id => id.toLowerCase()), dropHeroId: ObjectIdSchema.transform(id => id.toLowerCase()) })
   .strict()
 
+export const HideLeagueSchema = z.object({ hidden: z.boolean() }).strict()
+
 export const ChampionSchema = z.object({ heroId: ObjectIdSchema.transform(id => id.toLowerCase()).nullable() }).strict()
 
 // Classic plays 14 weeks; Crossover up to 17 (NFL weeks 1-17).

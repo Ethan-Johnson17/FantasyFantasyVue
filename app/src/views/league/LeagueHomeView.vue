@@ -109,6 +109,22 @@ function cancelLeague() {
   void act(() => api.cancelLeague(id))
 }
 
+/** Finished and canceled leagues can be hidden from My leagues, for me only */
+async function hideLeague() {
+  const id = league.value?.id
+  if (!id) return
+  busy.value = true
+  error.value = null
+  try {
+    await api.setLeagueHidden(id, true)
+    await router.push('/leagues')
+  } catch (caught) {
+    error.value = caught
+  } finally {
+    busy.value = false
+  }
+}
+
 /** Solo: before the party is confirmed the run is canceled; after, it ends as a loss */
 function abandonRun() {
   const id = league.value?.id
@@ -412,6 +428,9 @@ async function startNextSeason() {
         @click="cancelLeague"
       >
         Cancel league
+      </button>
+      <button v-if="league.status === 'complete' || league.status === 'canceled'" type="button" class="link-button" :disabled="busy" @click="hideLeague">
+        Hide from my leagues
       </button>
       <button v-if="!isHost && league.status === 'forming'" type="button" class="link-button danger" :disabled="busy" @click="leaveLeague">
         Leave league

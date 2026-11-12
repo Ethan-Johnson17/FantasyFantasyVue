@@ -64,6 +64,8 @@ export interface ApiClient {
   scheduleDraft(leagueId: string, draftAt: Date): Promise<LeagueDetail>
   cancelLeague(leagueId: string): Promise<LeagueDetail>
   leaveLeague(leagueId: string): Promise<void>
+  /** Hides a finished or canceled league from my list, or shows it again; nobody else's list changes */
+  setLeagueHidden(leagueId: string, hidden: boolean): Promise<void>
   removeParty(leagueId: string, partyId: string): Promise<LeagueDetail>
   updateParty(partyId: string, update: Partial<PartyInput> & { autoSwap?: boolean }): Promise<Party>
   listHeroes(leagueId: string): Promise<Hero[]>
@@ -155,6 +157,7 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     joinLeague: (pin, party, takeOver) => request('POST', '/api/leagues/join', { pin, party, ...(takeOver ? { takeOver } : {}) }),
     scheduleDraft: (id, draftAt) => request('POST', `/api/leagues/${segment(id)}/draft`, { draftAt: draftAt.toISOString() }),
     cancelLeague: id => request('POST', `/api/leagues/${segment(id)}/cancel`),
+    setLeagueHidden: (id, hidden) => request('PUT', `/api/leagues/${segment(id)}/hidden`, { hidden }),
     leaveLeague: id => request('POST', `/api/leagues/${segment(id)}/leave`),
     removeParty: (id, partyId) => request('DELETE', `/api/leagues/${segment(id)}/parties/${segment(partyId)}`),
     updateParty: (partyId, update) => request('PATCH', `/api/parties/${segment(partyId)}`, update),

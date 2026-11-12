@@ -106,6 +106,22 @@ async function confirm() {
   }
 }
 
+/** Before the party is confirmed nothing has been played: canceling ends the run, and a new one can start */
+async function cancelRun() {
+  const id = league.value?.id
+  if (!id || !window.confirm('Cancel this run? Nothing has been played, and you can start a new one.')) return
+  busy.value = true
+  error.value = null
+  try {
+    await api.cancelLeague(id)
+    await router.push('/leagues')
+  } catch (caught) {
+    error.value = caught
+  } finally {
+    busy.value = false
+  }
+}
+
 // --- Swaps, once the run is under way -------------------------------------------------------------------------------
 const party = computed(() => (run.value?.pool ?? []).filter(hero => hero.partyId !== null))
 const freeAgents = computed(() => (run.value?.pool ?? []).filter(hero => hero.partyId === null))
@@ -143,7 +159,9 @@ async function sign(hero: SoloHero) {
 
 <template>
   <header class="page-header">
-    <div class="eyebrow">{{ league?.name }}</div>
+    <!-- While the party is being built there are no tabs, so the way back is here -->
+    <RouterLink v-if="building" to="/leagues" class="back-link">‹ Your leagues</RouterLink>
+    <div v-else class="eyebrow">{{ league?.name }}</div>
     <h1 class="title">{{ building ? 'Build your party' : 'The market' }}</h1>
   </header>
 
@@ -237,6 +255,10 @@ async function sign(hero: SoloHero) {
 
     <h2 class="section-title spaced">The pool</h2>
     <SoloPool :heroes="available" action-label="Sign" :problem="pickedProblem" :disabled="busy" @choose="pick" />
+
+    <div class="danger-zone">
+      <button type="button" class="link-button danger" :disabled="busy" @click="cancelRun">Cancel run</button>
+    </div>
   </template>
 
   <template v-else-if="run">
@@ -435,5 +457,23 @@ async function sign(hero: SoloHero) {
 }
 .confirm .btn {
   width: 100%;
+}
+.link-button {
+  min-height: var(--tap);
+  border: 0;
+  background: transparent;
+  color: var(--gold);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.danger {
+  color: var(--danger);
+}
+.danger-zone {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
 }
 </style>
