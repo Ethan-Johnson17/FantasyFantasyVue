@@ -50,6 +50,23 @@ const rulesOf = (league: Pick<LeagueDocument, 'mode' | 'rulesetVersion'>): Rules
   return { ...ruleset, solo: ruleset.solo }
 }
 
+/**
+ * The rules a run plays by. A run still being built moves to the ruleset new runs start with, so a new budget reaches
+ * it: nothing has been paid yet. Confirmed runs keep the ruleset they were confirmed with.
+ */
+async function soloRulesFor(league: LeagueDocument): Promise<Ruleset & { solo: SoloRules }> {
+  const current = RULESET_FOR_MODE.solo
+  if (league.mode !== 'solo' || league.status !== 'forming' || league.rulesetVersion === current) return rulesOf(league)
+  // A league's ruleset is otherwise immutable; this is the one move it makes, before anything is played or paid.
+  const moved = await LeagueModel.updateOne(
+    { _id: league._id, status: 'forming' },
+    { $set: { rulesetVersion: current } },
+    { overwriteImmutable: true }
+  )
+  // The loaded document keeps its old value (immutable), so the rules are passed on rather than read from it again.
+  return rulesOf({ mode: league.mode, rulesetVersion: moved.modifiedCount > 0 ? current : league.rulesetVersion })
+}
+
 export interface SoloStart {
   season: number
   /** The run's first NFL week: the first one kicking off after `at` */
@@ -227,7 +244,7 @@ export interface SoloView {
 /** The run's market and budget: for building the party, and for swaps once it's confirmed. Only the run's owner. */
 export async function getSolo(viewer: AccountDocument, leagueId: string): Promise<SoloView> {
   const { league, party } = await loadLeagueAsMember(viewer, leagueId)
-  const { solo, lineup, quest } = rulesOf(league)
+  const { solo, lineup, quest } = await soloRulesFor(league)
   const seed = (await LeagueModel.findById(league._id).select('+seed'))?.seed
   if (!seed) throw new Error(`Run ${league.id} has no seed`)
   const heroes = await HeroModel.find({ leagueId: league._id }).select('+source')
@@ -301,7 +318,7 @@ export interface ConfirmInput {
  */
 export async function confirmRun(viewer: AccountDocument, leagueId: string, input: ConfirmInput): Promise<void> {
   const { league, party } = await loadLeagueAsMember(viewer, leagueId)
-  const ruleset = rulesOf(league)
+  const ruleset = await soloRulesFor(league)
   const { solo, lineup, quest } = ruleset
   if (league.status !== 'forming') throw new Conflict('This run’s party is already confirmed')
   const size = quest?.partySize ?? 0

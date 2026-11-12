@@ -327,7 +327,8 @@ export const COOP_V1: Ruleset = {
 /**
  * Solo (docs/SOLO_SPEC.md): Crossover's players, Quest damage and kickoff locks, a roster of 8 bought under a budget,
  * and Co-op's campaign for one party. Balanced with `npm run simulate:solo` on 2012-2025 (decided 2026-11-10): a
- * sensible build wins 68% of runs, two stars 69%, even fighters 64%, never naming a Champion 43%.
+ * sensible build wins 68% of runs, two stars 69%, even fighters 64%, never naming a Champion 43%. Replaced for new runs
+ * by SOLO_V2; runs confirmed under it keep its budget.
  */
 export const SOLO_V1: Ruleset = {
   ...CROSSOVER_V1,
@@ -364,7 +365,28 @@ export const SOLO_V1: Ruleset = {
   }
 }
 
-const RULESETS = new Map<number, Ruleset>([RULESET_V1, CROSSOVER_V1, COOP_V1, SOLO_V1].map(ruleset => [ruleset.version, ruleset]))
+/** A Solo ruleset's budget and campaign rules */
+function soloRulesOf(ruleset: Ruleset): SoloRules {
+  if (!ruleset.solo) throw new Error(`Ruleset ${String(ruleset.version)} has no Solo rules`)
+  return ruleset.solo
+}
+
+/**
+ * Solo's second budget (decided 2026-11-11): at 116 gold a Level 10 left 16 for the other seven, and Levels 1-4 are
+ * mostly backups who barely play. 350 gold fits a Quest party of Level 6+ fighters averaging 7-8 and a playable bench
+ * around Level 5 (8, 8, 7, 7, 7 and three 5s cost exactly 350). Same prices. Simulated on 2012-2025: 71% of runs won
+ * by sensible, star and even builds alike (68% with a boss 10% tougher), never naming a Champion 40%. The projection
+ * scale is recalibrated for the richer parties: what the best party really deals is 0.98 of its projection.
+ */
+export const SOLO_V2: Ruleset = {
+  ...SOLO_V1,
+  version: 5,
+  solo: { ...soloRulesOf(SOLO_V1), cap: 350, projectionScale: 0.98 }
+}
+
+const RULESETS = new Map<number, Ruleset>(
+  [RULESET_V1, CROSSOVER_V1, COOP_V1, SOLO_V1, SOLO_V2].map(ruleset => [ruleset.version, ruleset])
+)
 
 export const CURRENT_RULESET_VERSION = RULESET_V1.version
 /** The ruleset new leagues of each mode start with */
@@ -372,7 +394,7 @@ export const RULESET_FOR_MODE: Readonly<Record<LeagueMode, number>> = {
   classic: RULESET_V1.version,
   crossover: CROSSOVER_V1.version,
   coop: COOP_V1.version,
-  solo: SOLO_V1.version
+  solo: SOLO_V2.version
 }
 
 export function getRuleset(version: number): Ruleset {

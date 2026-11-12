@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { COOP_V1, CROSSOVER_V1, CURRENT_RULESET_VERSION, getRuleset, SOLO_V1 } from '../modules/scoring/rulesets.js'
+import { COOP_V1, CROSSOVER_V1, CURRENT_RULESET_VERSION, getRuleset, RULESET_FOR_MODE } from '../modules/scoring/rulesets.js'
 import { BOSS_NAME } from '../modules/season/campaign.js'
 import { ENCOUNTERS } from '../modules/season/encounters.js'
 import { LAST_CROSSOVER_WEEK, MIN_CROSSOVER_WEEKS } from '../modules/season/nflWeeks.js'
@@ -22,7 +22,9 @@ export function rulesRouter({
     const { lineup, strategy } = getRuleset(CURRENT_RULESET_VERSION)
     const crossover = CROSSOVER_V1
     const coop = COOP_V1.coop
-    const solo = SOLO_V1.solo
+    // The ruleset new Solo runs start with
+    const soloRuleset = getRuleset(RULESET_FOR_MODE.solo)
+    const solo = soloRuleset.solo
     // A minute, so switching Crossover on (or off) reaches everyone quickly.
     res.set('Cache-Control', 'public, max-age=60')
     res.json({
@@ -62,10 +64,10 @@ export function rulesRouter({
         ? {
             // Whether Solo runs can be started yet (SOLO_ENABLED)
             available: soloEnabled,
-            version: SOLO_V1.version,
-            rosterSize: SOLO_V1.lineup.rosterSize,
-            partySize: SOLO_V1.quest?.partySize ?? 0,
-            classLimits: { ...SOLO_V1.lineup.classLimits },
+            version: soloRuleset.version,
+            rosterSize: soloRuleset.lineup.rosterSize,
+            partySize: soloRuleset.quest?.partySize ?? 0,
+            classLimits: { ...soloRuleset.lineup.classLimits },
             costs: [...solo.costs],
             cap: solo.cap,
             swapsPerWeek: solo.swapsPerWeek,
