@@ -325,7 +325,8 @@ function back() {
         <li>
           <strong>Buy your heroes.</strong> {{ solo.rosterSize }} heroes from every player and defense who has played this season. A
           hero costs their Level squared ({{ solo.costs[0] }} gold at Level 1, {{ solo.costs.at(-1) }} at Level 10), and the cap is
-          {{ solo.cap }} gold: one star and a cheap party, or several solid fighters. At most {{ solo.classLimits.Paladin ?? 2 }} Paladins.
+          {{ solo.cap }} gold: enough for a strong Quest party and a bench that can cover a bye, but not a party of stars. At most
+          {{ solo.classLimits.Paladin ?? 2 }} Paladins.
         </li>
         <li>
           <strong>Prices are locked when you sign.</strong> Levels follow the season, so a breakout you signed early stays cheap,

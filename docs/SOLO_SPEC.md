@@ -21,6 +21,11 @@ After the balancing simulation (2026-11-10) the user chose: costs of Level squar
 costs made one answer always right; runs need at least 8 weeks; the real season's luck is accepted; the monsters'
 ×1.25 / ×0.75 stay as in the other modes.
 
+After Solo went live (2026-11-11) the user raised the cap to **350**: at 116 a Level 10 left 16 gold for the other
+seven and mid-level players were out of reach, while Levels 1–4 are mostly backups who barely play. The cap should
+fit a Quest party of Level 6+ fighters averaging 7–8 and a playable bench around Level 5. Prices stay Level squared,
+and the pool is unchanged.
+
 ## How it differs from Crossover
 
 | | Crossover | Solo |
@@ -53,12 +58,15 @@ natural 20s and 1s, the Champion leading the Quest party, synergies, and attribu
 
 - **Cost = the hero's Level squared**, shown as gold: Level 1 costs 1, then 4, 9, 16, 25, 36, 49, 64, 81, and a
   Level 10 costs **100**.
-- **Cap: 116 gold** for the 8. A Level 10 leaves 16 for the other seven, so the choices are one star with a cheap
-  party, or five solid fighters (around Level 4–5) and a Level 1 bench.
+- **Cap: 350 gold** for the 8 (decided 2026-11-11; it was 116). A Quest party of 8, 8, 7, 7, 7 with three Level 5s
+  on the bench costs exactly 350; a Level 10 leaves 250 for the other seven, and two leave 150.
+- **Runs keep their budget.** A run confirmed at 116 plays out at 116. A run still being built when the budget
+  changed moves to the new one the next time it's opened or confirmed, since nothing has been paid yet.
 - **Why squared** (balancing, 2026-11-10): with cost equal to Level, the best build was always the best Level 10s and
   a Level 1 bench, at every cap from 28 to 48, and even parties won 12–19% of runs against 65%. Only five heroes fight
   and the Champion's ×1.25 lands on one of them, so a star was worth more than its price. Squared costs make both
-  approaches work: stars win 69%, even fighters 64%.
+  approaches work: stars win 69%, even fighters 64%. At 350 squared prices still give stars a price (two Level 10s
+  are 200), where Level^1.5 prices made a Level 10 only three times a Level 5.
 - **The price is locked at signing.** Levels follow the season (Crossover's ranking blends this season's points with
   last season's), so a hero's Level can change after you sign them. The cap counts what you paid, so a breakout you
   signed early stays cheap, and a slump never puts you over the cap.
@@ -148,6 +156,28 @@ order isn't simulated.
 - **Rejected:** linear costs (one build always right), Level^1.5 costs (stars ahead by about 19 points), a
   league-sized pool, HP by NFL week, and HP scaled to the season so far.
 
+### The 350 budget (decided 2026-11-11)
+
+Monster HP follows the best party the cap can buy, so a bigger budget makes the monsters stronger too; what changes is
+which parties can keep up. Simulated the same way (boss ×1.0, then ×1.1):
+
+| Prices, cap | Gold left after a Level 10 | Sensible | Stars | Even | No Champion |
+|---|---|---|---|---|---|
+| Level², 116 (the first budget) | 16 | 68% | 69% | 64% | 43% |
+| Level², 150 | 50 | 66% | 67% | 41% | 35% |
+| **Level², 350** | **250** | **71% / 68%** | **71%** | **71%** | **40%** |
+| Level², 380 | 280 | 74% / 70% | 74% | 74% | 39% |
+| Level^1.5, 135 | 103 | 74% / 71% | 74% | 74% | 39% |
+
+- **At 150 and 180 even parties fall behind** (41% and 39%): the best party gets a star the even one can't
+  match. At 350 the cap no longer forces a choice between a star and depth, and every plan buys close to the
+  same party (on average a Level 10 and Levels around 5–6 across the eight).
+- **That means the plans no longer measure a trade-off**: the "even" plan is a price ceiling that stops binding at
+  350. The choice left is which players, which the cap still limits (five Level 10s cost 500).
+- **The projection scale is 0.98** at 350 (it was 1.12 at 116): projections of the richest parties run slightly
+  ahead of what they deal.
+- **Never naming a Champion** still loses most runs (40%).
+
 ## What users see
 
 - **Start a Solo run** from the leagues list, shown once the API says Solo is available.
@@ -172,7 +202,9 @@ order isn't simulated.
 
 Solo gets its own ruleset version (roster of 8, Quest party of 5, 2 swaps a week, at most 2 defenses, the cost
 table 1-100, a cap of 116, 8 weeks to start, the projection scale 1.12, chapter and boss factors 1.0, ±15%
-variation), so later tuning never changes running campaigns.
+variation), so later tuning never changes running campaigns. Version 4 (`SOLO_V1`) was the first budget; version 5
+(`SOLO_V2`, 2026-11-11) is the same with a cap of 350 and a projection scale of 0.98, for new runs and runs still being
+built.
 
 **Launch switch:** Solo runs can be started only when the API's `SOLO_ENABLED` setting is `true`, off in production
 until every build phase is done.

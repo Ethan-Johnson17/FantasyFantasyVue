@@ -25,7 +25,7 @@ import { FIRST_LEAGUE_SEASON, LAST_LEAGUE_SEASON, MIN_PREVIOUS_GAMES, weeklyProf
 import { levelOnePoints } from '../modules/draft/crossoverCandidates.js'
 import { CLASS_BY_POSITION, HERO_CLASSES, type HeroClass } from '../modules/heroes/classes.js'
 import { assignTraits, type HeroTrait, type PoolCandidate } from '../modules/heroes/pool.js'
-import { CROSSOVER_V1, SOLO_V1, type Ruleset } from '../modules/scoring/rulesets.js'
+import { CROSSOVER_V1, getRuleset, RULESET_FOR_MODE, type Ruleset } from '../modules/scoring/rulesets.js'
 import { scoreDefense, scoreOffense } from '../modules/scoring/scoring.js'
 import { monsterMultiplier, playCampaignWeek, startCampaign, type CoopMonster } from '../modules/season/campaign.js'
 import { critOf } from '../modules/season/crits.js'
@@ -68,15 +68,17 @@ const QUEST = (() => {
   if (!RULESET.quest) throw new Error('The Crossover ruleset has no Quest rules')
   return RULESET.quest
 })()
+/** The ruleset new Solo runs start with (docs/SOLO_SPEC.md) */
+const SOLO_RULESET = getRuleset(RULESET_FOR_MODE.solo)
 /** Solo's rules (docs/SOLO_SPEC.md): lives and class modifiers, the budget, swaps and calendar */
 const SOLO = (() => {
-  if (!SOLO_V1.solo) throw new Error('The Solo ruleset has no Solo rules')
-  return SOLO_V1.solo
+  if (!SOLO_RULESET.solo) throw new Error('The Solo ruleset has no Solo rules')
+  return SOLO_RULESET.solo
 })()
-const ROSTER = SOLO_V1.lineup.rosterSize
-const PARTY = SOLO_V1.quest?.partySize ?? 5
+const ROSTER = SOLO_RULESET.lineup.rosterSize
+const PARTY = SOLO_RULESET.quest?.partySize ?? 5
 const SWAPS_PER_WEEK = SOLO.swapsPerWeek
-const MAX_PALADINS = SOLO_V1.lineup.classLimits.Paladin ?? 2
+const MAX_PALADINS = SOLO_RULESET.lineup.classLimits.Paladin ?? 2
 const LAST_WEEK = SOLO.lastWeek
 /** Decided 2026-11-10: with fewer, most monsters get one week and a bad Sunday costs a life */
 const MIN_WEEKS = SOLO.minWeeks
@@ -399,7 +401,7 @@ const mean = (items: readonly number[]) => items.reduce((sum, value) => sum + va
 
 // ---------------------------------------------------------------------------
 
-const CAPS = values.cap === undefined ? [116] : values.cap.split(',').map(Number)
+const CAPS = values.cap === undefined ? [SOLO.cap] : values.cap.split(',').map(Number)
 const MAX_CAP = ROSTER * (COSTS[9] ?? 10)
 if (CAPS.some(cap => !Number.isInteger(cap) || cap < ROSTER || cap > MAX_CAP)) throw new Error(`--cap must be ${String(ROSTER)}-${String(MAX_CAP)}`)
 
