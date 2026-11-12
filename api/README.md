@@ -44,6 +44,7 @@ Everything under `/api` requires an Auth0 access token (`Authorization: Bearer .
 | `PATCH /api/leagues/:id` | host, while forming | Edit name, visibility, cadence, max parties |
 | `POST /api/leagues/:id/cancel` | host | Cancel the league |
 | `POST /api/leagues/:id/leave` | members except host, while forming | Leave the league |
+| `PUT /api/leagues/:id/hidden` | members, finished or canceled to hide | Hide the league from my leagues (`{ "hidden": true }`), or show it again (`false`); only my list changes |
 | `DELETE /api/leagues/:id/parties/:partyId` | host, while forming | Remove a member's party |
 | `PATCH /api/parties/:id` | party owner | Rename a party or change its crest |
 | `POST /api/leagues/:id/draft` | host | Schedule (or reschedule) the draft; builds the hidden hero pool and locks membership |

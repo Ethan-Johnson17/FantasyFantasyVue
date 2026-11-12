@@ -253,7 +253,8 @@ Built 2026-11-10. Solo shows only once `GET /api/rules` says `solo.available`.
   ranking of parties.
 - **The run's home:** building the party, the campaign once it's under way, no PIN, draft, parties, standings or chat;
   **Cancel run** while building and **Abandon run** after (each asks first; abandoning is a loss), and **Start a new
-  run** once it's over.
+  run** once it's over. The build page, which a run being built opens on and which has no tabs yet, has its own way
+  back to My leagues and its own **Cancel run** (added 2026-11-11).
 - **Finale:** victory, defeat or abandoned, chapters fallen, lives left, the run's damage and weeks, every chapter,
   and the awards (Biggest Week, Hero of the Run, Natural 20s).
 - **My leagues:** the run's card is tagged Solo, opens the market while the party is being built ("Build your party"

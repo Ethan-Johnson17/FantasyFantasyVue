@@ -15,6 +15,7 @@ function as(sub: string) {
     get: (url: string) => withAuth(request(app).get(url)),
     post: (url: string, body: object = {}) => withAuth(request(app).post(url).send(body)),
     patch: (url: string, body: object) => withAuth(request(app).patch(url).send(body)),
+    put: (url: string, body: object) => withAuth(request(app).put(url).send(body)),
     delete: (url: string) => withAuth(request(app).delete(url))
   }
 }
@@ -404,5 +405,50 @@ describe('editing a party', () => {
     expect((await bob.patch(`/api/parties/${String(mine?.id)}`, { name: 'Stolen' })).status).toBe(404)
     const taken = await alice.patch(`/api/parties/${String(mine?.id)}`, { name: 'THE HOST PARTY' })
     expect(taken.status).toBe(409)
+  })
+})
+
+describe('hiding a league from My leagues', () => {
+  const ids = async (player: ReturnType<typeof as>) =>
+    ((await player.get('/api/leagues/mine')).body as { id: string; hidden: boolean }[]).map(league => [league.id, league.hidden])
+
+  it('hides a canceled league for one member only, and shows it again', async () => {
+    const league = await createLeague()
+    await alice.post('/api/leagues/join', { pin: league.pin, party: party('Elf Squad') })
+    await host.post(`/api/leagues/${league.id}/cancel`)
+    expect(await ids(host)).toEqual([[league.id, false]])
+
+    const hide = await host.put(`/api/leagues/${league.id}/hidden`, { hidden: true })
+    expect(hide.status).toBe(204)
+    // Still listed, marked hidden, so My leagues can offer to show it again; Alice's list is unchanged
+    expect(await ids(host)).toEqual([[league.id, true]])
+    expect(await ids(alice)).toEqual([[league.id, false]])
+    expect((await LeagueModel.findById(league.id))!.status).toBe('canceled')
+
+    expect((await host.put(`/api/leagues/${league.id}/hidden`, { hidden: false })).status).toBe(204)
+    expect(await ids(host)).toEqual([[league.id, false]])
+  })
+
+  it('hides a finished league too', async () => {
+    const league = await createLeague()
+    await LeagueModel.updateOne({ _id: league.id }, { $set: { status: 'complete' } })
+    expect((await host.put(`/api/leagues/${league.id}/hidden`, { hidden: true })).status).toBe(204)
+    expect(await ids(host)).toEqual([[league.id, true]])
+  })
+
+  it('refuses to hide a league still in play, a league I’m not in, or a bad request', async () => {
+    const league = await createLeague()
+    const forming = await host.put(`/api/leagues/${league.id}/hidden`, { hidden: true })
+    expect(forming.status).toBe(409)
+    expect(forming.body.error.message).toBe('Only a finished or canceled league can be hidden')
+    await LeagueModel.updateOne({ _id: league.id }, { $set: { status: 'active' } })
+    expect((await host.put(`/api/leagues/${league.id}/hidden`, { hidden: true })).status).toBe(409)
+    // Showing one again is always fine
+    expect((await host.put(`/api/leagues/${league.id}/hidden`, { hidden: false })).status).toBe(204)
+    await LeagueModel.updateOne({ _id: league.id }, { $set: { status: 'canceled' } })
+    expect((await outsider.put(`/api/leagues/${league.id}/hidden`, { hidden: true })).status).toBe(404)
+    expect((await host.put(`/api/leagues/${league.id}/hidden`, { hidden: 'yes' })).status).toBe(400)
+    expect((await host.put(`/api/leagues/${league.id}/hidden`, { hidden: true, extra: 1 })).status).toBe(400)
+    expect((await PartyModel.findOne({ leagueId: league.id }))!.hidden).toBe(false)
   })
 })

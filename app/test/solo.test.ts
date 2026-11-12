@@ -344,6 +344,23 @@ describe('building the party', () => {
     expect(api.confirmSolo).not.toHaveBeenCalled()
   })
 
+  it('leads back to My leagues, and cancels the run from the build page once the player agrees', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    const api = fakeApi({ getSolo: vi.fn().mockResolvedValue(run()), cancelLeague: vi.fn().mockResolvedValue(soloLeague({ status: 'canceled' })) })
+    const { wrapper, router } = await mountLeague(SoloRunView, api, soloLeague())
+    expect(wrapper.find('a.back-link').attributes('href')).toBe('/leagues')
+    const cancel = wrapper.find('.danger-zone button')
+    expect(cancel.text()).toBe('Cancel run')
+    await cancel.trigger('click')
+    await flushPromises()
+    expect(api.cancelLeague).not.toHaveBeenCalled()
+    await cancel.trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining('Nothing has been played'))
+    expect(api.cancelLeague).toHaveBeenCalledWith('l1')
+    expect(router.currentRoute.value.path).toBe('/leagues')
+  })
+
   it('explains why a run can’t start now, and won’t confirm', async () => {
     const problem = 'Too little of the NFL season is left: Solo runs start by NFL week 10, so they open again next season'
     const api = fakeApi({ getSolo: vi.fn().mockResolvedValue(run({ start: null, startProblem: problem })) })
@@ -466,6 +483,19 @@ describe('Solo elsewhere in a run', () => {
     expect(wrapper.find('.finale-banner').text()).toContain('Run abandoned')
     expect(wrapper.find('.board').text()).toContain('The run was abandoned at chapter 1.')
     expect(wrapper.find('a.new-run').attributes('href')).toBe('/solo/new')
+  })
+
+  it('hides a finished run from My leagues, and offers nothing to hide while it’s being built', async () => {
+    const api = fakeApi({ getCampaign: vi.fn().mockResolvedValue(campaign({ outcome: 'lost', abandoned: true, nextWeek: null })) })
+    const { wrapper, router } = await mountLeague(LeagueHomeView, api, soloLeague({ status: 'complete' }))
+    const hide = wrapper.findAll('button').find(button => button.text() === 'Hide from my leagues')
+    await hide!.trigger('click')
+    await flushPromises()
+    expect(api.setLeagueHidden).toHaveBeenCalledWith('l1', true)
+    expect(router.currentRoute.value.path).toBe('/leagues')
+
+    const forming = await mountLeague(LeagueHomeView, fakeApi(), soloLeague())
+    expect(forming.wrapper.text()).not.toContain('Hide from my leagues')
   })
 
   it('shows the quest board for one party: the party’s damage, this week’s kickoffs, and no ranking', async () => {

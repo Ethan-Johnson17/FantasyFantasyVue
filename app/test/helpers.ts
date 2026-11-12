@@ -21,6 +21,7 @@ export function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
     scheduleDraft: vi.fn(),
     cancelLeague: vi.fn(),
     leaveLeague: vi.fn(),
+    setLeagueHidden: vi.fn().mockResolvedValue(undefined),
     removeParty: vi.fn(),
     updateParty: vi.fn(),
     listHeroes: vi.fn().mockResolvedValue([]),

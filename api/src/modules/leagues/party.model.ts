@@ -47,7 +47,9 @@ const partySchema = new Schema(
     // Crossover only: the heroes who fight the week's encounter (the Quest board), any class, from the whole roster
     questParty: { type: [{ type: Schema.Types.ObjectId, ref: 'Hero' }], default: undefined },
     // The newest chat message this party has seen, for the unread badge
-    chatReadId: { type: Schema.Types.ObjectId, ref: 'ChatMessage', default: null }
+    chatReadId: { type: Schema.Types.ObjectId, ref: 'ChatMessage', default: null },
+    // Hidden from this member's My leagues: only a finished or canceled league, and only for them
+    hidden: { type: Boolean, required: true, default: false }
   },
   { timestamps: true }
 )

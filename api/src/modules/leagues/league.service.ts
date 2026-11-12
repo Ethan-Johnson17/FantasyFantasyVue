@@ -9,7 +9,7 @@ import { leaguePlayoffs, resolvesAt, seasonLength, type LeaguePlayoffs } from '.
 import { crossoverWindow } from '../season/nflWeeks.js'
 import { partyOutlook, type PartyOutlook } from '../season/outlook.service.js'
 import { computeStandings } from '../season/season.service.js'
-import { inTransaction, loadLeagueAsHost } from './league.access.js'
+import { inTransaction, loadLeagueAsHost, loadLeagueAsMember } from './league.access.js'
 import { LeagueModel, type LeagueDocument, type LeagueStatus } from './league.model.js'
 import type { CreateLeagueInput, PartyInput, UpdateLeagueInput, UpdatePartyInput } from './league.schemas.js'
 import { toCrest, type Crest } from './crests.js'
@@ -101,6 +101,8 @@ export interface MyLeagueView extends LeagueSummaryView {
   outlook: PartyOutlook
   /** Chat messages from others I haven't seen, capped (see UNREAD_CAP) */
   unreadChat: number
+  /** I hid it from my list (finished or canceled leagues only) */
+  hidden: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +132,8 @@ export async function getLeague(viewer: AccountDocument, leagueId: string): Prom
 
 export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueView[]> {
   const parties = await PartyModel.find({ accountId: viewer._id })
-  for (const party of parties) await advanceLeague(party.leagueId.toString())
+  // Hidden leagues are over, so there's nothing to advance.
+  for (const party of parties) if (!party.hidden) await advanceLeague(party.leagueId.toString())
   const partyByLeague = new Map(parties.map(party => [party.leagueId.toString(), party]))
   // A dynasty shows as its latest season; earlier seasons stay reachable from it.
   const leagues = await LeagueModel.find({ _id: trusted({ $in: parties.map(party => party.leagueId) }), 'dynasty.nextId': null }).sort({
@@ -147,14 +150,14 @@ export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueVi
         // Co-op and Solo have no standings: their outlook carries the campaign instead.
         standing: league.resolvedWeeks > 0 && league.mode !== 'coop' && league.mode !== 'solo' ? await standingOf(league, party.id) : null,
         outlook: await partyOutlook(league, party),
-        unreadChat: await unreadCount(party)
+        unreadChat: await unreadCount(party),
+        hidden: party.hidden
       }
     })
   )
   return views.filter((view): view is MyLeagueView => view !== null)
 }
 
-/** Public leagues that still have room. */
 /** Public leagues that still have room, newest first, leaving out leagues the viewer is already in. */
 export async function listPublicLeagues(viewer: AccountDocument, page: number): Promise<LeagueSummaryView[]> {
   const mine = await PartyModel.distinct('leagueId', { accountId: viewer._id })
@@ -182,6 +185,21 @@ export async function previewLeagueByPin(viewer: AccountDocument, pin: string): 
 
 // ---------------------------------------------------------------------------
 // Commands
+
+/** Statuses a league can be hidden in: it's over, so nothing on it needs the member any more */
+const HIDEABLE_STATUSES: readonly string[] = ['complete', 'canceled']
+
+/**
+ * Hides a finished or canceled league from the viewer's My leagues, or shows it again. Only the viewer's own list
+ * changes: the league, and everyone else's view of it, stay as they are.
+ */
+export async function setLeagueHidden(viewer: AccountDocument, leagueId: string, hidden: boolean): Promise<void> {
+  const { league, party } = await loadLeagueAsMember(viewer, leagueId)
+  if (hidden && !HIDEABLE_STATUSES.includes(league.status)) {
+    throw new Conflict('Only a finished or canceled league can be hidden')
+  }
+  await PartyModel.updateOne({ _id: party._id }, { $set: { hidden } })
+}
 
 export interface CreateOptions {
   /** Crossover leagues can be created only once the mode is finished (CROSSOVER_ENABLED) */
