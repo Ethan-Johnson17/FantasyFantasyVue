@@ -52,8 +52,13 @@ Everything under `/api` requires an Auth0 access token (`Authorization: Bearer .
 | `GET` / `PUT /api/leagues/:id/rankings` | members, before the draft | Read or replace my party's hero ranking |
 
 | `GET` / `PUT /api/leagues/:id/lineup` | members | My roster, lineup, Champion, and who is resting next week; set the lineup while the season runs |
-| `POST /api/leagues/:id/claims` | members | Claim a free agent by dropping a hero (`{ heroId, dropHeroId }`); first come, first served |
-| `GET /api/leagues/:id/moves` | members, or anyone if public | Recent roster moves, newest first |
+| `POST /api/leagues/:id/claims` | members | Claim a free agent by dropping a hero (`{ heroId, dropHeroId }`), or into an open roster spot (`dropHeroId: null`); first come, first served |
+| `GET /api/leagues/:id/moves` | members, or anyone if public | Recent roster moves, newest first: claims, Solo swaps and accepted trades |
+| `GET /api/leagues/:id/trades` | members | My party's trade offers both ways, and the trade window ([docs/TRADES_SPEC.md](../docs/TRADES_SPEC.md)) |
+| `POST /api/leagues/:id/trades` | members, until the deadline | Offer 1–3 of my heroes for 1–3 of theirs (`{ toPartyId, offered, requested, releases }`) |
+| `POST /api/leagues/:id/trades/:tradeId/accept` | the receiving party | Accept, releasing heroes if over the roster size (`{ releases }`) |
+| `POST /api/leagues/:id/trades/:tradeId/decline` | the receiving party | Decline an offer |
+| `POST /api/leagues/:id/trades/:tradeId/withdraw` | the sender | Withdraw an offer |
 | `GET /api/rules` | anyone | The current ruleset's public numbers (roster, starters, Champion and synergy values), for the How it works page |
 | `GET /api/leagues/:id/finale` | members, or anyone if public | After the season: champion, final standings, my finish, and awards |
 | `GET /api/leagues/:id/matchup?week=` | members | Preview of an upcoming battle (the next by default): both lineups, Champions, synergies, records, earlier meetings; resting heroes for the next battle only |

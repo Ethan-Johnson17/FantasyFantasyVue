@@ -11,6 +11,7 @@ import {
 import { CREST_BANNERS, CREST_EMBLEMS, CREST_MASCOT_COLORS, CREST_PATTERNS, isMascot } from './crests.js'
 import { PARTY_NAME_MAX } from './party.model.js'
 import { PIN_PATTERN } from './pin.js'
+import { TRADE_MAX_HEROES } from '../trades/trade.model.js'
 
 export const PartyInputSchema = z
   .object({
@@ -98,7 +99,11 @@ export const RankingsSchema = z
 export const LineupSchema = z.record(z.string().regex(/^[A-Za-z0-9]{1,20}$/, 'must be a slot key'), ObjectIdSchema)
 
 export const ClaimSchema = z
-  .object({ heroId: ObjectIdSchema.transform(id => id.toLowerCase()), dropHeroId: ObjectIdSchema.transform(id => id.toLowerCase()) })
+  .object({
+    heroId: ObjectIdSchema.transform(id => id.toLowerCase()),
+    // null: into an open roster spot
+    dropHeroId: ObjectIdSchema.transform(id => id.toLowerCase()).nullable()
+  })
   .strict()
 
 export const HideLeagueSchema = z.object({ hidden: z.boolean() }).strict()
@@ -146,3 +151,20 @@ export function parseId(id: string | undefined): string {
 export const KeepersSchema = z
   .object({ heroIds: z.array(ObjectIdSchema.transform(id => id.toLowerCase())).max(10) })
   .strict()
+
+// Trades (docs/TRADES_SPEC.md)
+const TradeHeroesSchema = z
+  .array(HeroIdSchema)
+  .min(1)
+  .max(TRADE_MAX_HEROES)
+  .refine(list => new Set(list).size === list.length, 'must not repeat a hero')
+const ReleasesSchema = z
+  .array(HeroIdSchema)
+  .max(TRADE_MAX_HEROES)
+  .refine(list => new Set(list).size === list.length, 'must not repeat a hero')
+
+export const OfferTradeSchema = z
+  .object({ toPartyId: HeroIdSchema, offered: TradeHeroesSchema, requested: TradeHeroesSchema, releases: ReleasesSchema.default([]) })
+  .strict()
+
+export const AcceptTradeSchema = z.object({ releases: ReleasesSchema.default([]) }).strict()

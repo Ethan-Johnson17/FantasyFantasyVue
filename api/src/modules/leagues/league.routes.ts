@@ -19,6 +19,8 @@ import {
   MatchupQuerySchema,
   PageQuerySchema,
   parseId,
+  OfferTradeSchema,
+  AcceptTradeSchema,
   PinSchema,
   KeepersSchema,
   QuestPartySchema,
@@ -36,6 +38,7 @@ import * as leagues from './league.service.js'
 import type { CreateOptions } from './league.service.js'
 import { getCampaign } from '../season/campaign.service.js'
 import * as solo from '../solo/solo.service.js'
+import * as trades from '../trades/trade.service.js'
 import type { SoloOptions } from '../solo/solo.service.js'
 
 export const PIN_ATTEMPTS_PER_MINUTE = 20
@@ -161,6 +164,23 @@ export function leagueRouter(modes: CreateOptions & SoloOptions) {
     .post('/:id/claims', async (req, res) => {
       const { heroId, dropHeroId } = ClaimSchema.parse(req.body)
       res.json(await roster.claimFreeAgent(currentAccount(req), parseId(req.params.id), heroId, dropHeroId))
+    })
+    // Trades (docs/TRADES_SPEC.md)
+    .get('/:id/trades', async (req, res) => {
+      res.json(await trades.listTrades(currentAccount(req), parseId(req.params.id)))
+    })
+    .post('/:id/trades', async (req, res) => {
+      res.status(201).json(await trades.offerTrade(currentAccount(req), parseId(req.params.id), OfferTradeSchema.parse(req.body)))
+    })
+    .post('/:id/trades/:tradeId/accept', async (req, res) => {
+      const { releases } = AcceptTradeSchema.parse(req.body ?? {})
+      res.json(await trades.acceptTrade(currentAccount(req), parseId(req.params.id), parseId(req.params.tradeId), releases))
+    })
+    .post('/:id/trades/:tradeId/decline', async (req, res) => {
+      res.json(await trades.answerTrade(currentAccount(req), parseId(req.params.id), parseId(req.params.tradeId), 'declined'))
+    })
+    .post('/:id/trades/:tradeId/withdraw', async (req, res) => {
+      res.json(await trades.answerTrade(currentAccount(req), parseId(req.params.id), parseId(req.params.tradeId), 'withdrawn'))
     })
     .get('/:id/moves', async (req, res) => {
       res.json(await roster.listMoves(currentAccount(req), parseId(req.params.id)))
