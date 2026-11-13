@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useApi } from '../../api/inject'
-import type { Hero, HeroClass, Lineup, RosterMove } from '../../api/types'
+import type { Hero, HeroClass, Lineup, RosterMove, Trades } from '../../api/types'
 import ClaimPanel from '../../components/ClaimPanel.vue'
 import ClassIcon from '../../components/ClassIcon.vue'
 import FormError from '../../components/FormError.vue'
 import TraitChips from '../../components/TraitChips.vue'
-import { CLASS_COLOR, HERO_CLASSES, isMystery, levelText, levelValue } from '../../heroes'
+import { CLASS_COLOR, HERO_CLASSES, heroFormText, isMystery, levelText, levelValue } from '../../heroes'
 import { useLeague } from '../../league'
 import { timeUntil } from '../../time'
+import { hasTrades, tradeMoveText } from '../../trades'
 import PlayerTag from '../../components/PlayerTag.vue'
 import XpBadge from '../../components/XpBadge.vue'
 
@@ -27,6 +28,13 @@ const drafting = computed(() => league.value?.status === 'drafting')
 const canClaim = computed(() => league.value?.status === 'active' && !!myParty.value)
 
 const moves = ref<RosterMove[]>([])
+/** Trades: the window, the roster size (for claims into an open spot), and offers waiting on me */
+const trades = ref<Trades | null>(null)
+const waitingOffers = computed(() => trades.value?.open.filter(trade => trade.waitingOnMe).length ?? 0)
+const tradesHint = computed(() => {
+  if (waitingOffers.value) return `${String(waitingOffers.value)} ${waitingOffers.value === 1 ? 'offer' : 'offers'} waiting on you`
+  return trades.value?.window.open ? 'Open a party from the standings or your matchup to make an offer' : 'The trade deadline has passed'
+})
 /** The free agent being claimed, with my lineup for choosing whom to drop. */
 const claiming = ref<{ target: Hero; lineup: Lineup } | null>(null)
 const claimError = ref<unknown>(null)
@@ -42,6 +50,7 @@ onMounted(async () => {
       savedRanking.value = [...saved.heroIds]
     } else {
       moves.value = await api.listMoves(league.value.id)
+      if (canClaim.value && hasTrades(league.value)) trades.value = await api.listTrades(league.value.id)
     }
   } catch (caught) {
     error.value = caught
@@ -73,17 +82,7 @@ const bySort = (a: Hero, b: Hero) =>
 const freeAgents = computed(() => heroes.value.filter(hero => hero.partyId === null && matches(hero)).sort(bySort))
 const drafted = computed(() => heroes.value.filter(hero => hero.partyId !== null && matches(hero)).sort(bySort))
 
-/** "Proj 20 · Last 3: 22 · season 18" ("Proj 30 · Avg 47 · 1 battle" early on); just the projection before battles. */
-function formText(hero: Hero): string {
-  const form = hero.form
-  if (!form) return ''
-  if (!battlesPlayed.value) return league.value?.status === 'active' ? `Proj ${String(form.projected)}` : ''
-  if (!form.played) return `Proj ${String(form.projected)} · No battles fought yet`
-  // Until there are more than three battles, recent form and the season average are the same.
-  const playing = `Proj ${String(form.projected)} · ${form.playingLike ? `Playing like Lv ${String(form.playingLike)} · ` : ''}`
-  if (form.played <= 3) return `${playing}Avg ${String(form.average ?? 0)} · ${String(form.played)} battle${form.played === 1 ? '' : 's'}`
-  return `${playing}Last 3: ${String(form.recent ?? 0)} · season ${String(form.average ?? 0)}`
-}
+const formText = (hero: Hero) => heroFormText(hero, battlesPlayed.value, league.value?.status === 'active')
 
 /** Ranks every unranked hero in view, best Level first, after the ones already ranked. */
 function rankAll() {
@@ -107,7 +106,10 @@ async function openClaim(target: Hero) {
   }
 }
 
-async function confirmClaim(dropHeroId: string) {
+/** A party left short by an uneven trade claims into the open spot without dropping anyone */
+const openSpot = computed(() => !!claiming.value && !!trades.value && claiming.value.lineup.roster.length < trades.value.rosterSize)
+
+async function confirmClaim(dropHeroId: string | null) {
   if (!league.value || !claiming.value) return
   const { target } = claiming.value
   claimBusy.value = true
@@ -126,6 +128,8 @@ async function confirmClaim(dropHeroId: string) {
     const [freshHeroes, freshMoves] = await Promise.all([api.listHeroes(league.value.id), api.listMoves(league.value.id)])
     heroes.value = freshHeroes
     moves.value = freshMoves
+    // A dropped hero may have been part of an open trade offer.
+    if (trades.value) trades.value = await api.listTrades(league.value.id)
   } catch (caught) {
     error.value = caught
   }
@@ -273,8 +277,13 @@ async function save() {
       </div>
     </template>
 
-    <!-- After the draft: free agents to claim, then who's where -->
+    <!-- After the draft: trades, free agents to claim, then who's where -->
     <template v-else>
+      <RouterLink v-if="trades" :to="`/leagues/${league?.id}/trades`" class="card trades-link" :class="{ waiting: waitingOffers }">
+        <span class="trades-title">Trades</span>
+        <span class="muted small">{{ tradesHint }}</span>
+        <span aria-hidden="true">›</span>
+      </RouterLink>
       <h2 class="section-title">Free agents</h2>
       <p v-if="canClaim" class="muted small">
         Claim a free agent by dropping one of your heroes. First come, first served; the change counts from the next battle.
@@ -320,9 +329,14 @@ async function save() {
       <template v-if="moves.length">
         <h2 class="section-title">Recent moves</h2>
         <ul class="moves">
-          <li v-for="entry in moves" :key="`${entry.at}-${entry.added.heroId}`" class="move">
-            <strong>{{ entry.party.name }}</strong> claimed {{ entry.added.name }}, dropped {{ entry.dropped.name }}
-            <span class="muted small">· from battle {{ entry.effectiveWeek }}</span>
+          <li v-for="(entry, index) in moves" :key="`${entry.at}-${String(index)}`" class="move">
+            <template v-if="entry.kind === 'trade'">
+              <strong>{{ entry.sides[0]?.party.name }}</strong> and <strong>{{ entry.sides[1]?.party.name }}</strong> traded: {{ tradeMoveText(entry) }}
+            </template>
+            <template v-else>
+              <strong>{{ entry.party.name }}</strong> claimed {{ entry.added.name }}<template v-if="entry.dropped">, dropped {{ entry.dropped.name }}</template>
+            </template>
+            <span class="muted small">{{ ' ' }}· from battle {{ entry.effectiveWeek }}</span>
           </li>
         </ul>
       </template>
@@ -337,6 +351,7 @@ async function save() {
     v-if="claiming"
     :target="claiming.target"
     :lineup="claiming.lineup"
+    :open-spot="openSpot"
     :busy="claimBusy"
     :error="claimError"
     @confirm="confirmClaim"
@@ -405,6 +420,23 @@ async function save() {
   font-weight: 700;
   font-size: 20px;
   color: var(--gold);
+}
+.trades-link {
+  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  text-decoration: none;
+}
+.trades-link.waiting {
+  border-color: var(--gold);
+}
+.trades-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
 }
 .moves {
   list-style: none;

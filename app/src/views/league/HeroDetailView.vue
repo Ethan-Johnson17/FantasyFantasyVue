@@ -2,24 +2,31 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useApi } from '../../api/inject'
-import type { HeroDetail } from '../../api/types'
+import type { HeroDetail, Trades } from '../../api/types'
 import ClassIcon from '../../components/ClassIcon.vue'
 import FormError from '../../components/FormError.vue'
 import { CLASS_COLOR, CLASS_TEMPERAMENT, CRIT_NAMES, isMystery, levelText, TRAITS } from '../../heroes'
 import { useLeague } from '../../league'
 import { seasonWeeksOf } from '../../time'
 import PlayerTag from '../../components/PlayerTag.vue'
+import { hasTrades } from '../../trades'
 
 const api = useApi()
 const route = useRoute()
-const { league } = useLeague()
+const { league, myParty } = useLeague()
 const detail = ref<HeroDetail | null>(null)
+const trades = ref<Trades | null>(null)
 const error = ref<unknown>(null)
 
 onMounted(async () => {
   if (!league.value) return
   try {
     detail.value = await api.getHero(league.value.id, String(route.params.heroId))
+    // Another party's hero: a trade, while trades are open.
+    const ownerId = detail.value.hero.partyId
+    if (ownerId && myParty.value && ownerId !== myParty.value.id && hasTrades(league.value) && league.value.status === 'active') {
+      trades.value = await api.listTrades(league.value.id)
+    }
   } catch (caught) {
     error.value = caught
   }
@@ -70,8 +77,16 @@ const chartLabel = computed(() =>
           {{ hero.heroClass }}
         </span>
         <span v-for="trait in hero.traits" :key="trait" class="chip" :class="`trait-${trait}`">{{ TRAITS[trait].label }}</span>
-        <span class="chip">{{ owner ? owner.name : 'Free agent' }}</span>
+        <RouterLink v-if="owner" :to="`/leagues/${league?.id}/parties/${owner.id}`" class="chip owner-link">{{ owner.name }} ›</RouterLink>
+        <span v-else class="chip">Free agent</span>
       </div>
+      <RouterLink
+        v-if="owner && trades?.window.open"
+        :to="{ path: `/leagues/${league?.id}/trades/new`, query: { party: owner.id, want: hero.id } }"
+        class="btn btn-primary trade-for"
+      >
+        Trade for {{ hero.name }}
+      </RouterLink>
     </section>
 
     <section class="card skill">
@@ -118,6 +133,14 @@ const chartLabel = computed(() =>
 </template>
 
 <style scoped>
+.owner-link {
+  color: var(--text);
+  text-decoration: none;
+}
+.trade-for {
+  margin-top: 12px;
+  align-self: stretch;
+}
 .back-button {
   border: 0;
   background: transparent;

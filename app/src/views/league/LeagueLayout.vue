@@ -22,6 +22,8 @@ interface Tab {
   exact: boolean
   icon: string
   badge?: number
+  /** What the badge counts, for screen readers */
+  badgeLabel?: string
 }
 // Icons on a 24x24 grid: castle, shield, crossed swords, star, speech bubble, coin.
 const tabs = computed((): Tab[] => {
@@ -37,8 +39,16 @@ const tabs = computed((): Tab[] => {
     party,
     // Co-op has no matchups: every party fights the campaign's monster on the Quest tab.
     league.value?.mode === 'coop' ? quest : { to: `${base.value}/matchup`, label: 'Matchup', exact: false, icon: 'M5 4l10 10M4 14l4 4 M19 4L9 14M20 14l-4 4M3 19l2 2M21 19l-2 2' },
-    { to: `${base.value}/heroes`, label: 'Heroes', exact: false, icon: 'M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z' },
-    { to: `${base.value}/chat`, label: 'Chat', exact: false, icon: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5', badge: onChat.value ? 0 : unread.value }
+    // Trades live with the heroes: the badge counts offers waiting on me.
+    {
+      to: `${base.value}/heroes`,
+      label: 'Heroes',
+      exact: false,
+      icon: 'M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z',
+      badge: league.value?.tradeOffers ?? 0,
+      badgeLabel: 'trade offers waiting'
+    },
+    { to: `${base.value}/chat`, label: 'Chat', exact: false, icon: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5', badge: onChat.value ? 0 : unread.value, badgeLabel: 'unread' }
   ]
 })
 // Tabs matter once the league has a hero pool; before that the League tab has everything.
@@ -89,7 +99,7 @@ onUnmounted(() => {
           </svg>
           <span v-if="tab.badge" class="badge" aria-hidden="true">{{ unreadText(tab.badge) }}</span>
         </span>
-        <span class="tab-label">{{ tab.label }}<span v-if="tab.badge" class="visually-hidden">, {{ unreadText(tab.badge) }} unread</span></span>
+        <span class="tab-label">{{ tab.label }}<span v-if="tab.badge" class="visually-hidden">, {{ unreadText(tab.badge) }} {{ tab.badgeLabel }}</span></span>
       </RouterLink>
     </nav>
   </div>

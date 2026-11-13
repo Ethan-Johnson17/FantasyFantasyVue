@@ -31,6 +31,10 @@ export const routes: RouteRecordRaw[] = [
       { path: 'battles/:week', redirect: to => `/leagues/${String(to.params.id)}/matchup/${String(to.params.week)}` },
       { path: 'heroes', name: 'heroes', component: () => import('./views/league/HeroesView.vue') },
       { path: 'heroes/:heroId', name: 'hero', component: () => import('./views/league/HeroDetailView.vue') },
+      // Any party's roster, and trades between parties (docs/TRADES_SPEC.md)
+      { path: 'parties/:partyId', name: 'party-roster', component: () => import('./views/league/PartyRosterView.vue') },
+      { path: 'trades', name: 'trades', component: () => import('./views/league/TradesView.vue') },
+      { path: 'trades/new', name: 'trade-new', component: () => import('./views/league/TradeNewView.vue') },
       { path: 'finale', name: 'finale', component: () => import('./views/league/FinaleView.vue') },
       { path: 'solo', name: 'solo', component: () => import('./views/league/SoloRunView.vue') },
       { path: 'draft', name: 'draft', component: () => import('./views/league/DraftRecapView.vue') },

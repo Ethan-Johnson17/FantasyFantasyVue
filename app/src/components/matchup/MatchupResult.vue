@@ -94,14 +94,15 @@ const others = computed(() =>
       <div class="sides">
         <div class="side">
           <CrestShield :crest="featured.us.crest" :size="40" />
-          <span class="side-name">{{ featured.us.name }}</span>
+          <RouterLink :to="`/leagues/${leagueId}/parties/${featured.us.partyId}`" class="side-name party-link">{{ featured.us.name }}</RouterLink>
           <span class="score">{{ Math.round(featured.us.total) }}</span>
         </div>
         <span class="vs">vs</span>
         <div class="side">
           <CrestShield v-if="featured.them" :crest="featured.them.crest" :size="40" />
           <span v-else class="monster-mark" aria-hidden="true">☠</span>
-          <span class="side-name">{{ featured.opponentName }}</span>
+          <RouterLink v-if="featured.them" :to="`/leagues/${leagueId}/parties/${featured.them.partyId}`" class="side-name party-link">{{ featured.them.name }}</RouterLink>
+          <span v-else class="side-name">{{ featured.opponentName }}</span>
           <span class="score muted">{{ Math.round(featured.opponentTotal) }}</span>
         </div>
       </div>

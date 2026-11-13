@@ -68,14 +68,14 @@ const sides = computed(() => (props.matchup.opponent ? [props.matchup.me, props.
     <div class="sides">
       <div class="side">
         <CrestShield :crest="matchup.me.crest" :size="44" />
-        <span class="side-name">{{ matchup.me.name }}</span>
+        <RouterLink :to="`/leagues/${leagueId}/parties/${matchup.me.partyId}`" class="side-name party-link">{{ matchup.me.name }}</RouterLink>
         <span class="muted small">{{ recordText(matchup.me) }}</span>
       </div>
       <span class="vs">vs</span>
       <div class="side">
         <template v-if="matchup.opponent">
           <CrestShield :crest="matchup.opponent.crest" :size="44" />
-          <span class="side-name">{{ matchup.opponent.name }}</span>
+          <RouterLink :to="`/leagues/${leagueId}/parties/${matchup.opponent.partyId}`" class="side-name party-link">{{ matchup.opponent.name }}</RouterLink>
           <span class="muted small">{{ recordText(matchup.opponent) }}</span>
         </template>
         <template v-else>

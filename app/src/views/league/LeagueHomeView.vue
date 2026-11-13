@@ -341,7 +341,7 @@ async function startNextSeason() {
             <th scope="row">
               <span class="rank">{{ index + 1 }}</span>
               <CrestShield :crest="row.crest" :size="22" />
-              {{ row.name }}
+              <RouterLink :to="`/leagues/${league.id}/parties/${row.partyId}`" class="party-link">{{ row.name }}</RouterLink>
               <span v-if="isMine(row.partyId)" class="you">you</span>
             </th>
             <td class="num">{{ row.wins }}–{{ row.losses }}<template v-if="row.draws">–{{ row.draws }}</template></td>
@@ -585,6 +585,14 @@ tr.mine .rank {
 }
 .party-name {
   font-weight: 700;
+}
+/* A party's name in the standings opens its roster */
+.party-link {
+  color: inherit;
+  text-decoration: none;
+}
+.party-link:hover {
+  text-decoration: underline;
 }
 .link-button {
   min-height: var(--tap);

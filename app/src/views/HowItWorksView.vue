@@ -215,6 +215,15 @@ function back() {
           Heroes nobody drafted, and heroes a party drops, are free agents. Claim one on the Heroes tab by dropping one of
           yours: first come, first served, counting from the next battle.
         </li>
+        <li id="trades">
+          Trade with another party: open them from the standings or your matchup, tap a hero you want, and offer up to 3 of
+          yours for up to 3 of theirs. They accept or decline; an accepted trade happens at once and counts from the next
+          battle. Trades close when 4 regular-season weeks are left.
+        </li>
+        <li>
+          In an uneven trade, whoever ends up over the roster size releases heroes to free agency, and a party left short
+          claims a free agent into the open spot without dropping anyone.
+        </li>
       </ul>
     </section>
 
