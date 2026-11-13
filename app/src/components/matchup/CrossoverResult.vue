@@ -104,13 +104,13 @@ const pointsText = (hero: ResultHero) => (hero.resting ? 'Didn’t play' : `${St
       <div class="sides">
         <div class="side">
           <CrestShield :crest="featured.us.crest" :size="40" />
-          <span class="side-name">{{ featured.us.name }}</span>
+          <RouterLink :to="`/leagues/${leagueId}/parties/${featured.us.partyId}`" class="side-name party-link">{{ featured.us.name }}</RouterLink>
         </div>
         <span class="vs">vs</span>
         <div class="side">
           <template v-if="featured.them">
             <CrestShield :crest="featured.them.crest" :size="40" />
-            <span class="side-name">{{ featured.them.name }}</span>
+            <RouterLink :to="`/leagues/${leagueId}/parties/${featured.them.partyId}`" class="side-name party-link">{{ featured.them.name }}</RouterLink>
           </template>
           <template v-else>
             <span class="monster-mark" aria-hidden="true">☠</span>

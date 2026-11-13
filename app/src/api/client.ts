@@ -16,6 +16,9 @@ import type {
   Lineup,
   Matchup,
   RosterMove,
+  Trade,
+  TradeOffer,
+  Trades,
   MyLeague,
   Party,
   PartyInput,
@@ -83,8 +86,15 @@ export interface ApiClient {
   setKeepers(leagueId: string, heroIds: string[]): Promise<Keepers>
   /** Crossover: the heroes who fight the week's encounter */
   setQuestParty(leagueId: string, heroIds: string[]): Promise<Lineup>
-  claimHero(leagueId: string, heroId: string, dropHeroId: string): Promise<Lineup>
+  /** `dropHeroId` null: into an open roster spot */
+  claimHero(leagueId: string, heroId: string, dropHeroId: string | null): Promise<Lineup>
   listMoves(leagueId: string): Promise<RosterMove[]>
+  /** Trades (docs/TRADES_SPEC.md): my party's offers both ways, and the trade window */
+  listTrades(leagueId: string): Promise<Trades>
+  offerTrade(leagueId: string, offer: TradeOffer): Promise<Trade>
+  acceptTrade(leagueId: string, tradeId: string, releases: string[]): Promise<Trade>
+  declineTrade(leagueId: string, tradeId: string): Promise<Trade>
+  withdrawTrade(leagueId: string, tradeId: string): Promise<Trade>
   getSchedule(leagueId: string): Promise<ScheduleWeek[]>
   /** An upcoming battle: the next one by default */
   getMatchup(leagueId: string, week?: number): Promise<Matchup>
@@ -175,6 +185,11 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     setQuestParty: (id, heroIds) => request('PUT', `/api/leagues/${segment(id)}/quest-party`, { heroIds }),
     claimHero: (id, heroId, dropHeroId) => request('POST', `/api/leagues/${segment(id)}/claims`, { heroId, dropHeroId }),
     listMoves: id => request('GET', `/api/leagues/${segment(id)}/moves`),
+    listTrades: id => request('GET', `/api/leagues/${segment(id)}/trades`),
+    offerTrade: (id, offer) => request('POST', `/api/leagues/${segment(id)}/trades`, offer),
+    acceptTrade: (id, tradeId, releases) => request('POST', `/api/leagues/${segment(id)}/trades/${segment(tradeId)}/accept`, { releases }),
+    declineTrade: (id, tradeId) => request('POST', `/api/leagues/${segment(id)}/trades/${segment(tradeId)}/decline`),
+    withdrawTrade: (id, tradeId) => request('POST', `/api/leagues/${segment(id)}/trades/${segment(tradeId)}/withdraw`),
     getSchedule: id => request('GET', `/api/leagues/${segment(id)}/schedule`),
     getMatchup: (id, week) => request('GET', `/api/leagues/${segment(id)}/matchup${week === undefined ? '' : `?week=${String(week)}`}`),
     getRules: () => request('GET', '/api/rules', undefined, false),

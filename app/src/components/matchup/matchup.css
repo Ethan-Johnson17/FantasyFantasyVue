@@ -36,6 +36,14 @@
   line-height: 1.1;
   overflow-wrap: anywhere;
 }
+/* A party's name opens its roster */
+.party-link {
+  color: var(--text);
+  text-decoration: none;
+}
+.party-link:hover {
+  text-decoration: underline;
+}
 .vs {
   font-family: var(--font-display);
   font-size: 20px;

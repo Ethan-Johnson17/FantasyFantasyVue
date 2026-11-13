@@ -488,7 +488,9 @@ describe('Free agency', () => {
       listHeroes: vi.fn().mockResolvedValueOnce(pool()).mockResolvedValue([hero('h1', { partyId: 'p1' }), hero('h2'), hero('f1', { partyId: 'p1' })]),
       getLineup: vi.fn().mockResolvedValue(myLineup()),
       claimHero: vi.fn().mockResolvedValue(myLineup()),
-      listMoves: vi.fn().mockResolvedValue([])
+      listMoves: vi.fn().mockResolvedValue([]),
+      // A full roster: no open spot to claim into
+      listTrades: vi.fn().mockResolvedValue({ window: { open: true, lastWeek: 10 }, rosterSize: myLineup().roster.length, open: [], answered: [] })
     })
     const { wrapper } = await mountLeague(HeroesView, api, league())
     expect(wrapper.text()).toContain('Free agents')
@@ -825,7 +827,7 @@ describe('Hero detail', () => {
     const { wrapper } = await mountLeague(HeroDetailView, api, detail({ status: 'active', parties: [party('a', true)] }), '/heroes/h1')
     expect(api.getHero).toHaveBeenCalledWith('l1', 'h1')
     expect(wrapper.text()).toContain('Average 23')
-    expect(wrapper.findAll('.chip').map(chip => chip.text())).toEqual(['Level 5', 'Rogue', 'Wild', 'Mighty', 'Party a'])
+    expect(wrapper.findAll('.chip').map(chip => chip.text())).toEqual(['Level 5', 'Rogue', 'Wild', 'Mighty', 'Party a ›'])
     expect(wrapper.find('.traits').text()).toContain('Swings between quiet battles and huge ones.')
     // The hero's own Wild trait replaces the class's usual temperament text.
     expect(wrapper.text()).not.toContain('Rogues strike from the shadows')

@@ -46,7 +46,7 @@ const OUTCOME = { win: 'Victory', loss: 'Defeat', draw: 'Draw' } as const
     <div class="sides">
       <div class="side">
         <CrestShield :crest="matchup.me.crest" :size="48" />
-        <span class="side-name">{{ matchup.me.name }}</span>
+        <RouterLink :to="`/leagues/${leagueId}/parties/${matchup.me.partyId}`" class="side-name party-link">{{ matchup.me.name }}</RouterLink>
         <span class="muted small">{{ recordText(matchup.me) }}</span>
         <span class="projected">Proj {{ matchup.me.projectedTotal }}</span>
       </div>
@@ -54,7 +54,7 @@ const OUTCOME = { win: 'Victory', loss: 'Defeat', draw: 'Draw' } as const
       <div class="side">
         <template v-if="matchup.opponent">
           <CrestShield :crest="matchup.opponent.crest" :size="48" />
-          <span class="side-name">{{ matchup.opponent.name }}</span>
+          <RouterLink :to="`/leagues/${leagueId}/parties/${matchup.opponent.partyId}`" class="side-name party-link">{{ matchup.opponent.name }}</RouterLink>
           <span class="muted small">{{ recordText(matchup.opponent) }}</span>
           <span class="projected">Proj {{ matchup.opponent.projectedTotal }}</span>
         </template>

@@ -64,6 +64,8 @@ export interface LeagueDetail extends LeagueSummary {
   rulesetVersion: number
   parties: Party[]
   draft: DraftResult | null
+  /** Open trade offers waiting on my party (0 for non-members) */
+  tradeOffers?: number
 }
 
 export interface MyLeague extends LeagueSummary {
@@ -74,6 +76,8 @@ export interface MyLeague extends LeagueSummary {
   unreadChat: number
   /** I hid it from my list (finished or canceled leagues only) */
   hidden?: boolean
+  /** Open trade offers waiting on my party */
+  tradeOffers?: number
 }
 
 /** Next battle, last result, and anything to fix before the lineup locks. */
@@ -469,14 +473,68 @@ export interface Finale {
   awards: Award[]
 }
 
-export interface RosterMove {
-  kind: 'claim'
+export interface MoveHero {
+  heroId: string
+  name: string
+  heroClass: string
+}
+
+export interface ClaimMove {
+  kind: 'claim' | 'swap'
   party: { partyId: string; name: string }
-  added: { heroId: string; name: string; heroClass: string }
-  dropped: { heroId: string; name: string; heroClass: string }
+  added: MoveHero
+  /** null: a claim into an open roster spot */
+  dropped: MoveHero | null
   /** The first battle the change counts for */
   effectiveWeek: number
   at: string
+}
+
+export interface TradeMove {
+  kind: 'trade'
+  /** Each side: the heroes it received, and any it released to make room */
+  sides: { party: { partyId: string; name: string }; received: MoveHero[]; released: MoveHero[] }[]
+  effectiveWeek: number
+  at: string
+}
+
+export type RosterMove = ClaimMove | TradeMove
+
+export type TradeStatus = 'open' | 'accepted' | 'declined' | 'withdrawn' | 'expired'
+
+/** A trade offer between two parties (docs/TRADES_SPEC.md); only they see it. */
+export interface Trade {
+  id: string
+  status: TradeStatus
+  from: PartyRef
+  to: PartyRef
+  /** The sender's heroes, and the heroes asked for in return */
+  offered: MoveHero[]
+  requested: MoveHero[]
+  fromReleases: MoveHero[]
+  toReleases: MoveHero[]
+  /** Open and waiting on me to accept or decline */
+  waitingOnMe: boolean
+  /** Waiting on me: how many of my heroes I'd release on accepting */
+  releasesNeeded: number
+  createdAt: string
+  answeredAt: string | null
+  effectiveWeek: number | null
+}
+
+/** My party's offers (GET /api/leagues/:id/trades). */
+export interface Trades {
+  window: { open: boolean; lastWeek: number | null }
+  rosterSize: number
+  open: Trade[]
+  answered: Trade[]
+}
+
+export interface TradeOffer {
+  toPartyId: string
+  offered: string[]
+  requested: string[]
+  releases: string[]
 }
 
 export interface PartyRef {

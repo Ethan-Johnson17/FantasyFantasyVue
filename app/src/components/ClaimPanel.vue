@@ -8,10 +8,13 @@ import TraitChips from './TraitChips.vue'
 
 /* Choose which of your heroes to drop for a free agent, then confirm. */
 
-const props = defineProps<{ target: Hero; lineup: Lineup; busy: boolean; error: unknown }>()
-const emit = defineEmits<{ confirm: [dropHeroId: string]; cancel: [] }>()
+/** `openSpot`: the party is under its roster size (after an uneven trade), so it can claim without dropping anyone */
+const props = defineProps<{ target: Hero; lineup: Lineup; busy: boolean; error: unknown; openSpot?: boolean }>()
+const emit = defineEmits<{ confirm: [dropHeroId: string | null]; cancel: [] }>()
 
-const dropId = ref<string | null>(null)
+/** The hero to drop, or OPEN_SPOT */
+const OPEN_SPOT = 'open-spot'
+const dropId = ref<string | null>(props.openSpot ? OPEN_SPOT : null)
 const starters = computed(() => new Set(Object.values(props.lineup.lineup ?? {})))
 // Bench heroes first: they're the usual drop.
 const roster = computed(() =>
@@ -27,8 +30,17 @@ onMounted(() => panel.value?.focus())
   <div class="backdrop" @click.self="emit('cancel')">
     <section ref="panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="claim-title" tabindex="-1" @keydown.esc="emit('cancel')">
       <h2 id="claim-title" class="title">Claim {{ target.name }}</h2>
-      <p class="muted small">Choose a hero to drop. They become a free agent anyone can claim.</p>
+      <p class="muted small">
+        {{ openSpot ? 'You have an open roster spot, or you can drop a hero instead.' : 'Choose a hero to drop.' }} A dropped hero becomes a free
+        agent anyone can claim.
+      </p>
       <ul class="roster">
+        <li v-if="openSpot">
+          <label class="option" :class="{ chosen: dropId === OPEN_SPOT }">
+            <input v-model="dropId" type="radio" name="drop" :value="OPEN_SPOT" />
+            <span class="text"><span class="name">Into your open spot</span><span class="muted small">Nobody is dropped</span></span>
+          </label>
+        </li>
         <li v-for="hero in roster" :key="hero.id">
           <label class="option" :class="{ chosen: dropId === hero.id }">
             <input v-model="dropId" type="radio" name="drop" :value="hero.id" />
@@ -47,7 +59,10 @@ onMounted(() => panel.value?.focus())
       <FormError :error="error" />
       <div class="actions">
         <button type="button" class="btn btn-secondary" :disabled="busy" @click="emit('cancel')">Cancel</button>
-        <button type="button" class="btn btn-primary" :disabled="!dropping || busy" @click="dropping && emit('confirm', dropping.id)">
+        <button v-if="dropId === OPEN_SPOT" type="button" class="btn btn-primary" :disabled="busy" @click="emit('confirm', null)">
+          {{ busy ? 'Claiming…' : `Claim ${target.name}` }}
+        </button>
+        <button v-else type="button" class="btn btn-primary" :disabled="!dropping || busy" @click="dropping && emit('confirm', dropping.id)">
           {{ busy ? 'Claiming…' : dropping ? `Drop ${dropping.name}` : 'Choose a hero' }}
         </button>
       </div>

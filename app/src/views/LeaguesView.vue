@@ -283,6 +283,9 @@ function signOut() {
               <span v-if="league.unreadChat" class="unread" :aria-label="`${unreadText(league.unreadChat)} unread chat messages`">
                 {{ unreadText(league.unreadChat) }} new
               </span>
+              <span v-if="league.tradeOffers" class="unread trade-offers" :aria-label="`${unreadText(league.tradeOffers)} trade offers waiting on you`">
+                {{ unreadText(league.tradeOffers) }} {{ league.tradeOffers === 1 ? 'offer' : 'offers' }}
+              </span>
               <span class="league-label">{{ statusLine(league).label }}</span>
             </div>
             <div class="league-party">

@@ -136,3 +136,18 @@ export function critLabel(crit: Crit, heroClass: string): string {
   const roll = crit === 'success' ? 'Natural 20' : 'Natural 1'
   return name ? `${roll} · ${name}` : roll
 }
+
+/**
+ * "Proj 20 · Last 3: 22 · season 18" ("Proj 30 · Avg 47 · 1 battle" early on); just the projection before battles, and
+ * nothing before the season.
+ */
+export function heroFormText(hero: Pick<Hero, 'form'>, battlesPlayed: boolean, active: boolean): string {
+  const form = hero.form
+  if (!form) return ''
+  if (!battlesPlayed) return active ? `Proj ${String(form.projected)}` : ''
+  if (!form.played) return `Proj ${String(form.projected)} · No battles fought yet`
+  // Until there are more than three battles, recent form and the season average are the same.
+  const playing = `Proj ${String(form.projected)} · ${form.playingLike ? `Playing like Lv ${String(form.playingLike)} · ` : ''}`
+  if (form.played <= 3) return `${playing}Avg ${String(form.average ?? 0)} · ${String(form.played)} battle${form.played === 1 ? '' : 's'}`
+  return `${playing}Last 3: ${String(form.recent ?? 0)} · season ${String(form.average ?? 0)}`
+}
