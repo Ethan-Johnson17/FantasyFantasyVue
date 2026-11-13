@@ -3,6 +3,7 @@ import { isDuplicateKeyError } from '../../db/mongoose.js'
 import { BadRequest, Conflict, NotFound } from '../../lib/errors.js'
 import { AccountModel, type AccountDocument } from '../accounts/account.model.js'
 import { expireLeagueChat, unreadCount } from '../chat/chat.service.js'
+import { tradeOffersFor } from '../trades/trade.service.js'
 import { RULESET_FOR_MODE } from '../scoring/rulesets.js'
 import { advanceLeague } from '../season/advance.js'
 import { leaguePlayoffs, resolvesAt, seasonLength, type LeaguePlayoffs } from '../season/calendar.js'
@@ -91,6 +92,8 @@ export interface LeagueDetailView extends LeagueSummaryView {
   parties: PartyView[]
   /** Set once the draft has run */
   draft: DraftView | null
+  /** Open trade offers waiting on my party (0 for non-members) */
+  tradeOffers: number
 }
 
 export interface MyLeagueView extends LeagueSummaryView {
@@ -103,6 +106,8 @@ export interface MyLeagueView extends LeagueSummaryView {
   unreadChat: number
   /** I hid it from my list (finished or canceled leagues only) */
   hidden: boolean
+  /** Open trade offers waiting on my party */
+  tradeOffers: number
 }
 
 // ---------------------------------------------------------------------------
@@ -112,7 +117,8 @@ export async function getLeague(viewer: AccountDocument, leagueId: string): Prom
   const league = await LeagueModel.findById(leagueId)
   if (!league) throw new NotFound()
   const parties = await PartyModel.find({ leagueId: league._id }).sort({ createdAt: 1 })
-  const isMember = parties.some(party => party.accountId.equals(viewer._id))
+  const mine = parties.find(party => party.accountId.equals(viewer._id))
+  const isMember = !!mine
   if (!isMember && league.visibility !== 'public') throw new NotFound()
 
   const profiles = await loadProfiles([league.hostId, ...parties.map(party => party.accountId)])
@@ -120,6 +126,7 @@ export async function getLeague(viewer: AccountDocument, leagueId: string): Prom
     ...toSummary(league, viewer, profiles, isMember),
     rulesetVersion: league.rulesetVersion,
     draft: draftOf(league),
+    tradeOffers: mine ? await tradeOffersFor(league, mine) : 0,
     parties: parties.map(party => ({
       id: party.id,
       name: party.name,
@@ -151,7 +158,8 @@ export async function listMyLeagues(viewer: AccountDocument): Promise<MyLeagueVi
         standing: league.resolvedWeeks > 0 && league.mode !== 'coop' && league.mode !== 'solo' ? await standingOf(league, party.id) : null,
         outlook: await partyOutlook(league, party),
         unreadChat: await unreadCount(party),
-        hidden: party.hidden
+        hidden: party.hidden,
+        tradeOffers: party.hidden ? 0 : await tradeOffersFor(league, party)
       }
     })
   )

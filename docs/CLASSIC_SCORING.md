@@ -341,6 +341,8 @@ Champion was tested and rejected: plans came out about the same, but parties wit
 - If the dropped hero was starting, the new hero takes that slot (Classic's open slots accept any class; a ruleset with
   class-specific slots rebuilds the lineup instead). Dropping the Champion withdraws them. A claim that would leave a
   party unable to fill its lineup is refused.
+- A party left under its roster size by an uneven trade claims into the open spot without dropping anyone
+  (docs/TRADES_SPEC.md).
 - Every claim is listed in the league's recent moves.
 - A free agent's hero page shows what they would have dealt each resolved week (rounded, like all hero-weeks), so
   parties can compare them. It reveals nothing more than a drafted hero's page does.
@@ -375,9 +377,8 @@ Flavor only: crits never change damage or outcomes.
 
 ### Trades (post-MVP)
 
-Not in the MVP (decided 2026-10-16); free agency is the only way to change a roster after the draft. The design
-agreed so far, for when trades are built: two parties agree and the trade happens immediately, and no trades after
-week 10. Listed in ROADMAP.md.
+Not in the MVP (decided 2026-10-16). Built after it (decided 2026-11-12): offers of up to 3-for-3 that the other party
+accepts or declines, happening immediately, until 4 regular-season weeks are left. Rules: docs/TRADES_SPEC.md.
 
 ## Attribution
 
