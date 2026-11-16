@@ -832,6 +832,25 @@ describe('Hero detail', () => {
     // The hero's own Wild trait replaces the class's usual temperament text.
     expect(wrapper.text()).not.toContain('Rogues strike from the shadows')
     expect(wrapper.find('[role="img"]').attributes('aria-label')).toContain('week 2, resting')
+    // Each battle's damage sits under its bar: R for resting, nothing for weeks still to come
+    const values = wrapper.findAll('.values .value').map(value => value.text())
+    expect(values).toHaveLength(14)
+    expect(values.slice(0, 4)).toEqual(['14', 'R', '31', ''])
+    expect(wrapper.find('.values .value.latest').text()).toBe('31')
+  })
+
+  it('fits a 17-week Crossover season on one row, with every damage rounded', async () => {
+    const api = fakeApi({
+      getHero: vi.fn().mockResolvedValue({
+        hero: { ...hero('h1', { partyId: 'a' }), form: { average: 12, recent: 12, played: 1, playingLike: null } },
+        history: [{ week: 17, slot: 'slot1', damage: 12.6, resting: false, swappedInto: null }]
+      })
+    })
+    const { wrapper } = await mountLeague(HeroDetailView, api, detail({ status: 'active', seasonWeeks: 17, parties: [party('a', true)] }), '/heroes/h1')
+    expect(wrapper.findAll('.chart .bar')).toHaveLength(17)
+    expect(wrapper.find('.chart').attributes('style')).toContain('repeat(17, minmax(0, 1fr))')
+    expect(wrapper.find('.values').attributes('style')).toContain('repeat(17, minmax(0, 1fr))')
+    expect(wrapper.findAll('.values .value').at(-1)?.text()).toBe('13')
   })
 
   it('shows what Level a mystery recruit is playing like', async () => {
