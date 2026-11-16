@@ -46,6 +46,10 @@ const bars = computed(() =>
     return { week: index + 1, entry: week ?? null, height: week ? Math.max(4, Math.round((week.damage / maxDamage.value) * 100)) : 0 }
   })
 )
+/** One column per game week of the season, so a 17-week Crossover season fits on one row */
+const columns = computed(() => ({ gridTemplateColumns: `repeat(${String(bars.value.length)}, minmax(0, 1fr))` }))
+/** Under a bar: the battle's damage, R for a week resting, nothing before it's played */
+const valueText = (entry: { damage: number; resting: boolean } | null) => (!entry ? '' : entry.resting ? 'R' : String(Math.round(entry.damage)))
 const critCounts = computed(() => ({
   success: detail.value?.history.filter(week => week.crit === 'success').length ?? 0,
   fail: detail.value?.history.filter(week => week.crit === 'fail').length ?? 0
@@ -113,7 +117,7 @@ const chartLabel = computed(() =>
           <template v-if="average !== null">Average {{ average }} · </template>Projected next battle {{ hero.form.projected }}
         </span>
       </div>
-      <div class="chart" role="img" :aria-label="chartLabel">
+      <div class="chart" role="img" :aria-label="chartLabel" :style="columns">
         <div
           v-for="bar in bars"
           :key="bar.week"
@@ -121,6 +125,15 @@ const chartLabel = computed(() =>
           :class="[{ resting: bar.entry?.resting, empty: !bar.entry, latest: bar.week === latestWeek }, bar.entry?.crit ?? '']"
           :style="{ height: bar.entry && !bar.entry.resting ? `${bar.height}%` : undefined }"
         ></div>
+      </div>
+      <!-- Each battle's damage under its bar; the chart's label already reads them out, so this row is for the eye -->
+      <div class="values" aria-hidden="true" :style="columns">
+        <span
+          v-for="bar in bars"
+          :key="bar.week"
+          class="value"
+          :class="[{ latest: bar.week === latestWeek, resting: bar.entry?.resting }, bar.entry?.crit ?? '']"
+        >{{ valueText(bar.entry) }}</span>
       </div>
       <div class="axis muted small"><span>Week 1</span><span>Week {{ seasonWeeksOf(league) }}</span></div>
       <p v-if="critCounts.success || critCounts.fail" class="crit-summary muted small">
@@ -232,11 +245,13 @@ const chartLabel = computed(() =>
 .section-title {
   font-size: 20px;
 }
+.chart,
+.values {
+  display: grid;
+  gap: 3px;
+}
 .chart {
   height: 120px;
-  display: grid;
-  grid-template-columns: repeat(14, minmax(0, 1fr));
-  gap: 4px;
   align-items: end;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--line);
@@ -272,7 +287,31 @@ const chartLabel = computed(() =>
 .bar.empty {
   height: 0;
 }
+.values {
+  margin-top: 3px;
+}
+/* Three digits must fit under a bar 17 to a phone screen */
+.value {
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  color: var(--text-muted);
+}
+.value.latest:not(.resting) {
+  color: var(--gold);
+  font-weight: 700;
+}
+.value.success {
+  color: var(--gold-bright);
+}
+.value.fail {
+  color: var(--danger);
+}
 .axis {
+  margin-top: 2px;
   display: flex;
   justify-content: space-between;
 }
