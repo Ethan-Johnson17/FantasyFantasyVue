@@ -382,22 +382,31 @@ async function poolValues(season: number, ruleset: Ruleset, throughWeek: number)
   )
 }
 
+export interface SwapPair {
+  releaseHeroId: string
+  signHeroId: string
+}
+
 /**
- * A swap (docs/SOLO_SPEC.md, "Lineup, swaps and locks"): releases one of the party's heroes and signs one from the
- * pool at today's price, if the party stays under the cap at the prices paid. Up to swapsPerWeek per NFL week; a hero
- * whose game has kicked off can't be released or signed. The signed hero takes the released hero's place in the
- * Quest party; releasing the Champion leaves the party without one until another is named.
+ * Swaps (docs/SOLO_SPEC.md, "Lineup, swaps and locks"): each releases one of the party's heroes and signs one from the
+ * pool at today's price. Several made together happen all at once, so the gold from every release counts toward every
+ * signing: the party only has to be under the cap at the prices paid once they're all made. Up to swapsPerWeek per NFL
+ * week; a hero whose game has kicked off can't be released or signed. Each signed hero takes their paired release's
+ * place in the Quest party; releasing the Champion leaves the party without one until another is named.
  */
-export async function swapHero(viewer: AccountDocument, leagueId: string, releaseId: string, signId: string): Promise<void> {
+export async function swapHeroes(viewer: AccountDocument, leagueId: string, pairs: readonly SwapPair[]): Promise<void> {
   const { league, party } = await loadLeagueAsMember(viewer, leagueId)
   const { solo, lineup } = rulesOf(league)
   const next = nextWeek(league)
   if (league.status !== 'active' || !next) throw new Conflict('Swaps can be made once your party is confirmed and until the run ends')
-  if (releaseId === signId) throw new BadRequest('Choose a different hero to sign')
+  if (pairs.length === 0) throw new BadRequest('Choose a hero to release and one to sign')
+  if (pairs.length > solo.swapsPerWeek) throw new BadRequest(`You can make at most ${String(solo.swapsPerWeek)} swaps a week`)
+  const ids = pairs.flatMap(pair => [pair.releaseHeroId, pair.signHeroId])
+  if (new Set(ids).size !== ids.length) throw new BadRequest('Choose different heroes for each release and signing')
   const ready = await readyWeekCount(league)
-  const pair = await HeroModel.find({ leagueId: league._id, _id: trusted({ $in: [releaseId, signId] }) }).select('+source')
-  const locked = await lockedThisWeek(league, pair)
-  const lockedHero = pair.find(hero => locked.has(hero.id))
+  const involved = await HeroModel.find({ leagueId: league._id, _id: trusted({ $in: ids }) }).select('+source')
+  const locked = await lockedThisWeek(league, involved)
+  const lockedHero = involved.find(hero => locked.has(hero.id))
   if (lockedHero) throw new Conflict(`${lockedHero.name} is locked: their game has kicked off`)
 
   await inTransaction(async session => {
@@ -410,34 +419,54 @@ export async function swapHero(viewer: AccountDocument, leagueId: string, releas
     )
     if (upToDate.modifiedCount === 0) throw new Conflict('A week is being resolved. Try again in a moment.')
     const used = await RosterMoveModel.countDocuments({ leagueId: league._id, kind: 'swap', effectiveWeek: next.week }).session(session)
-    if (used >= solo.swapsPerWeek) throw new Conflict(`You’ve used this week’s ${String(solo.swapsPerWeek)} swaps; more open when the week goes final`)
+    const left = Math.max(0, solo.swapsPerWeek - used)
+    if (left === 0) throw new Conflict(`You’ve used this week’s ${String(solo.swapsPerWeek)} swaps; more open when the week goes final`)
+    if (pairs.length > left) throw new Conflict(`You have ${String(left)} swap${left === 1 ? '' : 's'} left this week`)
 
-    const released = await HeroModel.findOneAndUpdate(
-      { _id: releaseId, leagueId: league._id, partyId: party._id },
-      { $set: { partyId: null, price: null } },
-      { session }
-    )
-    if (!released) throw new BadRequest('You can only release a hero from your party')
-    const signing = await HeroModel.findOne({ _id: signId, leagueId: league._id, partyId: null }).session(session)
-    if (!signing) throw new BadRequest('Sign a hero from the pool who isn’t in your party')
-    const cost = soloCost(signing.level ?? 1, solo.costs)
-    await HeroModel.updateOne({ _id: signing._id }, { $set: { partyId: party._id, price: cost } }, { session })
+    // Every release first, then every signing, so the cap is checked once with all of them made.
+    const made: { released: HeroDocument; signing: HeroDocument }[] = []
+    for (const pair of pairs) {
+      const released = await HeroModel.findOneAndUpdate(
+        { _id: pair.releaseHeroId, leagueId: league._id, partyId: party._id },
+        { $set: { partyId: null, price: null } },
+        { session }
+      )
+      if (!released) throw new BadRequest('You can only release a hero from your party')
+      const signing = await HeroModel.findOne({ _id: pair.signHeroId, leagueId: league._id, partyId: null }).session(session)
+      if (!signing) throw new BadRequest('Sign a hero from the pool who isn’t in your party')
+      made.push({ released, signing })
+    }
+    for (const { signing } of made) {
+      await HeroModel.updateOne({ _id: signing._id }, { $set: { partyId: party._id, price: soloCost(signing.level ?? 1, solo.costs) } }, { session })
+    }
 
     const roster = await HeroModel.find({ leagueId: league._id, partyId: party._id }).session(session)
     const spent = roster.reduce((sum, hero) => sum + (hero.price ?? 0), 0)
-    if (spent > solo.cap) throw new BadRequest(`That swap would cost ${String(spent)} gold of your ${String(solo.cap)}`)
-    const limit = lineup.classLimits[signing.heroClass]
-    if (limit !== undefined && roster.filter(hero => hero.heroClass === signing.heroClass).length > limit) {
-      throw new BadRequest(`A party can have at most ${String(limit)} ${signing.heroClass}s`)
+    if (spent > solo.cap) {
+      throw new BadRequest(`${made.length === 1 ? 'That swap' : 'Those swaps'} would cost ${String(spent)} gold of your ${String(solo.cap)}`)
+    }
+    for (const heroClass of new Set(made.map(({ signing }) => signing.heroClass))) {
+      const limit = lineup.classLimits[heroClass]
+      if (limit !== undefined && roster.filter(hero => hero.heroClass === heroClass).length > limit) {
+        throw new BadRequest(`A party can have at most ${String(limit)} ${heroClass}s`)
+      }
     }
 
     const current = await PartyModel.findById(party._id).session(session)
-    const questParty = (current?.questParty ?? []).map(id => (id.equals(released._id) ? signing._id : id))
-    const championReleased = current?.champion?.equals(released._id) ?? false
+    const placeOf = new Map(made.map(({ released, signing }) => [released.id, signing._id]))
+    const questParty = (current?.questParty ?? []).map(id => placeOf.get(id.toString()) ?? id)
+    const championReleased = !!current?.champion && placeOf.has(current.champion.toString())
     await PartyModel.updateOne({ _id: party._id }, { $set: { questParty, ...(championReleased ? { champion: null } : {}) } }, { session })
     await RosterMoveModel.create(
-      [{ leagueId: league._id, partyId: party._id, kind: 'swap', added: signing._id, dropped: released._id, effectiveWeek: next.week }],
-      { session }
+      made.map(({ released, signing }) => ({
+        leagueId: league._id,
+        partyId: party._id,
+        kind: 'swap' as const,
+        added: signing._id,
+        dropped: released._id,
+        effectiveWeek: next.week
+      })),
+      { session, ordered: true }
     )
   })
 }

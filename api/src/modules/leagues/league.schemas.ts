@@ -131,8 +131,15 @@ export const ConfirmSoloSchema = z
   })
   .strict()
 
-/** Solo: release one hero and sign another */
-export const SwapSchema = z.object({ releaseHeroId: HeroIdSchema, signHeroId: HeroIdSchema }).strict()
+const SwapPairSchema = z.object({ releaseHeroId: HeroIdSchema, signHeroId: HeroIdSchema }).strict()
+
+/**
+ * Solo: release one hero and sign another, or several such swaps at once (`swaps`) so the gold from every release counts
+ * toward every signing. The run's swaps a week limit how many; the single form is what the app sent before 2026-11-17.
+ */
+export const SwapSchema = z
+  .union([SwapPairSchema, z.object({ swaps: z.array(SwapPairSchema).min(1).max(5) }).strict()])
+  .transform(body => ('swaps' in body ? body.swaps : [body]))
 
 export const MatchupQuerySchema = z.object({ week: WeekParamSchema.optional() }).strict()
 

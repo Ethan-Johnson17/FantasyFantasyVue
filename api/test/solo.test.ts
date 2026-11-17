@@ -397,6 +397,80 @@ describe('swaps', () => {
     expect((solo.pool as PoolHero[]).find(hero => hero.id === heroes[5]!.id)?.price).toBe(1)
   })
 
+  it('can be made two at once, so the gold from both releases counts toward both signings', async () => {
+    const { id, heroes, questParty } = await confirmedRun()
+    // Under the first budget (116 gold), 107 spent leaves 9: neither upgrade fits alone
+    await LeagueModel.updateOne({ _id: id }, { $set: { rulesetVersion: SOLO_V1.version } }, { overwriteImmutable: true })
+    const free = (await poolOf(id)).filter(hero => hero.partyId === null)
+    const [mage, warrior] = pick(free, [
+      { heroClass: 'Mage', level: 9 },
+      { heroClass: 'Warrior', level: 5 }
+    ])
+    const alone = await host.post(`/api/leagues/${id}/solo/swaps`, { releaseHeroId: heroes[1]!.id, signHeroId: warrior!.id })
+    expect(alone.body.error.message).toBe('That swap would cost 131 gold of your 116')
+
+    // Release the Level 10 Champion (100) and a Level 1 (1); sign a Level 9 (81) and a Level 5 (25): 112 gold
+    const swaps = [
+      { releaseHeroId: heroes[0]!.id, signHeroId: mage!.id },
+      { releaseHeroId: heroes[1]!.id, signHeroId: warrior!.id }
+    ]
+    const res = await host.post(`/api/leagues/${id}/solo/swaps`, { swaps })
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ spent: 112, swapsLeft: 0 })
+    // Each signing takes its paired release's Quest party place; releasing the Champion withdraws them
+    const lineup = (await host.get(`/api/leagues/${id}/lineup`)).body
+    const places = new Map([[heroes[0]!.id, mage!.id], [heroes[1]!.id, warrior!.id]])
+    expect(lineup.questParty).toEqual(questParty.map(heroId => places.get(heroId) ?? heroId))
+    expect(lineup.champion).toBeNull()
+    const moves = (await host.get(`/api/leagues/${id}/moves`)).body as { kind: string; added: { heroId: string }; dropped: { heroId: string } }[]
+    expect(moves.filter(move => move.kind === 'swap').map(move => [move.dropped.heroId, move.added.heroId]).sort()).toEqual(
+      swaps.map(swap => [swap.releaseHeroId, swap.signHeroId]).sort()
+    )
+  })
+
+  it('made together are refused together: over the cap, past the swaps left, or the same hero twice', async () => {
+    const { id, heroes } = await confirmedRun()
+    await LeagueModel.updateOne({ _id: id }, { $set: { rulesetVersion: SOLO_V1.version } }, { overwriteImmutable: true })
+    const free = (await poolOf(id)).filter(hero => hero.partyId === null && hero.heroClass !== 'Paladin')
+    const [mage, warrior] = pick(free, [
+      { heroClass: 'Mage', level: 10 },
+      { heroClass: 'Warrior', level: 5 }
+    ])
+    const ones = free.filter(hero => hero.level === 1)
+    const post = (swaps: { releaseHeroId: string; signHeroId: string }[]) => host.post(`/api/leagues/${id}/solo/swaps`, { swaps })
+
+    // 107 - 1 - 1 + 100 + 25 = 230 gold
+    const over = await post([
+      { releaseHeroId: heroes[1]!.id, signHeroId: mage!.id },
+      { releaseHeroId: heroes[2]!.id, signHeroId: warrior!.id }
+    ])
+    expect(over.status).toBe(400)
+    expect(over.body.error.message).toBe('Those swaps would cost 230 gold of your 116')
+    const unchanged = await soloOf(id)
+    expect(unchanged).toMatchObject({ spent: 107, swapsLeft: 2 })
+    expect((unchanged.pool as PoolHero[]).filter(hero => hero.partyId !== null).map(hero => hero.id).sort()).toEqual(heroes.map(hero => hero.id).sort())
+
+    const three = await post([1, 2, 3].map(index => ({ releaseHeroId: heroes[index]!.id, signHeroId: ones[index]!.id })))
+    expect(three.status).toBe(400)
+    expect(three.body.error.message).toBe('You can make at most 2 swaps a week')
+
+    const twice = await post([
+      { releaseHeroId: heroes[1]!.id, signHeroId: ones[0]!.id },
+      { releaseHeroId: heroes[1]!.id, signHeroId: ones[1]!.id }
+    ])
+    expect(twice.status).toBe(400)
+    expect(twice.body.error.message).toBe('Choose different heroes for each release and signing')
+
+    expect((await host.post(`/api/leagues/${id}/solo/swaps`, { releaseHeroId: heroes[5]!.id, signHeroId: ones[0]!.id })).status).toBe(200)
+    const pastLeft = await post([
+      { releaseHeroId: heroes[6]!.id, signHeroId: ones[1]!.id },
+      { releaseHeroId: heroes[7]!.id, signHeroId: ones[2]!.id }
+    ])
+    expect(pastLeft.status).toBe(409)
+    expect(pastLeft.body.error.message).toBe('You have 1 swap left this week')
+    expect((await soloOf(id)).swapsLeft).toBe(1)
+  })
+
   it('keep to two Paladins', async () => {
     const id = await startRun()
     const pool = await poolOf(id)

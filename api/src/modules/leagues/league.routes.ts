@@ -206,8 +206,7 @@ export function leagueRouter(modes: CreateOptions & SoloOptions) {
     })
     .post('/:id/solo/swaps', async (req, res) => {
       const leagueId = parseId(req.params.id)
-      const { releaseHeroId, signHeroId } = SwapSchema.parse(req.body)
-      await solo.swapHero(currentAccount(req), leagueId, releaseHeroId, signHeroId)
+      await solo.swapHeroes(currentAccount(req), leagueId, SwapSchema.parse(req.body))
       res.json(await solo.getSolo(currentAccount(req), leagueId))
     })
     .get('/:id/campaign', async (req, res) => {
