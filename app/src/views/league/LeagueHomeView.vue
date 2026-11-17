@@ -2,7 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../../api/inject'
-import type { Campaign, Playoffs, ScheduleWeek, Standing } from '../../api/types'
+import type { Campaign, Playoffs, ScheduleWeek, Standing, WeekResult } from '../../api/types'
+import { damageText, foughtInWeek, weekStory } from '../../campaign'
 import CampaignBoard from '../../components/CampaignBoard.vue'
 import CrestShield from '../../components/CrestShield.vue'
 import FormError from '../../components/FormError.vue'
@@ -20,6 +21,8 @@ const schedule = ref<ScheduleWeek[]>([])
 const playoffs = ref<Playoffs | null>(null)
 /** Co-op and Solo: the campaign, in place of standings and battles */
 const campaign = ref<Campaign | null>(null)
+/** Solo: the latest played week, for the Last battle card */
+const lastResult = ref<WeekResult | null>(null)
 const coop = computed(() => league.value?.mode === 'coop')
 /** Solo (docs/SOLO_SPEC.md): a private run of one party, with no PIN, draft, standings or chat */
 const solo = computed(() => league.value?.mode === 'solo')
@@ -62,6 +65,11 @@ const nextBattle = computed(() => {
   const at = value.nextResolvesAt ? new Date(value.nextResolvesAt) : nextBattleAt(value.weekOneAt, value.resolvedWeeks, value.cadence)
   return timeUntil(at)
 })
+/** Solo: the Quest party hero who dealt the most in the last battle */
+const lastTopHero = computed(() => {
+  const side = lastResult.value?.sides?.find(entry => entry.partyId === myParty.value?.id)
+  return [...(side?.heroes ?? [])].filter(hero => foughtInWeek(hero, true)).sort((a, b) => b.damage - a.damage)[0] ?? null
+})
 const inviteLink = computed(() => (league.value?.pin ? `${window.location.origin}/join?pin=${league.value.pin}` : ''))
 
 async function loadSeason() {
@@ -70,6 +78,8 @@ async function loadSeason() {
   if (coop.value || solo.value) {
     try {
       campaign.value = await api.getCampaign(id)
+      const lastWeek = campaign.value.lastWeek
+      lastResult.value = solo.value && lastWeek ? await api.getWeekResult(id, lastWeek) : null
     } catch (caught) {
       error.value = caught
     }
@@ -303,6 +313,16 @@ async function startNextSeason() {
           <template v-else>The monsters prevailed</template>
         </span>
         <span class="finale-cta">See the finale and awards ›</span>
+      </RouterLink>
+      <RouterLink
+        v-if="solo && campaign && lastResult?.campaign"
+        :to="`/leagues/${league.id}/quest/${String(lastResult.week)}`"
+        class="card last-battle"
+      >
+        <span class="eyebrow">Last battle · week {{ lastResult.week }}</span>
+        <span class="last-story">{{ weekStory(lastResult, campaign.chapters, true) }}</span>
+        <span v-if="lastTopHero" class="muted small">Top hero: {{ lastTopHero.name }}, {{ damageText(lastTopHero.damage) }} damage</span>
+        <span class="last-cta small">See every hero's damage ›</span>
       </RouterLink>
       <div v-if="league.status === 'active'" class="row-heading">
         <h2 class="section-title">The campaign</h2>
@@ -563,6 +583,21 @@ tr.mine .rank {
   border-color: var(--gold);
 }
 .monster-name {
+  color: var(--gold);
+  font-weight: 700;
+}
+.last-battle {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text);
+  text-decoration: none;
+}
+.last-story {
+  line-height: 1.45;
+}
+.last-cta {
   color: var(--gold);
   font-weight: 700;
 }

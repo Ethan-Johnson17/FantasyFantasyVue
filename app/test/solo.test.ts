@@ -167,8 +167,11 @@ const campaign = (overrides: Partial<Campaign> = {}): Campaign => ({
 const weekResult = (week: number): WeekResult => ({
   week,
   matchups: [],
+  // As the API sends it: Solo has no football lineup, so every slot is "Bench" and `quest` says who fought.
   sides: [{ partyId: 'p1', name: 'Lone Wolves', crest, total: 179.6, champion: 'star', synergies: [], heroes: [
-    { heroId: 'star', name: 'Hero star', heroClass: 'Mage', slot: 'Quest', damage: 80.2, resting: false, swappedInto: null, crit: null, quest: true, points: 24 }
+    { heroId: 'star', name: 'Hero star', heroClass: 'Mage', slot: 'Bench', damage: 80.2, resting: false, swappedInto: null, crit: null, quest: true, points: 24 },
+    { heroId: 'a', name: 'Hero a', heroClass: 'Warrior', slot: 'Bench', damage: 35, resting: false, swappedInto: null, crit: null, quest: true, points: 24 },
+    { heroId: 'g', name: 'Hero g', heroClass: 'Ranger', slot: 'Bench', damage: 90, resting: false, swappedInto: null, crit: null, quest: false, points: 64 }
   ] }],
   campaign: {
     chapter: 1,
@@ -515,6 +518,32 @@ describe('Solo elsewhere in a run', () => {
     expect(week[0]?.text()).toContain('♛')
     expect(week[1]?.text()).toContain('Kicked off · locked')
     expect(api.getMatchup).not.toHaveBeenCalled()
+
+    // Last week: the Quest party fought (the Champion too), and the bench shows what it would have dealt
+    const played = wrapper.findAll('.heroes .hero:not(.week-hero)').map(hero => hero.text())
+    expect(played).toHaveLength(3)
+    expect(played[0]).toMatch(/♛\s*Hero star\s*Mage · fought/)
+    expect(played[1]).toMatch(/Hero a\s*Warrior · fought/)
+    expect(played[2]).toMatch(/Hero g\s*Ranger · bench \(would have dealt\)/)
+  })
+
+  it('shows the last battle at the top of an active run’s home, with its top hero', async () => {
+    const api = fakeApi({ getCampaign: vi.fn().mockResolvedValue(campaign()), getWeekResult: vi.fn().mockResolvedValue(weekResult(1)) })
+    const { wrapper } = await mountLeague(LeagueHomeView, api, soloLeague({ status: 'active', resolvedWeeks: 1, seasonWeeks: 14 }))
+    const card = wrapper.find('a.last-battle')
+    expect(card.attributes('href')).toBe('/leagues/l1/quest/1')
+    expect(card.text()).toContain('Last battle · week 1')
+    expect(card.text()).toContain('Your party dealt 180 damage to Monster 1.')
+    // The bench's 90 would-have-dealt doesn't count: the top hero is from the Quest party
+    expect(card.text()).toContain('Top hero: Hero star, 80 damage')
+    expect(api.getWeekResult).toHaveBeenCalledWith('l1', 1)
+  })
+
+  it('shows no last battle before the first week is played', async () => {
+    const api = fakeApi({ getCampaign: vi.fn().mockResolvedValue(campaign({ lastWeek: null })) })
+    const { wrapper } = await mountLeague(LeagueHomeView, api, soloLeague({ status: 'active', resolvedWeeks: 0, seasonWeeks: 14 }))
+    expect(wrapper.find('.last-battle').exists()).toBe(false)
+    expect(api.getWeekResult).not.toHaveBeenCalled()
   })
 
   it('waits for the party before the quest begins', async () => {
