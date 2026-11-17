@@ -1,4 +1,4 @@
-import type { Cadence } from './api/types'
+import type { Cadence, LeagueMode } from './api/types'
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
@@ -17,6 +17,27 @@ export function timeUntil(when: Date, now: Date = new Date()): string {
   const dayText = `${String(days)} ${days === 1 ? 'day' : 'days'}`
   if (days >= 3 || hours === 0) return `in ${dayText}`
   return `in ${dayText} ${String(hours)} ${hours === 1 ? 'hour' : 'hours'}`
+}
+
+/** Crossover and Solo play along with the real NFL weeks, which go final once their scores are in. */
+export function followsNfl(mode: LeagueMode): boolean {
+  return mode === 'crossover' || mode === 'solo'
+}
+
+/**
+ * The next battle: "Battle in 2 days", then "Battle in progress" once a Crossover or Solo week's games have
+ * kicked off, then "Waiting for final scores" until the import brings them in. A Classic battle happens the
+ * moment it's due, so it's only "now" until the page catches up.
+ */
+export function battleText(at: Date, kicksOffAt: Date | null, nfl: boolean, lead = 'Battle', now: Date = new Date()): string {
+  if (at.getTime() <= now.getTime()) return nfl ? 'Waiting for final scores' : `${lead} now`
+  if (kicksOffAt && kicksOffAt.getTime() <= now.getTime()) return `${lead} in progress`
+  return `${lead} ${timeUntil(at, now)}`
+}
+
+/** A Crossover or Solo week: "Goes final in 2 days", or "Waiting for final scores" once that time has passed. */
+export function goesFinalText(at: Date, now: Date = new Date()): string {
+  return at.getTime() <= now.getTime() ? 'Waiting for final scores' : `Goes final ${timeUntil(at, now)}`
 }
 
 /** A chat timestamp: the time today ("3:41 PM"), or the date and time for older messages. */

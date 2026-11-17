@@ -9,7 +9,7 @@ import { advanceLeague } from '../season/advance.js'
 import { leaguePlayoffs, resolvesAt, seasonLength, type LeaguePlayoffs } from '../season/calendar.js'
 import { crossoverWindow } from '../season/nflWeeks.js'
 import { partyOutlook, type PartyOutlook } from '../season/outlook.service.js'
-import { computeStandings } from '../season/season.service.js'
+import { computeStandings, kicksOffAt } from '../season/season.service.js'
 import { inTransaction, loadLeagueAsHost, loadLeagueAsMember } from './league.access.js'
 import { LeagueModel, type LeagueDocument, type LeagueStatus } from './league.model.js'
 import type { CreateLeagueInput, PartyInput, UpdateLeagueInput, UpdatePartyInput } from './league.schemas.js'
@@ -92,6 +92,8 @@ export interface LeagueDetailView extends LeagueSummaryView {
   parties: PartyView[]
   /** Set once the draft has run */
   draft: DraftView | null
+  /** Crossover and Solo, while the season runs: when the next week's first game kicks off */
+  nextKicksOffAt: Date | null
   /** Open trade offers waiting on my party (0 for non-members) */
   tradeOffers: number
 }
@@ -126,6 +128,7 @@ export async function getLeague(viewer: AccountDocument, leagueId: string): Prom
     ...toSummary(league, viewer, profiles, isMember),
     rulesetVersion: league.rulesetVersion,
     draft: draftOf(league),
+    nextKicksOffAt: league.status === 'active' ? await kicksOffAt(league, league.resolvedWeeks + 1) : null,
     tradeOffers: mine ? await tradeOffersFor(league, mine) : 0,
     parties: parties.map(party => ({
       id: party.id,

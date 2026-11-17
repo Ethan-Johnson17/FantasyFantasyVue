@@ -10,7 +10,7 @@ import { BANNERS, crestName, EMBLEMS, MASCOT_COLORS, mascotColorVars, PATTERNS }
 import { normalizePin } from '../src/pin'
 import { authGuard, routes } from '../src/router'
 import { DEFAULT_DISPLAY_NAME, suggestedDisplayName, useSessionStore } from '../src/stores/session'
-import { nextBattleAt, timeUntil } from '../src/time'
+import { battleText, followsNfl, goesFinalText, nextBattleAt, timeUntil } from '../src/time'
 import { fakeApi } from './helpers'
 
 const json = (status: number, body: unknown) =>
@@ -125,6 +125,19 @@ describe('time', () => {
     [5 * 86_400_000 + 3_600_000, 'in 5 days']
   ])('formats %i ms as %s', (ms, text) => {
     expect(timeUntil(later(ms), now)).toBe(text)
+  })
+
+  it('says a Crossover or Solo battle is under way after kickoff, then waits for the final scores', () => {
+    const at = later(2 * 86_400_000)
+    const kickoff = later(-3_600_000)
+    expect(battleText(at, null, true, 'Battle', now)).toBe('Battle in 2 days')
+    expect(battleText(at, later(3_600_000), true, 'Battle', now)).toBe('Battle in 2 days')
+    expect(battleText(at, kickoff, true, 'Next battle', now)).toBe('Next battle in progress')
+    expect(battleText(now, kickoff, true, 'Battle', now)).toBe('Waiting for final scores')
+    expect(battleText(later(-60_000), null, false, 'Battle', now)).toBe('Battle now')
+    expect(goesFinalText(at, now)).toBe('Goes final in 2 days')
+    expect(goesFinalText(now, now)).toBe('Waiting for final scores')
+    expect([followsNfl('crossover'), followsNfl('solo'), followsNfl('classic'), followsNfl('coop')]).toEqual([true, true, false, false])
   })
 
   it('finds the next battle from week 1 and weeks played', () => {

@@ -9,7 +9,7 @@ import FormError from '../../components/FormError.vue'
 import PlayoffBracket from '../../components/PlayoffBracket.vue'
 import { useLeague } from '../../league'
 import { roundName } from '../../playoffs'
-import { nextBattleAt, seasonWeeksOf, timeUntil } from '../../time'
+import { battleText, followsNfl, nextBattleAt, seasonWeeksOf, timeUntil } from '../../time'
 
 const api = useApi()
 const router = useRouter()
@@ -60,7 +60,7 @@ const nextBattle = computed(() => {
   const value = league.value
   if (value?.status !== 'active' || !value.weekOneAt) return ''
   const at = value.nextResolvesAt ? new Date(value.nextResolvesAt) : nextBattleAt(value.weekOneAt, value.resolvedWeeks, value.cadence)
-  return timeUntil(at)
+  return battleText(at, value.nextKicksOffAt ? new Date(value.nextKicksOffAt) : null, followsNfl(value.mode))
 })
 const inviteLink = computed(() => (league.value?.pin ? `${window.location.origin}/join?pin=${league.value.pin}` : ''))
 
