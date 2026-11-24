@@ -7,10 +7,10 @@ import CampaignBoard from '../../components/CampaignBoard.vue'
 import CrestShield from '../../components/CrestShield.vue'
 import D20Badge from '../../components/D20Badge.vue'
 import FormError from '../../components/FormError.vue'
-import { chapterTitle, damageText, hpShown, weekStory } from '../../campaign'
+import { chapterTitle, damageText, foughtInWeek, hpShown, weekStory } from '../../campaign'
 import { critLabel } from '../../heroes'
 import { useLeague } from '../../league'
-import { kickoffText, timeUntil } from '../../time'
+import { goesFinalText, kickoffText, timeUntil } from '../../time'
 
 /*
  * Co-op's quest board (docs/COOP_SPEC.md): the monster the whole league is fighting, the lives left, who's dealing
@@ -95,8 +95,8 @@ watch(
 
 const isMine = (partyId: string) => partyId === myParty.value?.id
 const mySide = computed(() => result.value?.sides?.find(side => isMine(side.partyId)) ?? null)
-/** A hero who dealt damage that week: a starter who played, or a bench hero swapped in */
-const fought = (hero: ResultHero) => (hero.slot !== 'Bench' || !!hero.swappedInto) && !hero.resting
+/** A hero who dealt damage that week: Solo's Quest party, or Co-op's starters and swapped-in bench heroes */
+const fought = (hero: ResultHero) => foughtInWeek(hero, solo.value)
 /** My heroes who fought that week, then the rest, most damage first */
 const myHeroes = computed(() =>
   [...(mySide.value?.heroes ?? [])].sort((a, b) => Number(fought(b)) - Number(fought(a)) || b.damage - a.damage || a.name.localeCompare(b.name))
@@ -120,8 +120,8 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/quest/${S
   <template v-if="campaign && league">
     <CampaignBoard :campaign="campaign" :weak-multiplier="rules?.weakMultiplier" :resist-multiplier="rules?.resistMultiplier" :solo="solo" />
     <p v-if="campaign.nextWeek && campaign.outcome === 'ongoing' && solo" class="muted small">
-      Week {{ campaign.nextWeek.week }} goes final {{ timeUntil(new Date(campaign.nextWeek.at)) }}. Your Quest party's damage counts against the
-      monster.
+      Week {{ campaign.nextWeek.week }} · {{ goesFinalText(new Date(campaign.nextWeek.at)) }}. Your Quest party's damage counts against
+      the monster.
     </p>
     <p v-else-if="campaign.nextWeek && campaign.outcome === 'ongoing'" class="muted small">
       Week {{ campaign.nextWeek.week }}'s battle {{ timeUntil(new Date(campaign.nextWeek.at)) }}. Every party's damage counts against the
@@ -216,7 +216,7 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/quest/${S
                 {{ hero.heroClass }} ·
                 <template v-if="hero.resting">resting</template>
                 <template v-else-if="hero.swappedInto">swapped in</template>
-                <template v-else-if="hero.slot === 'Bench'">bench (would have dealt)</template>
+                <template v-else-if="!fought(hero)">bench (would have dealt)</template>
                 <template v-else>fought</template>
               </span>
               <D20Badge v-if="hero.crit" :crit="hero.crit" :size="22" :title="critLabel(hero.crit, hero.heroClass)" />

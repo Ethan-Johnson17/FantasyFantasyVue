@@ -5,7 +5,7 @@ import type { Hero, Lineup, SoloRun } from '../api/types'
 import { activeSynergies, levelText, levelValue, projectedTotal, synergyInfo } from '../heroes'
 import { useLeague } from '../league'
 import { goldText } from '../solo'
-import { kickoffText, timeUntil } from '../time'
+import { goesFinalText, kickoffText } from '../time'
 import ClassIcon from './ClassIcon.vue'
 import EncounterCard from './EncounterCard.vue'
 import FormError from './FormError.vue'
@@ -204,7 +204,7 @@ function cancelQuest() {
     <section v-if="data.nextWeek" class="card week">
       <div class="week-title">Week {{ data.nextWeek }}</div>
       <div class="muted small">
-        Goes final {{ data.nextWeekAt ? timeUntil(new Date(data.nextWeekAt)) : 'soon' }} · each player locks when their game kicks off
+        {{ data.nextWeekAt ? goesFinalText(new Date(data.nextWeekAt)) : 'Goes final soon' }} · each player locks when their game kicks off
       </div>
       <div class="projections">
         <span v-if="gridiron"><strong>{{ gridironProjection }}</strong> <span class="muted small">Gridiron proj</span></span>

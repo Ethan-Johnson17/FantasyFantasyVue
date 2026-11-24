@@ -54,6 +54,9 @@ describe('My leagues outlook', () => {
     let outlook = await outlookOf(alice, id)
     expect(outlook.ranking).toBeNull()
     expect(outlook.nextBattle).toMatchObject({ week: 1, opponent: { name: 'Host Party' }, monster: null, noChampion: true, restingStarters: 0 })
+    // Classic battles happen all at once: no kickoff to wait for
+    expect(outlook.nextBattle?.kicksOffAt).toBeNull()
+    expect((await alice.get(`/api/leagues/${id}`)).body.nextKicksOffAt).toBeNull()
 
     const starter = Object.values(((await alice.get(`/api/leagues/${id}/lineup`)).body as { lineup: Record<string, string> }).lineup)[0]!
     await alice.put(`/api/leagues/${id}/champion`, { heroId: starter })

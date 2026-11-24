@@ -84,6 +84,9 @@ natural 20s and 1s, the Champion leading the Quest party, synergies, and attribu
 - **Swaps: up to 2 per NFL week.** A swap releases one hero and signs any other hero from the pool, as long as the
   party stays under the cap at signing prices. Unused swaps don't carry over *(default)*. A week's swaps reset when it
   goes final.
+- **Swaps made together** (decided 2026-11-17): both of a week's swaps can be made at once, and the gold from both
+  releases counts toward both signings. With every gold piece spent, one-for-one swaps could only trade down, so an
+  upgrade took a downgrade the week before; now a cheaper replacement elsewhere pays for it in the same move.
 - **Locks:** each hero locks at their game's kickoff, as in Crossover. A locked hero can't join or leave the Quest
   party, be released, or be signed, and the Champion can't change to or from a locked hero.
 - **Byes:** a hero on bye shows Resting and deals nothing; there's no auto-swap, so the bench and swaps are how a
@@ -107,14 +110,30 @@ Co-op's campaign (docs/COOP_SPEC.md), for one party:
 
 ### HP
 
-> HP = the best party's projected damage at the start × 1.12 × weeks in the chapter's window × difficulty factor ×
-> a seeded variation of up to ±15%
+> HP = the typical party's projected damage at the start × 1.02 × weeks in the chapter's window × difficulty factor ×
+> a seeded variation of up to ±15% (ruleset 6, decided 2026-11-17)
 
-- **The best party's projected damage:** when the run is confirmed, the server finds the party worth the most under
-  the cap from that week's pool (the same exact search the simulation uses: five fighters and a bench of three, at
-  most 2 defenses) and adds up its five fighters' projected class damage per game. It uses only what's known at the
-  start, and every run that starts in the same week faces the same strength. **×1.12** turns that projection into what
-  such a party actually deals, with the Champion, synergies and crits (measured on 2012-2025).
+- **The typical party's projected damage:** when the run is confirmed, the server finds the party a player would
+  plausibly build from that week's pool: the highest Levels the cap buys (as the market sorts by Level), the best
+  projected among heroes of the same Level and price, five fighters and a bench of three, at most 2 defenses. It adds
+  up the five projected highest fighters' class damage per game. It uses only what's known at the start, and every
+  run that starts in the same week faces the same strength. **×1.02** turns that projection into what such a party
+  actually deals, with the Champion, synergies and crits (measured on 2012-2025).
+- **Why the typical party** (balancing, 2026-11-17): rulesets 4 and 5 set HP against the exact best party, which
+  exploits what Levels miss (a cheap hero projected well, the classes' damage multipliers). The balancing target, a
+  sensible build winning about 2 in 3, had been measured on that same best party, so a party bought by hand faced
+  monsters it couldn't keep up with: the first real run, bought by Level, projected 69 a week against monsters needing
+  about 120. Simulated on 2012-2025 at 350 gold, HP from the typical party:
+
+  | Party | Damage a week | Win |
+  |---|---|---|
+  | Bought by Level alone: an average hero at each Level | 77 | 25% |
+  | **Typical:** the highest Levels, best projected within a Level (the target) | **95** | **71%** |
+  | The exact best party | 120 | 97% |
+  | The best party, never naming a Champion | 106 | 88% |
+
+  Reading projections pays off, so the market sorts by value and shows each party's projection (2026-11-17). Runs
+  confirmed before ruleset 6 keep the HP they were given.
 - **Why from the projection** (balancing, 2026-11-10): parties bought early in the season deal more than those bought
   mid-season (1.13 against 0.90 of average), partly because more of the pool is projected well. With one fixed weekly
   value, runs starting in NFL week 2 won 94% and those in week 7 44%; from the projection, 85% and 46%, the rest being
@@ -240,9 +259,10 @@ a league of one with `mode: "solo"`, so the calendar, week results, campaign boa
   the total is checked again); a Quest party of 5 from them; a Champion from the Quest party, or null. Week 1 is the
   first NFL week kicking off afterwards; the monsters' HP comes from the best party the cap could buy from the same
   pool, so every run starting that week faces the same strength. Prices paid are stored with each hero.
-- **`POST /api/leagues/:id/solo/swaps`** with `{ releaseHeroId, signHeroId }`: up to 2 per NFL week, counted until
-  the week resolves; neither hero may have kicked off; the party stays under the cap at the prices paid and within the
-  Paladin limit, or nothing changes. The signed hero takes the released hero's place in the Quest party *(default)*,
+- **`POST /api/leagues/:id/solo/swaps`** with `{ swaps: [{ releaseHeroId, signHeroId }, …] }` (or a single
+  `{ releaseHeroId, signHeroId }`): up to 2 per NFL week, counted until the week resolves; no hero may have kicked
+  off or appear twice; once every swap is made the party is under the cap at the prices paid and within the Paladin
+  limit, or nothing changes. Each signed hero takes their paired release's place in the Quest party *(default)*,
   and releasing the Champion leaves the party without one until another is named *(default)*. Swaps show in
   `GET /api/leagues/:id/moves` as `kind: "swap"`.
 - **The Quest party and Champion** are set with Crossover's `PUT /api/leagues/:id/quest-party` and `PUT /champion`,
@@ -277,10 +297,11 @@ Built 2026-11-10. Solo shows only once `GET /api/rules` says `solo.available`.
   the roster size or the Paladin limit can't be signed, with the reason shown. The first 5 signed go to the Quest
   party and the rest to the bench; either can be moved, and ♛ names a Champion from the Quest party. Confirming asks
   first, then opens the quest board.
-- **The market** (the same page once the run is under way): swaps left this week and the gold to spend; choose a hero
-  to release, then sign one from the pool. Heroes who have kicked off can't be chosen, and a signing that would break
-  the cap (at prices paid) or the Paladin limit is refused with the reason. Each swap asks first. If the party is left
-  without a Champion, it says so.
+- **The market** (the same page once the run is under way): swaps left this week and the gold to spend; choose one
+  hero to release, or two to pool their gold, then sign as many from the pool, in the same order. The gold to spend
+  counts every release and signing chosen. Heroes who have kicked off can't be chosen, and a signing that would break
+  the cap (at prices paid) or the Paladin limit is refused with the reason. The swaps are made, after asking, once each
+  release has a signing; saying no takes back the last signing. If the party is left without a Champion, it says so.
 - **Tabs:** Run, Party, Quest and Market. There's no Matchup, Heroes or Chat tab, and old matchup links go to the
   quest board.
 - **Party:** Crossover's Party tab with the Quest party alone: the monster, Quest projection, Champion, synergies, the

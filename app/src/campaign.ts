@@ -1,6 +1,13 @@
-import type { Campaign, CampaignChapter, WeekResult } from './api/types'
+import type { Campaign, CampaignChapter, ResultHero, WeekResult } from './api/types'
 
 /* Co-op's campaign as players read it (docs/COOP_SPEC.md): HP, deadlines, lives and what each week did. */
+
+/**
+ * A hero who dealt damage in a played week. Solo has no football lineup, so every hero's slot is "Bench" and the
+ * Quest party is what fought; Co-op's starters fought, and bench heroes only when swapped in for a resting starter.
+ */
+export const foughtInWeek = (hero: ResultHero, solo: boolean): boolean =>
+  !hero.resting && (solo ? !!hero.quest : hero.slot !== 'Bench' || !!hero.swappedInto)
 
 /** HP as shown: rounded up, so a monster with any HP left never reads as 0 */
 export const hpShown = (hp: number): number => Math.max(0, Math.ceil(hp))

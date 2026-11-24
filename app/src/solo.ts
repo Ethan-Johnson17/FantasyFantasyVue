@@ -80,17 +80,29 @@ export function pickProblem(run: Pick<SoloRun, 'rosterSize' | 'cap' | 'paladinLi
   return null
 }
 
-/** Why the run's party can't release one hero for another now, or null when it can (the API checks again) */
-export function swapProblem(run: SoloRun, release: SoloHero, sign: SoloHero): string | null {
+/** Gold left to spend once these heroes are released and these signed: swaps made together pool their gold */
+export function swapGold(run: Pick<SoloRun, 'cap' | 'spent'>, releases: readonly SoloHero[], signings: readonly SoloHero[]): number {
+  const freed = releases.reduce((sum, hero) => sum + (hero.price ?? 0), 0)
+  const cost = signings.reduce((sum, hero) => sum + hero.cost, 0)
+  return run.cap - run.spent + freed - cost
+}
+
+/**
+ * Why the party can't sign `sign` along with the swaps chosen so far, or null when it can (the API checks again).
+ * The releases and signings are made together, so the gold from every release counts toward every signing.
+ */
+export function swapProblem(run: SoloRun, releases: readonly SoloHero[], signings: readonly SoloHero[], sign: SoloHero): string | null {
   if (run.swapsLeft === null || run.swapsLeft <= 0) return 'No swaps left this week'
-  if (release.locked) return `${release.name} has kicked off`
+  const lockedRelease = releases.find(hero => hero.locked)
+  if (lockedRelease) return `${lockedRelease.name} has kicked off`
   if (sign.locked) return `${sign.name} has kicked off`
-  const spent = run.spent - (release.price ?? 0) + sign.cost
-  if (spent > run.cap) return `Costs ${goldText(sign.cost)}: ${goldText(run.cap - run.spent + (release.price ?? 0))} to spend`
-  const limit = sign.heroClass === 'Paladin' ? run.paladinLimit : null
-  if (limit !== null && release.heroClass !== 'Paladin') {
-    const paladins = run.pool.filter(hero => hero.partyId !== null && hero.heroClass === 'Paladin').length
-    if (paladins >= limit) return `At most ${String(limit)} Paladins`
+  if (signings.length >= releases.length) return 'Release another hero to sign one more'
+  const toSpend = swapGold(run, releases, signings)
+  if (sign.cost > toSpend) return `Costs ${goldText(sign.cost)}: ${goldText(toSpend)} to spend`
+  if (sign.heroClass === 'Paladin') {
+    const count = (heroes: readonly SoloHero[]) => heroes.filter(hero => hero.heroClass === 'Paladin').length
+    const paladins = count(run.pool.filter(hero => hero.partyId !== null)) - count(releases) + count(signings)
+    if (paladins >= run.paladinLimit) return `At most ${String(run.paladinLimit)} Paladins`
   }
   return null
 }

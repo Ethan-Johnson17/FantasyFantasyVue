@@ -21,7 +21,7 @@ import { byeSeeds, gameWinner, roundGames } from './bracket.js'
 import { followsNfl, leaguePlayoffs, nflWeekOf, resolvesAt, seasonLength, weeksDueByTime, weeksReady, type LeaguePlayoffs } from './calendar.js'
 import { xpMultiplier } from '../dynasty/xp.js'
 import { encounterFor, encounterMultiplier } from './encounters.js'
-import { heroGames, lockedHeroes, type HeroGame } from './nflWeeks.js'
+import { firstKickoff, heroGames, lockedHeroes, type HeroGame } from './nflWeeks.js'
 import { critOf, type Crit } from './crits.js'
 import { heroForm, type HeroForm } from './form.service.js'
 import { applyStrategy, type Synergy } from './strategy.js'
@@ -596,6 +596,16 @@ export function nextWeek(league: LeagueDocument): { week: number; at: Date } | n
   const week = league.resolvedWeeks + 1
   const at = resolvesAt(league, week)
   return at && week <= seasonLength(league) ? { week, at } : null
+}
+
+/**
+ * Crossover and Solo: when a game week's first NFL game kicks off, so screens can say the battle is under way
+ * before the week goes final. Null for Classic and Co-op, whose battles happen all at once.
+ */
+export async function kicksOffAt(league: LeagueDocument, week: number): Promise<Date | null> {
+  if (!followsNfl(league.mode) || !league.nflWeeks?.[week - 1]) return null
+  const season = await seasonOf(league)
+  return season === null ? null : firstKickoff(season, nflWeekOf(league, week))
 }
 
 async function seasonOf(league: LeagueDocument): Promise<number | null> {

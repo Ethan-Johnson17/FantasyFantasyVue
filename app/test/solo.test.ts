@@ -8,7 +8,7 @@ import { apiKey } from '../src/api/inject'
 import type { Campaign, CampaignChapter, GameRules, HeroClass, LeagueDetail, Lineup, Party, SoloFinale, SoloHero, SoloRules, SoloRun, WeekResult } from '../src/api/types'
 import { weekStory } from '../src/campaign'
 import { provideLeagueForTest } from '../src/league'
-import { filterPool, overLevel, pickProblem, questProjection, sortPool, swapProblem } from '../src/solo'
+import { filterPool, overLevel, pickProblem, questProjection, sortPool, swapGold, swapProblem } from '../src/solo'
 import { pickSpotlight } from '../src/spotlight'
 import HowItWorksView from '../src/views/HowItWorksView.vue'
 import LeaguesView from '../src/views/LeaguesView.vue'
@@ -167,8 +167,11 @@ const campaign = (overrides: Partial<Campaign> = {}): Campaign => ({
 const weekResult = (week: number): WeekResult => ({
   week,
   matchups: [],
+  // As the API sends it: Solo has no football lineup, so every slot is "Bench" and `quest` says who fought.
   sides: [{ partyId: 'p1', name: 'Lone Wolves', crest, total: 179.6, champion: 'star', synergies: [], heroes: [
-    { heroId: 'star', name: 'Hero star', heroClass: 'Mage', slot: 'Quest', damage: 80.2, resting: false, swappedInto: null, crit: null, quest: true, points: 24 }
+    { heroId: 'star', name: 'Hero star', heroClass: 'Mage', slot: 'Bench', damage: 80.2, resting: false, swappedInto: null, crit: null, quest: true, points: 24 },
+    { heroId: 'a', name: 'Hero a', heroClass: 'Warrior', slot: 'Bench', damage: 35, resting: false, swappedInto: null, crit: null, quest: true, points: 24 },
+    { heroId: 'g', name: 'Hero g', heroClass: 'Ranger', slot: 'Bench', damage: 90, resting: false, swappedInto: null, crit: null, quest: false, points: 64 }
   ] }],
   campaign: {
     chapter: 1,
@@ -279,17 +282,31 @@ describe('the pool and the budget', () => {
     const value = activeRun()
     const byId = (id: string) => value.pool.find(entry => entry.id === id) ?? value.pool[0]!
     // Releasing a 1-gold hero leaves 116 - 107 + 1 = 10 to spend
-    expect(swapProblem(value, byId('a'), byId('mid'))).toBe('Costs 25 gold: 10 gold to spend')
-    expect(swapProblem(value, byId('a'), byId('def1'))).toBeNull()
+    expect(swapProblem(value, [byId('a')], [], byId('mid'))).toBe('Costs 25 gold: 10 gold to spend')
+    expect(swapProblem(value, [byId('a')], [], byId('def1'))).toBeNull()
     // Releasing the star frees what was paid for them
-    expect(swapProblem(value, byId('star'), byId('mid'))).toBeNull()
-    expect(swapProblem({ ...value, swapsLeft: 0 }, byId('a'), byId('def1'))).toBe('No swaps left this week')
-    expect(swapProblem(value, { ...byId('a'), locked: true }, byId('def1'))).toBe('Hero a has kicked off')
-    expect(swapProblem(value, byId('a'), { ...byId('def1'), locked: true })).toBe('Hero def1 has kicked off')
+    expect(swapProblem(value, [byId('star')], [], byId('mid'))).toBeNull()
+    expect(swapProblem({ ...value, swapsLeft: 0 }, [byId('a')], [], byId('def1'))).toBe('No swaps left this week')
+    expect(swapProblem(value, [{ ...byId('a'), locked: true }], [], byId('def1'))).toBe('Hero a has kicked off')
+    expect(swapProblem(value, [byId('a')], [], { ...byId('def1'), locked: true })).toBe('Hero def1 has kicked off')
     const twoPaladins = { ...value, pool: value.pool.map(entry => (entry.id === 'def1' || entry.id === 'def2' ? { ...entry, partyId: 'p1' } : entry)) }
-    expect(swapProblem(twoPaladins, byId('a'), byId('def3'))).toBe('At most 2 Paladins')
+    expect(swapProblem(twoPaladins, [byId('a')], [], byId('def3'))).toBe('At most 2 Paladins')
     // Swapping one Paladin for another keeps the count
-    expect(swapProblem(twoPaladins, { ...byId('def1'), partyId: 'p1', price: 1 }, byId('def3'))).toBeNull()
+    expect(swapProblem(twoPaladins, [{ ...byId('def1'), partyId: 'p1', price: 1 }], [], byId('def3'))).toBeNull()
+  })
+
+  it('pools the gold of swaps made together, one signing per release', () => {
+    const value = activeRun()
+    const byId = (id: string) => value.pool.find(entry => entry.id === id) ?? value.pool[0]!
+    // Releasing two 1-gold heroes: 116 - 107 + 2 = 11, not enough for a 25-gold hero after a 1-gold one
+    expect(swapProblem(value, [byId('a'), byId('b')], [byId('def1')], byId('mid'))).toBe('Costs 25 gold: 10 gold to spend')
+    // The star's 100 pays for both
+    expect(swapProblem(value, [byId('star'), byId('a')], [byId('def1')], byId('mid'))).toBeNull()
+    expect(swapGold(value, [byId('star'), byId('a')], [byId('def1'), byId('mid')])).toBe(116 - 107 + 101 - byId('def1').cost - 25)
+    expect(swapProblem(value, [byId('a')], [byId('def1')], byId('def2'))).toBe('Release another hero to sign one more')
+    // A Paladin signed in the same swaps counts toward the limit
+    const onePaladin = { ...value, pool: value.pool.map(entry => (entry.id === 'def1' ? { ...entry, partyId: 'p1', price: 1 } : entry)) }
+    expect(swapProblem(onePaladin, [byId('a'), byId('b')], [byId('def2')], byId('def3'))).toBe('At most 2 Paladins')
   })
 })
 
@@ -442,9 +459,48 @@ describe('swaps', () => {
     expect(button(wrapper, 'Sign Hero mid').attributes('disabled')).toBeDefined()
     await button(wrapper, 'Sign Hero def1').trigger('click')
     await flushPromises()
-    expect(api.swapSolo).toHaveBeenCalledWith('l1', { releaseHeroId: 'a', signHeroId: 'def1' })
+    expect(api.swapSolo).toHaveBeenCalledWith('l1', { swaps: [{ releaseHeroId: 'a', signHeroId: 'def1' }] })
     expect(wrapper.text()).toContain('Hero def1 joined your party, taking Hero a’s place.')
     expect(wrapper.text()).toContain('Your party has no Champion')
+  })
+
+  it('makes two swaps together, so a cheaper replacement pays for an upgrade', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValue(true)
+    const api = fakeApi({
+      getSolo: vi.fn().mockResolvedValue(activeRun()),
+      swapSolo: vi.fn().mockResolvedValue(activeRun({ swapsLeft: 0 })),
+      getLineup: vi.fn().mockResolvedValue(lineup())
+    })
+    const { wrapper } = await mountLeague(SoloRunView, api, soloLeague({ status: 'active' }))
+    const releaseRow = (name: string) => wrapper.findAll('.release').find(row => row.text().includes(name))!
+    // 9 gold to spend: releasing a 1-gold hero alone can't pay for the 25-gold one
+    await releaseRow('Hero a').trigger('click')
+    expect(button(wrapper, 'Sign Hero mid').attributes('disabled')).toBeDefined()
+    // Releasing the star as well frees 100 more
+    await releaseRow('Hero star').trigger('click')
+    expect(wrapper.find('.swap-summary').text()).toContain('110 gold to spend')
+    // A third release is past the two swaps left
+    expect(releaseRow('Hero b').attributes('disabled')).toBeDefined()
+
+    await button(wrapper, 'Sign Hero mid').trigger('click')
+    expect(api.swapSolo).not.toHaveBeenCalled()
+    expect(wrapper.find('.swap-summary').text()).toContain('Hero mid for Hero a')
+    expect(wrapper.find('.swap-summary').text()).toContain('Sign someone for Hero star')
+    // Saying no to the confirmation takes back only the last signing
+    await button(wrapper, 'Sign Hero def1').trigger('click')
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('This uses 2 of this week’s swaps.'))
+    expect(api.swapSolo).not.toHaveBeenCalled()
+    expect(wrapper.find('.swap-summary').text()).toContain('Hero mid for Hero a')
+
+    await button(wrapper, 'Sign Hero def1').trigger('click')
+    await flushPromises()
+    expect(api.swapSolo).toHaveBeenCalledWith('l1', {
+      swaps: [
+        { releaseHeroId: 'a', signHeroId: 'mid' },
+        { releaseHeroId: 'star', signHeroId: 'def1' }
+      ]
+    })
+    expect(wrapper.text()).toContain('Hero mid and Hero def1 joined your party, taking Hero a’s and Hero star’s places.')
   })
 
   it('locks the market once the week’s swaps are used, and heroes who have kicked off', async () => {
@@ -554,6 +610,32 @@ describe('Solo elsewhere in a run', () => {
     expect(week[0]?.text()).toContain('♛')
     expect(week[1]?.text()).toContain('Kicked off · locked')
     expect(api.getMatchup).not.toHaveBeenCalled()
+
+    // Last week: the Quest party fought (the Champion too), and the bench shows what it would have dealt
+    const played = wrapper.findAll('.heroes .hero:not(.week-hero)').map(hero => hero.text())
+    expect(played).toHaveLength(3)
+    expect(played[0]).toMatch(/♛\s*Hero star\s*Mage · fought/)
+    expect(played[1]).toMatch(/Hero a\s*Warrior · fought/)
+    expect(played[2]).toMatch(/Hero g\s*Ranger · bench \(would have dealt\)/)
+  })
+
+  it('shows the last battle at the top of an active run’s home, with its top hero', async () => {
+    const api = fakeApi({ getCampaign: vi.fn().mockResolvedValue(campaign()), getWeekResult: vi.fn().mockResolvedValue(weekResult(1)) })
+    const { wrapper } = await mountLeague(LeagueHomeView, api, soloLeague({ status: 'active', resolvedWeeks: 1, seasonWeeks: 14 }))
+    const card = wrapper.find('a.last-battle')
+    expect(card.attributes('href')).toBe('/leagues/l1/quest/1')
+    expect(card.text()).toContain('Last battle · week 1')
+    expect(card.text()).toContain('Your party dealt 180 damage to Monster 1.')
+    // The bench's 90 would-have-dealt doesn't count: the top hero is from the Quest party
+    expect(card.text()).toContain('Top hero: Hero star, 80 damage')
+    expect(api.getWeekResult).toHaveBeenCalledWith('l1', 1)
+  })
+
+  it('shows no last battle before the first week is played', async () => {
+    const api = fakeApi({ getCampaign: vi.fn().mockResolvedValue(campaign({ lastWeek: null })) })
+    const { wrapper } = await mountLeague(LeagueHomeView, api, soloLeague({ status: 'active', resolvedWeeks: 0, seasonWeeks: 14 }))
+    expect(wrapper.find('.last-battle').exists()).toBe(false)
+    expect(api.getWeekResult).not.toHaveBeenCalled()
   })
 
   it('waits for the party before the quest begins', async () => {

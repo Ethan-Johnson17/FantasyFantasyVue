@@ -11,6 +11,8 @@
  *   npm run simulate:solo -- --seeds 4                 fewer runs per season and start week (faster)
  *   npm run simulate:solo -- --hp-fixed                one weekly value for every run, instead of each run's best
  *                                                      buyable party's projection (docs/SOLO_SPEC.md, "HP")
+ *   npm run simulate:solo -- --hp-party best           set HP against the exact best party, as before 2026-11-17,
+ *                                                      instead of the typical party (the highest Levels the cap buys)
  *   npm run simulate:solo -- --curve 1                 costs by another curve: round(Level ^ curve) (Solo uses 2)
  *   npm run simulate:solo -- --pool league             Levels as deciles of a six-party Crossover pool
  *
@@ -32,7 +34,7 @@ import { critOf } from '../modules/season/crits.js'
 import { ENCOUNTERS } from '../modules/season/encounters.js'
 import { projectDamage } from '../modules/season/form.service.js'
 import { applyStrategy } from '../modules/season/strategy.js'
-import { bestParty, soloMonsters, soloWindows, type PartySlots } from '../modules/solo/soloRules.js'
+import { bestParty, soloMonsters, soloWindows, typicalParty, type PartySlots } from '../modules/solo/soloRules.js'
 import { DefenseWeekStatModel, PlayerWeekStatModel } from '../modules/stats/stats.models.js'
 
 const { values } = parseArgs({
@@ -44,7 +46,8 @@ const { values } = parseArgs({
     jitter: { type: 'string', default: '0.15' },
     pool: { type: 'string', default: 'all' },
     curve: { type: 'string', default: '2' },
-    'hp-fixed': { type: 'boolean', default: false }
+    'hp-fixed': { type: 'boolean', default: false },
+    'hp-party': { type: 'string' }
   }
 })
 const SEEDS = Number(values.seeds)
@@ -88,10 +91,12 @@ const LAST_START = LAST_WEEK - MIN_WEEKS + 1
 /** A league-sized pool, for comparison: what a six-party Crossover league would draw */
 const LEAGUE_PARTIES = 6
 
-const PLANS = ['sensible', 'planner', 'stars', 'even', 'churn', 'noChampion'] as const
+const PLANS = ['byLevel', 'typical', 'sensible', 'planner', 'stars', 'even', 'churn', 'noChampion'] as const
 type Plan = (typeof PLANS)[number]
 const PLAN_NAMES: Record<Plan, string> = {
-  sensible: 'Sensible: best value, top 5 fight, swaps cover byes',
+  byLevel: 'By Level: highest Levels, an average hero at each',
+  typical: 'Typical: highest Levels, best projected within a Level',
+  sensible: 'Best: the exact best value, top 5 fight, swaps cover byes',
   planner: 'Planner: party + Champion set for each monster',
   stars: 'Stars: the best two Level 10s, then best value',
   even: 'Even: fighters within a Level of their average',
@@ -100,6 +105,10 @@ const PLAN_NAMES: Record<Plan, string> = {
 }
 /** How much a bench spot is worth when buying, against a fighter's 1: it only covers byes */
 const BENCH_WEIGHT = SOLO.benchWeight
+/** The plan whose party HP is set against: the ruleset's, unless --hp-party says otherwise */
+const HP_PARTY = values['hp-party'] ?? SOLO.hpParty
+if (HP_PARTY !== 'best' && HP_PARTY !== 'typical') throw new Error('--hp-party must be best or typical')
+const HP_PLAN: Plan = HP_PARTY === 'best' ? 'sensible' : 'typical'
 
 // ---------------------------------------------------------------------------
 // Stats: each season's weekly points and the season before (for priors and traits)
@@ -207,6 +216,25 @@ function buy(pool: Iterable<Hero>, cap: number, slots: Slots, maxCost = Infinity
 const FULL: Slots = { fighters: PARTY, bench: ROSTER - PARTY, paladins: MAX_PALADINS }
 
 function build(plan: Plan, pool: Map<string, Hero>, cap: number): Hero[] {
+  if (plan === 'typical') {
+    const found = typicalParty([...pool.values()], cap, FULL, BENCH_WEIGHT)
+    return [...found.fighters, ...found.bench]
+  }
+  if (plan === 'byLevel') {
+    // Buying by Level alone: the same highest Levels, but at each Level the hero nearest that Level's average projection
+    const heroes = [...pool.values()]
+    const average = new Map(
+      Array.from({ length: 10 }, (_, index) => [index + 1, mean(heroes.filter(hero => hero.level === index + 1).map(hero => hero.value))])
+    )
+    const byId = new Map(heroes.map(hero => [hero.id, hero]))
+    const found = typicalParty(
+      heroes.map(hero => ({ ...hero, value: 100 - Math.abs(hero.value - (average.get(hero.level) ?? 0)) })),
+      cap,
+      FULL,
+      BENCH_WEIGHT
+    )
+    return [...found.fighters, ...found.bench].flatMap(hero => byId.get(hero.id) ?? [])
+  }
   // Even fighters: with the cheapest bench, no hero costs more than the fighters' average price plus one Level's step
   if (plan === 'even') {
     const fighterAverage = Math.round((cap - (ROSTER - PARTY) * (COSTS[0] ?? 1)) / PARTY)
@@ -412,9 +440,16 @@ const runs: Run[] = []
 const spread: Partial<Record<HeroClass, number[]>> = {}
 /** Projected damage by Level at the earliest start, every class */
 const valueByLevel = Array.from({ length: 11 }, () => [] as number[])
+// Every season is loaded before any is played: playing a season keeps the process busy long enough for the database
+// to drop an idle connection.
+const seasons = new Map<number, Source[]>()
 try {
-  for (let season = FIRST_LEAGUE_SEASON; season <= LAST_LEAGUE_SEASON; season++) {
-    const sources = await loadSeason(season)
+  for (let season = FIRST_LEAGUE_SEASON; season <= LAST_LEAGUE_SEASON; season++) seasons.set(season, await loadSeason(season))
+} finally {
+  await mongoose.disconnect()
+}
+{
+  for (const [season, sources] of seasons) {
     const pools = new Map<number, Map<string, Hero>>()
     const weeks = new Map<number, Points>()
     for (let week = FIRST_START; week <= LAST_WEEK; week++) {
@@ -435,8 +470,6 @@ try {
     }
     process.stdout.write(`${String(season)} `)
   }
-} finally {
-  await mongoose.disconnect()
 }
 const seasonCount = LAST_LEAGUE_SEASON - FIRST_LEAGUE_SEASON + 1
 console.log(`\n${String(runs.length)} parties, each played against ${String(SEEDS)} seeded campaigns (pool: ${POOL_KIND})\n`)
@@ -449,9 +482,9 @@ for (const heroClass of HERO_CLASSES) {
 console.log(`\nCosts by Level 1 ... 10 (--curve ${String(CURVE)}): ${COSTS.join(' ')}`)
 console.log(`Projected damage per game by Level: ${valueByLevel.slice(1).map(list => mean(list).toFixed(1)).join(' ')}`)
 
-// Expected damage per week: the sensible plan's plain damage at each cap, every season and start week
+// Expected damage per week: the HP party's plain damage at each cap, every season and start week
 const ofPlan = (plan: Plan, cap: number) => runs.filter(run => run.plan === plan && run.cap === cap)
-const perWeekOf = new Map(CAPS.map(cap => [cap, mean(ofPlan('sensible', cap).flatMap(run => run.plain.slice(1)))]))
+const perWeekOf = new Map(CAPS.map(cap => [cap, mean(ofPlan(HP_PLAN, cap).flatMap(run => run.plain.slice(1)))]))
 console.log('\nExpected party damage per week, no monster (and the bought party)')
 for (const cap of CAPS) {
   const line = PLANS.map(plan => {
@@ -495,17 +528,21 @@ console.log(
     .join('  ')}`
 )
 
-// Each run's expected weekly damage: the best buyable party's projection at its start (the sensible build is that
-// party), scaled so the average matches what sensible parties actually dealt. Every plan in a run faces the same HP.
+// Each run's expected weekly damage: the HP party's projection at its start (the typical or best build is that party),
+// scaled so the average matches what such parties actually dealt. Every plan in a run faces the same HP.
 const projectedKey = (run: Run) => `${String(run.season)}:${String(run.start)}:${String(run.cap)}`
-const projectedAt = new Map(runs.filter(run => run.plan === 'sensible').map(run => [projectedKey(run), run.projected]))
+const projectedAt = new Map(runs.filter(run => run.plan === HP_PLAN).map(run => [projectedKey(run), run.projected]))
 const projectionScale = new Map(
-  CAPS.map(cap => [cap, (perWeekOf.get(cap) ?? 0) / Math.max(1, mean(ofPlan('sensible', cap).map(run => run.projected)))])
+  CAPS.map(cap => [cap, (perWeekOf.get(cap) ?? 0) / Math.max(1, mean(ofPlan(HP_PLAN, cap).map(run => run.projected)))])
 )
+const bestOverTypical = CAPS.map(cap =>
+  (mean(ofPlan('typical', cap).map(run => run.projected)) / Math.max(1, mean(ofPlan('sensible', cap).map(run => run.projected)))).toFixed(2)
+)
+console.log(`\nThe typical party's projection against the best party's: ${bestOverTypical.join(' / ')}`)
 console.log(
   HP_FIXED
     ? '\nHP: one weekly value for every run'
-    : `\nHP: the best party's projection at the start, ×${CAPS.map(cap => (projectionScale.get(cap) ?? 0).toFixed(2)).join(' / ')}`
+    : `\nHP: the ${HP_PARTY} party's projection at the start, ×${CAPS.map(cap => (projectionScale.get(cap) ?? 0).toFixed(2)).join(' / ')}`
 )
 const expectedFor = (run: Run, cap: number) =>
   HP_FIXED ? (perWeekOf.get(cap) ?? 0) : (projectedAt.get(projectedKey(run)) ?? 0) * (projectionScale.get(cap) ?? 0)
@@ -540,17 +577,17 @@ if (values.boss === undefined) {
   }
   console.log('By plan')
   for (const plan of PLANS) report(`  ${PLAN_NAMES[plan]}`, results(plan, cap, chapterFactor, bossFactor))
-  const sensible = results('sensible', cap, chapterFactor, bossFactor)
-  console.log('\nBy start week (sensible)')
+  const sensible = results(HP_PLAN, cap, chapterFactor, bossFactor)
+  console.log(`\nBy start week (${HP_PLAN})`)
   for (let start = FIRST_START; start <= LAST_START; start++) {
     const weeks = LAST_WEEK - start + 1
     report(`  NFL week ${String(start)} (${String(weeks)} weeks: ${soloWindows(weeks, SOLO.chapters).join('/')})`, sensible.filter(row => row.run.start === start))
   }
-  console.log('\nWhere sensible runs lost')
+  console.log(`\nWhere ${HP_PLAN} runs lost`)
   for (let chapter = 1; chapter <= 5; chapter++) {
     console.log(`  chapter ${String(chapter)}${chapter === 5 ? ' (boss)' : ''}: ${pct(sensible.filter(row => row.result.lostAt === chapter).length, sensible.length)} of runs`)
   }
-  console.log('\nWin rate by season (sensible)')
+  console.log(`\nWin rate by season (${HP_PLAN})`)
   const years = Array.from({ length: seasonCount }, (_, index) => FIRST_LEAGUE_SEASON + index)
   console.log(`  ${years.map(season => `${String(season)}: ${pct(sensible.filter(row => row.run.season === season && row.result.won).length, sensible.filter(row => row.run.season === season).length)}`).join('  ')}`)
 }

@@ -11,7 +11,7 @@ import InstallCard from '../components/InstallCard.vue'
 import NamePrompt from '../components/NamePrompt.vue'
 import { pickSpotlight } from '../spotlight'
 import { useSessionStore } from '../stores/session'
-import { nextBattleAt, seasonWeeksOf, timeUntil } from '../time'
+import { battleText, followsNfl, nextBattleAt, seasonWeeksOf, timeUntil } from '../time'
 
 const api = useApi()
 const session = useSessionStore()
@@ -46,6 +46,13 @@ const shown = computed(() => (leagues.value ?? []).filter(league => !league.hidd
 const hidden = computed(() => (leagues.value ?? []).filter(league => league.hidden))
 const showingHidden = ref(false)
 const spotlight = computed(() => (leagues.value ? pickSpotlight(shown.value) : null))
+/** The spotlit battle's time: a countdown, then under way and waiting on scores for Crossover and Solo */
+const spotlightWhen = computed(() => {
+  const spot = spotlight.value
+  if (spot?.kind !== 'battle') return ''
+  const kickoff = spot.battle.kicksOffAt
+  return battleText(new Date(spot.battle.at), kickoff ? new Date(kickoff) : null, followsNfl(spot.league.mode))
+})
 /** Finished and canceled leagues can be hidden */
 const hideable = (league: MyLeague) => league.status === 'complete' || league.status === 'canceled'
 const hiding = ref<string | null>(null)
@@ -126,8 +133,9 @@ function statusLine(league: MyLeague): { label: string; detail: string; callout?
         : league.weekOneAt
           ? nextBattleAt(league.weekOneAt, league.resolvedWeeks, league.cadence)
           : null
-      const next = nextAt ? timeUntil(nextAt) : ''
-      return { label: `Week ${String(week)}`, detail: `Next battle ${next}`, callout: nextStep(league) }
+      const kickoff = league.outlook.nextBattle?.kicksOffAt
+      const next = nextAt ? battleText(nextAt, kickoff ? new Date(kickoff) : null, followsNfl(league.mode), 'Next battle') : 'Next battle'
+      return { label: `Week ${String(week)}`, detail: next, callout: nextStep(league) }
     }
     case 'drafting':
       return {
@@ -200,7 +208,7 @@ function signOut() {
               <span class="spot-name">{{ spotlight.battle.opponent?.name ?? spotlight.battle.monster ?? 'Dungeon monster' }}</span>
             </div>
           </div>
-          <div class="countdown">Week {{ spotlight.battle.week }} · battle {{ timeUntil(new Date(spotlight.battle.at)) }}</div>
+          <div class="countdown">Week {{ spotlight.battle.week }} · {{ spotlightWhen }}</div>
           <ul class="alerts">
             <li v-if="spotlight.battle.noChampion" class="alert warn">♛ No Champion named</li>
             <li v-if="spotlight.battle.restingStarters" class="alert warn">{{ plural(spotlight.battle.restingStarters, 'starter') }} resting</li>

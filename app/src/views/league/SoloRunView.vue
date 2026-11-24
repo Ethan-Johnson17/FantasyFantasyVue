@@ -9,7 +9,7 @@ import PlayerTag from '../../components/PlayerTag.vue'
 import SoloPool from '../../components/SoloPool.vue'
 import { CLASS_COLOR, levelText } from '../../heroes'
 import { useLeague } from '../../league'
-import { goldText, pickProblem, questProjection, swapProblem, windowsText } from '../../solo'
+import { goldText, pickProblem, questProjection, swapGold, swapProblem, windowsText } from '../../solo'
 
 /*
  * A Solo run's market (docs/SOLO_SPEC.md). Before the run: build the party of 8 under the cap, choose the Quest party
@@ -125,29 +125,68 @@ async function cancelRun() {
 }
 
 // --- Swaps, once the run is under way -------------------------------------------------------------------------------
+// Up to the week's swaps left can be made together: choose who leaves, then who joins, in the same order. The gold
+// from every release counts toward every signing, so an upgrade can be paid for by a cheaper replacement elsewhere.
 const party = computed(() => (run.value?.pool ?? []).filter(hero => hero.partyId !== null))
-const freeAgents = computed(() => (run.value?.pool ?? []).filter(hero => hero.partyId === null))
-const releasing = ref<string | null>(null)
-const releaseHero = computed(() => heroById.value.get(releasing.value ?? '') ?? null)
-const canSwap = computed(() => !!run.value && run.value.status === 'active' && (run.value.swapsLeft ?? 0) > 0)
+const releasing = ref<string[]>([])
+const signing = ref<string[]>([])
+const heroesOf = (ids: readonly string[]) => ids.flatMap(id => heroById.value.get(id) ?? [])
+const releaseHeroes = computed(() => heroesOf(releasing.value))
+const signHeroes = computed(() => heroesOf(signing.value))
+const freeAgents = computed(() => (run.value?.pool ?? []).filter(hero => hero.partyId === null && !signing.value.includes(hero.id)))
+const swapsLeft = computed(() => (run.value?.status === 'active' ? (run.value.swapsLeft ?? 0) : 0))
+const canSwap = computed(() => swapsLeft.value > 0)
+const goldToSpend = computed(() => (run.value ? swapGold(run.value, releaseHeroes.value, signHeroes.value) : 0))
+
+function toggleRelease(hero: SoloHero) {
+  const index = releasing.value.indexOf(hero.id)
+  if (index >= 0) {
+    releasing.value = releasing.value.filter(id => id !== hero.id)
+    // A signing pairs with the release in the same place, so the ones past the releases left go too.
+    signing.value = signing.value.slice(0, releasing.value.length)
+  } else if (releasing.value.length < swapsLeft.value) {
+    releasing.value = [...releasing.value, hero.id]
+  }
+}
+const releaseDisabled = (hero: SoloHero) =>
+  !canSwap.value || hero.locked || busy.value || (!releasing.value.includes(hero.id) && releasing.value.length >= swapsLeft.value)
+
 const signProblem = (hero: SoloHero) => {
   if (!run.value) return 'Loading…'
-  if (!releaseHero.value) return 'Choose a hero to release first'
-  return swapProblem(run.value, releaseHero.value, hero)
+  if (releasing.value.length === 0) return 'Choose a hero to release first'
+  return swapProblem(run.value, releaseHeroes.value, signHeroes.value, hero)
 }
+const unsign = (hero: SoloHero) => {
+  signing.value = signing.value.filter(id => id !== hero.id)
+}
+
+/** "A and B", or just "A" */
+const both = (names: readonly string[]) => names.join(' and ')
 
 async function sign(hero: SoloHero) {
   const id = league.value?.id
-  const release = releaseHero.value
-  if (!id || !release || signProblem(hero)) return
-  if (!window.confirm(`Release ${release.name} and sign ${hero.name} for ${goldText(hero.cost)}? This uses one of this week’s swaps.`)) return
+  if (!id || signProblem(hero)) return
+  signing.value = [...signing.value, hero.id]
+  // Make the swaps once every release has someone to take its place.
+  if (signing.value.length < releasing.value.length) return
+  const releases = releaseHeroes.value
+  const signings = signHeroes.value
+  const pairs = releases.map((release, index) => ({ release, sign: signings[index] }))
+  const lines = pairs.map(({ release, sign: joining }) => `${joining?.name ?? ''} (${goldText(joining?.cost ?? 0)}) for ${release.name}`)
+  const swaps = pairs.length === 1 ? 'one of this week’s swaps' : `${String(pairs.length)} of this week’s swaps`
+  if (!window.confirm(`Sign ${lines.join(' and ')}? This uses ${swaps}.`)) {
+    signing.value = signing.value.slice(0, -1)
+    return
+  }
   busy.value = true
   error.value = null
   notice.value = ''
   try {
-    run.value = await api.swapSolo(id, { releaseHeroId: release.id, signHeroId: hero.id })
-    releasing.value = null
-    notice.value = `${hero.name} joined your party, taking ${release.name}’s place.`
+    run.value = await api.swapSolo(id, { swaps: pairs.map(({ release, sign: joining }) => ({ releaseHeroId: release.id, signHeroId: joining?.id ?? '' })) })
+    releasing.value = []
+    signing.value = []
+    const places = releases.length === 1 ? `${releases[0]?.name ?? ''}’s place` : `${both(releases.map(release => `${release.name}’s`))} places`
+    notice.value = `${both(signings.map(joining => joining.name))} joined your party, taking ${places}.`
     // Releasing the Champion leaves the party without one.
     const lineup = await api.getLineup(id).catch(() => null)
     if (lineup && !lineup.champion) notice.value += ' Your party has no Champion: name one on the Party tab.'
@@ -277,8 +316,8 @@ async function sign(hero: SoloHero) {
         <span class="muted small">{{ goldText(run.cap - run.spent) }} to spend</span>
       </div>
       <p class="muted small">
-        A swap releases one hero and signs another at today's price. Swaps reset when the week goes final; a hero whose game has kicked
-        off can't be released or signed.
+        A swap releases one hero and signs another at today's price. Make two together and the gold from both releases counts toward
+        both signings. Swaps reset when the week goes final; a hero whose game has kicked off can't be released or signed.
       </p>
     </section>
     <p v-if="run.status !== 'active'" class="card muted">This run is over. <RouterLink :to="`/leagues/${league?.id}/finale`">See the finale ›</RouterLink></p>
@@ -291,10 +330,10 @@ async function sign(hero: SoloHero) {
           <button
             type="button"
             class="pick release"
-            :class="{ selected: releasing === hero.id, locked: hero.locked }"
-            :aria-pressed="releasing === hero.id"
-            :disabled="!canSwap || hero.locked || busy"
-            @click="releasing = releasing === hero.id ? null : hero.id"
+            :class="{ selected: releasing.includes(hero.id), locked: hero.locked }"
+            :aria-pressed="releasing.includes(hero.id)"
+            :disabled="releaseDisabled(hero)"
+            @click="toggleRelease(hero)"
           >
             <ClassIcon :hero-class="hero.heroClass" :size="26" />
             <span class="text">
@@ -304,15 +343,32 @@ async function sign(hero: SoloHero) {
                 {{ levelText(hero) }} · paid {{ goldText(hero.price ?? 0) }}<template v-if="hero.locked"> · 🔒 kicked off</template>
               </span>
             </span>
-            <span v-if="releasing === hero.id" class="tag">Releasing</span>
+            <span v-if="releasing.includes(hero.id)" class="tag">Releasing</span>
           </button>
         </li>
       </ul>
 
       <h2 class="section-title spaced">2. Sign a replacement</h2>
       <p v-if="!canSwap" class="muted small">No swaps left this week. They reset when the week goes final.</p>
-      <p v-else-if="!releaseHero" class="muted small">Choose a hero to release first.</p>
-      <SoloPool :heroes="freeAgents" action-label="Sign" :problem="signProblem" :disabled="busy || !releaseHero" @choose="sign" />
+      <p v-else-if="releasing.length === 0" class="muted small">
+        Choose a hero to release first<template v-if="swapsLeft > 1">, or two to pool their gold for an upgrade</template>.
+      </p>
+      <section v-else class="card swap-summary" aria-label="This swap">
+        <p class="muted small">
+          {{ goldText(goldToSpend) }} to spend ·
+          {{ signing.length }} of {{ releasing.length }} {{ releasing.length === 1 ? 'replacement' : 'replacements' }} chosen
+        </p>
+        <ul class="pairs">
+          <li v-for="(release, index) in releaseHeroes" :key="release.id">
+            <template v-if="signHeroes[index]">
+              <strong>{{ signHeroes[index].name }}</strong> for {{ release.name }}
+              <button type="button" class="link-button small" :disabled="busy" @click="unsign(signHeroes[index])">Undo</button>
+            </template>
+            <span v-else class="muted">Sign someone for {{ release.name }}</span>
+          </li>
+        </ul>
+      </section>
+      <SoloPool :heroes="freeAgents" action-label="Sign" :problem="signProblem" :disabled="busy || releasing.length === 0" @choose="sign" />
     </template>
   </template>
 </template>
@@ -326,6 +382,23 @@ async function sign(hero: SoloHero) {
 }
 .spaced {
   margin-top: 22px;
+}
+.swap-summary {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.swap-summary p {
+  margin: 0;
+}
+.pairs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .budget {
   display: flex;

@@ -35,7 +35,10 @@ identity is only ever serialized for Crossover leagues, with tests on both sides
   same files Classic imports. nflverse updates nightly after game days and at set points on game days; corrections
   land by Wednesday.
 - **Automatic import:** a scheduled GitHub Actions workflow (free) re-imports the current season nightly, and every
-  hour from Thursday 8 PM to Tuesday 6 AM Eastern during the season *(default)*. It needs the production database
+  hour from Thursday 8 PM to Tuesday 6 AM Eastern during the season *(default)*, then every 30 minutes until midday
+  Tuesday Eastern, because GitHub skips scheduled runs when it's busy (added 2026-11-17, after a skipped run left a
+  week waiting a day).  While a week's final time has passed but no import has come in since, screens say it's
+  waiting for final scores. It needs the production database
   address stored as a GitHub Actions secret, which the repository owner adds. The importer already updates rows in
   place, so repeated runs are safe.
 - **What we never use:** the schedule file's betting columns (spreads, moneylines, totals). They aren't imported.

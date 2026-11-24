@@ -8,7 +8,7 @@ import { PartyModel, readLineup, type PartyDocument } from '../leagues/party.mod
 
 import type { Outcome } from './battle.js'
 import { monsterName } from './monsters.js'
-import { nextWeek, restingHeroes } from './season.service.js'
+import { kicksOffAt, nextWeek, restingHeroes } from './season.service.js'
 import { WeekResultModel } from './weekResult.model.js'
 import { getRuleset } from '../scoring/rulesets.js'
 import { campaignRulesOf, readMonsters, startCampaign, type CampaignOutcome } from './campaign.js'
@@ -27,6 +27,8 @@ export interface PartyOutlook {
   nextBattle: {
     week: number
     at: Date
+    /** Crossover and Solo: when the week's first game kicks off (null for Classic and Co-op) */
+    kicksOffAt: Date | null
     /** null against the dungeon monster */
     opponent: { name: string; crest: Crest } | null
     monster: string | null
@@ -105,15 +107,17 @@ async function upcoming(league: LeagueDocument, party: PartyDocument): Promise<P
   const opponentId = matchup.home.equals(party._id) ? matchup.away : matchup.home
 
   const lineup = Object.values(readLineup(party.lineup) ?? {})
-  const [hidden, opponent, starters] = await Promise.all([
+  const [hidden, opponent, starters, kickoff] = await Promise.all([
     LeagueModel.findById(league._id).select('+season +seed'),
     opponentId ? PartyModel.findById(opponentId, 'name crest') : null,
-    HeroModel.find({ _id: trusted({ $in: lineup }), partyId: party._id }).select('+source')
+    HeroModel.find({ _id: trusted({ $in: lineup }), partyId: party._id }).select('+source'),
+    kicksOffAt(league, next.week)
   ])
   const resting = await restingHeroes(league, starters, next.week)
   return {
     week: next.week,
     at: next.at,
+    kicksOffAt: kickoff,
     opponent: opponent ? { name: opponent.name, crest: toCrest(opponent.crest) } : null,
     // The same name the battle will use.
     monster: !opponent && hidden?.seed ? monsterName(createRng(hidden.seed, `monster-${String(next.week)}`)) : null,
@@ -132,8 +136,8 @@ async function upcomingCoop(league: LeagueDocument, party: PartyDocument): Promi
   if (!next || outlook?.outcome !== 'ongoing') return null
   const lineup = league.mode === 'solo' ? (party.questParty ?? []).map(String) : Object.values(readLineup(party.lineup) ?? {})
   const starters = await HeroModel.find({ _id: trusted({ $in: lineup }), partyId: party._id }).select('+source')
-  const resting = await restingHeroes(league, starters, next.week)
-  return { week: next.week, at: next.at, opponent: null, monster: outlook.monster, noChampion: !party.champion, restingStarters: resting.size }
+  const [resting, kickoff] = await Promise.all([restingHeroes(league, starters, next.week), kicksOffAt(league, next.week)])
+  return { week: next.week, at: next.at, kicksOffAt: kickoff, opponent: null, monster: outlook.monster, noChampion: !party.champion, restingStarters: resting.size }
 }
 
 async function latestResult(league: LeagueDocument, party: PartyDocument): Promise<PartyOutlook['lastBattle']> {

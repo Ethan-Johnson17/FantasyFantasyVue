@@ -93,6 +93,12 @@ export async function latestFinalWeek(season: number, lastWeek: number, at = new
   return null
 }
 
+/** When an NFL week's first game kicks off, or null if the week has no games. */
+export async function firstKickoff(season: number, nflWeek: number): Promise<Date | null> {
+  const game = await NflGameModel.findOne({ season, seasonType: 'REG', week: nflWeek }).sort({ kickoff: 1 }).select('kickoff').lean()
+  return game?.kickoff ?? null
+}
+
 /** Every game of the NFL week is final, and the season was imported after the week's final time. */
 export async function nflWeekReady(season: number, nflWeek: number, finalAt: Date): Promise<boolean> {
   const [unfinished, games, imported] = await Promise.all([

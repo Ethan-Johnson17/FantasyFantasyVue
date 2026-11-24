@@ -4,12 +4,17 @@ name: Import stats
 # finish (docs/CROSSOVER_SPEC.md, "Data and scores"). nflverse updates nightly and at set points on game
 # days, so this runs nightly, and hourly through each week's games. Only during the season (September to
 # February). Times are UTC: Thursday 8 PM Eastern is Friday 00:00-01:00 UTC.
+#
+# A week goes final at 6 AM Eastern on Tuesday, but only once an import has run after that time: 10:00 UTC
+# in daylight saving time, 11:00 UTC after it. GitHub delays and skips scheduled runs when it's busy (worst
+# on the hour), so every run is at :17, and Tuesday has backup runs every 30 minutes until midday Eastern.
 on:
   schedule:
-    - cron: '0 10 * 9-12,1-2 *' # nightly, 5-6 AM Eastern
-    - cron: '0 0-5 * 9-12,1-2 5' # Thursday night games
-    - cron: '0 * * 9-12,1-2 6,0,1' # Saturday (late season), Sunday and Monday games
-    - cron: '0 0-11 * 9-12,1-2 2' # Monday night games, until the week goes final Tuesday morning
+    - cron: '17 10 * 9-12,1-2 *' # nightly, 5-6 AM Eastern
+    - cron: '17 0-5 * 9-12,1-2 5' # Thursday night games
+    - cron: '17 * * 9-12,1-2 6,0,1' # Saturday (late season), Sunday and Monday games
+    - cron: '17 0-10 * 9-12,1-2 2' # Monday night games
+    - cron: '17,47 11-17 * 9-12,1-2 2' # Tuesday morning, after the week goes final
   # Run by hand from the Actions tab, e.g. to load the season the first time.
   workflow_dispatch:
 
