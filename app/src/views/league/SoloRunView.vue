@@ -9,7 +9,7 @@ import PlayerTag from '../../components/PlayerTag.vue'
 import SoloPool from '../../components/SoloPool.vue'
 import { CLASS_COLOR, levelText } from '../../heroes'
 import { useLeague } from '../../league'
-import { goldText, pickProblem, swapProblem, windowsText } from '../../solo'
+import { goldText, pickProblem, questProjection, swapProblem, windowsText } from '../../solo'
 
 /*
  * A Solo run's market (docs/SOLO_SPEC.md). Before the run: build the party of 8 under the cap, choose the Quest party
@@ -45,6 +45,8 @@ const champion = ref<string | null>(null)
 const picks = computed(() => picked.value.flatMap(id => heroById.value.get(id) ?? []))
 const spentNow = computed(() => picks.value.reduce((sum, hero) => sum + hero.cost, 0))
 const goldLeft = computed(() => (run.value?.cap ?? 0) - spentNow.value)
+/** The Quest party picked so far: what it's projected to deal a week */
+const questNow = computed(() => questProjection(picks.value.filter(hero => quest.value.includes(hero.id))))
 const pickedProblem = (hero: SoloHero) => (run.value ? pickProblem(run.value, picks.value, hero) : null)
 const available = computed(() => (run.value?.pool ?? []).filter(hero => !picked.value.includes(hero.id)))
 
@@ -174,12 +176,17 @@ async function sign(hero: SoloHero) {
         <span><strong>{{ goldText(goldLeft) }}</strong> <span class="muted small">left of {{ run.cap }}</span></span>
         <span class="muted small">{{ picks.length }} of {{ run.rosterSize }} heroes</span>
       </div>
+      <div class="budget-top">
+        <span><strong>{{ questNow }}</strong> <span class="muted small">Quest projection a week</span></span>
+        <span class="muted small">{{ quest.length }} of {{ run.partySize }} fighting</span>
+      </div>
       <div class="bar" role="progressbar" aria-label="Gold spent" :aria-valuenow="spentNow" aria-valuemin="0" :aria-valuemax="run.cap">
         <div class="bar-fill" :style="{ width: `${Math.min(100, (spentNow / Math.max(1, run.cap)) * 100)}%` }"></div>
       </div>
       <p class="muted small">
         A hero costs their Level squared: Level 1 is {{ run.costs[0] }} gold, Level 10 is {{ run.costs.at(-1) }}. The price is locked when you
-        sign them. At most {{ run.paladinLimit }} Paladins (team defenses).
+        sign them. At most {{ run.paladinLimit }} Paladins (team defenses). Projections vary a lot within a Level: "Best for the price" finds
+        the heroes projected above their Level.
       </p>
     </section>
 
@@ -218,7 +225,9 @@ async function sign(hero: SoloHero) {
         <span class="text">
           <span class="name">{{ hero.name }}</span>
           <PlayerTag :hero="hero" />
-          <span class="muted small">{{ levelText(hero) }} · {{ goldText(hero.cost) }} · {{ quest.includes(hero.id) ? 'Quest party' : 'Bench' }}</span>
+          <span class="muted small">
+            {{ levelText(hero) }} · {{ goldText(hero.cost) }} · proj {{ hero.projected }} · {{ quest.includes(hero.id) ? 'Quest party' : 'Bench' }}
+          </span>
         </span>
         <button
           type="button"

@@ -8,7 +8,7 @@ import { apiKey } from '../src/api/inject'
 import type { Campaign, CampaignChapter, GameRules, HeroClass, LeagueDetail, Lineup, Party, SoloFinale, SoloHero, SoloRules, SoloRun, WeekResult } from '../src/api/types'
 import { weekStory } from '../src/campaign'
 import { provideLeagueForTest } from '../src/league'
-import { filterPool, pickProblem, sortPool, swapProblem } from '../src/solo'
+import { filterPool, overLevel, pickProblem, questProjection, sortPool, swapProblem } from '../src/solo'
 import { pickSpotlight } from '../src/spotlight'
 import HowItWorksView from '../src/views/HowItWorksView.vue'
 import LeaguesView from '../src/views/LeaguesView.vue'
@@ -245,6 +245,22 @@ describe('the pool and the budget', () => {
     expect(sortPool(all, 'name').map(entry => entry.player?.name).slice(0, 2)).toEqual(['Player a', 'Player b'])
   })
 
+  it('finds the heroes projected above their Level, best for the price first', () => {
+    // Two Level 9s and two Level 1s: the Level 9 projected 30 is 6 over his Level, the Level 1 projected 9 is 4 over
+    const priced = [
+      hero('steady9', 9, 'Warrior', 'RB', { projected: 18 }),
+      hero('star9', 9, 'Warrior', 'RB', { projected: 30 }),
+      hero('cheap1', 1, 'Rogue', 'TE', { projected: 1 }),
+      hero('steal1', 1, 'Rogue', 'TE', { projected: 9 })
+    ]
+    const over = overLevel(priced)
+    expect([...over]).toEqual([['steady9', -6], ['star9', 6], ['cheap1', -4], ['steal1', 4]])
+    expect(sortPool(priced, 'value').map(entry => entry.id)).toEqual(['star9', 'steal1', 'cheap1', 'steady9'])
+    // Plain projection still puts the Level 9s first
+    expect(sortPool(priced, 'projected').map(entry => entry.id)).toEqual(['star9', 'steady9', 'steal1', 'cheap1'])
+    expect(questProjection(priced.slice(0, 2))).toBe(48)
+  })
+
   it('stops a pick at the roster size, the cap and the Paladin limit', () => {
     const all = pool()
     const byId = (id: string) => all.find(entry => entry.id === id) ?? all[0]!
@@ -300,6 +316,9 @@ describe('building the party', () => {
     const { wrapper, router, reload } = await mountLeague(SoloRunView, api, soloLeague())
     for (const id of ['star', 'a', 'b', 'c', 'd', 'e', 'f']) await button(wrapper, `Sign Hero ${id}`).trigger('click')
     expect(wrapper.find('.budget').text()).toContain('10 gold left')
+    // The first five fight: the star's 20 and four 2s
+    expect(wrapper.find('.budget').text()).toMatch(/28\s*Quest projection a week/)
+    expect(wrapper.find('.budget').text()).toContain('5 of 5 fighting')
     // 10 gold left: the 25-gold defense is out of reach, a 1-gold hero isn't
     expect(button(wrapper, 'Sign Hero mid').attributes('disabled')).toBeDefined()
     expect(wrapper.text()).toContain('Costs 25 gold: 10 gold left')
@@ -313,6 +332,7 @@ describe('building the party', () => {
     await button(wrapper, 'Name Hero star Champion').trigger('click')
     // Swap a fighter for a bench hero
     await button(wrapper, 'Move Hero d to the bench').trigger('click')
+    expect(wrapper.find('.budget').text()).toMatch(/26\s*Quest projection a week/)
     await button(wrapper, 'Move Hero e to the Quest party').trigger('click')
     await wrapper.find('.confirm .btn-primary').trigger('click')
     await flushPromises()
@@ -368,6 +388,25 @@ describe('building the party', () => {
     expect(wrapper.find('.warning').text()).toBe(problem)
     for (const id of ['star', 'a', 'b', 'c', 'd', 'e', 'f', 'g']) await button(wrapper, `Sign Hero ${id}`).trigger('click')
     expect(wrapper.find('.confirm .btn-primary').attributes('disabled')).toBeDefined()
+  })
+
+  it('lists the pool best for the price first, with each projection against its Level', async () => {
+    const priced = run({
+      pool: [
+        hero('steady9', 9, 'Warrior', 'RB', { projected: 18 }),
+        hero('star9', 9, 'Warrior', 'RB', { projected: 30 }),
+        hero('steal1', 1, 'Rogue', 'TE', { projected: 9 }),
+        hero('cheap1', 1, 'Rogue', 'TE', { projected: 1 })
+      ]
+    })
+    const { wrapper } = await mountLeague(SoloRunView, fakeApi({ getSolo: vi.fn().mockResolvedValue(priced) }), soloLeague())
+    const rows = wrapper.findAll('.pool .hero')
+    expect(rows.map(row => row.find('.name').text())).toEqual(['Hero star9', 'Hero steal1', 'Hero cheap1', 'Hero steady9'])
+    expect(rows[0]?.find('.proj').text()).toBe('30 proj')
+    expect(rows[0]?.find('.over').text()).toBe('+6 vs Lv')
+    expect(rows[0]?.find('.over').classes()).toContain('up')
+    expect(rows[3]?.find('.over').text()).toBe('−6 vs Lv')
+    expect(rows[3]?.find('.over').classes()).toContain('down')
   })
 
   it('filters the pool by position and class', async () => {

@@ -181,8 +181,13 @@ which parties can keep up. Simulated the same way (boss ×1.0, then ×1.1):
 ## What users see
 
 - **Start a Solo run** from the leagues list, shown once the API says Solo is available.
-- **Build your party:** the pool with names, teams, positions, hero classes, Levels and costs, sorting and
-  filters by position and class, the budget left, and the five monsters ahead with their weaknesses.
+- **Build your party:** the pool with names, teams, positions, hero classes, Levels, costs and projections, sorting and
+  filters by position and class, the budget left, the Quest party's projection a week, and the five monsters ahead with
+  their weaknesses.
+- **Best for the price** (2026-11-17), the pool's first sort, on the build page and the market: prices follow Level,
+  but projections vary a lot within one, so heroes are ranked by how far their projection is above the average at
+  their Level, and each shows it ("+6 vs Lv"). The monsters are set against a party that reads projections this way
+  (see "HP").
 - **The quest board:** Co-op's board for one party: the monster, HP, deadline, lives, this week's damage, kickoff
   locks and "N of M games final" while the week is live.
 - **Party:** the Quest party, bench, Champion and swaps left this week.
