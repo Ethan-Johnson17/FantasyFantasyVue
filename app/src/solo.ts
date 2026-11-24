@@ -5,8 +5,9 @@ import type { HeroClass, SoloHero, SoloRun } from './api/types'
 export const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'DEF'] as const
 export type Position = (typeof POSITIONS)[number]
 
-export type SoloSort = 'level' | 'cost' | 'projected' | 'name'
+export type SoloSort = 'value' | 'level' | 'cost' | 'projected' | 'name'
 export const SORTS: { value: SoloSort; label: string }[] = [
+  { value: 'value', label: 'Best for the price' },
   { value: 'level', label: 'Level' },
   { value: 'projected', label: 'Projected' },
   { value: 'cost', label: 'Cheapest' },
@@ -32,9 +33,33 @@ export function filterPool(pool: readonly SoloHero[], filter: PoolFilter): SoloH
   })
 }
 
+/**
+ * How far each hero's projection is above (or below) the average of heroes at the same Level, and so the same price,
+ * among these heroes. Prices follow Level, but projections vary a lot within one: this finds the heroes worth more
+ * than they cost.
+ */
+export function overLevel(pool: readonly SoloHero[]): Map<string, number> {
+  const totals = new Map<number, { sum: number; count: number }>()
+  for (const hero of pool) {
+    const entry = totals.get(hero.level ?? 0) ?? { sum: 0, count: 0 }
+    totals.set(hero.level ?? 0, { sum: entry.sum + hero.projected, count: entry.count + 1 })
+  }
+  return new Map(
+    pool.map(hero => {
+      const entry = totals.get(hero.level ?? 0)
+      return [hero.id, entry ? hero.projected - entry.sum / entry.count : 0]
+    })
+  )
+}
+
+/** A Quest party's projected damage a week: its fighters' projections added up (before the Champion and synergies) */
+export const questProjection = (fighters: readonly SoloHero[]): number => fighters.reduce((sum, hero) => sum + hero.projected, 0)
+
 export function sortPool(pool: readonly SoloHero[], sort: SoloSort): SoloHero[] {
   const byName = (a: SoloHero, b: SoloHero) => (a.player?.name ?? a.name).localeCompare(b.player?.name ?? b.name)
+  const over = sort === 'value' ? overLevel(pool) : new Map<string, number>()
   const compare: Record<SoloSort, (a: SoloHero, b: SoloHero) => number> = {
+    value: (a, b) => (over.get(b.id) ?? 0) - (over.get(a.id) ?? 0) || b.projected - a.projected || byName(a, b),
     level: (a, b) => (b.level ?? 0) - (a.level ?? 0) || b.projected - a.projected || byName(a, b),
     projected: (a, b) => b.projected - a.projected || byName(a, b),
     cost: (a, b) => a.cost - b.cost || b.projected - a.projected || byName(a, b),

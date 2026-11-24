@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import type { HeroClass, SoloHero } from '../api/types'
 import { HERO_CLASSES, levelText } from '../heroes'
-import { filterPool, goldText, POSITIONS, sortPool, SORTS, type PoolFilter, type SoloSort } from '../solo'
+import { filterPool, goldText, overLevel, POSITIONS, sortPool, SORTS, type PoolFilter, type SoloSort } from '../solo'
 import { kickoffText } from '../time'
 import ClassIcon from './ClassIcon.vue'
 import PlayerTag from './PlayerTag.vue'
@@ -25,13 +25,19 @@ const emit = defineEmits<{ choose: [hero: SoloHero] }>()
 
 const PAGE = 40
 const filter = reactive<PoolFilter>({ position: null, heroClass: null, query: '' })
-const sort = ref<SoloSort>('level')
+const sort = ref<SoloSort>('value')
 const shown = ref(PAGE)
 watch([() => ({ ...filter }), sort], () => {
   shown.value = PAGE
 })
 
 const matches = computed(() => sortPool(filterPool(props.heroes, filter), sort.value))
+/** Each hero's projection against the average at their Level, across the whole pool shown */
+const over = computed(() => overLevel(props.heroes))
+const overText = (hero: SoloHero) => {
+  const value = Math.round(over.value.get(hero.id) ?? 0)
+  return value === 0 ? 'Lv average' : `${value > 0 ? '+' : '−'}${String(Math.abs(value))} vs Lv`
+}
 const visible = computed(() => matches.value.slice(0, shown.value))
 
 function gameText(hero: SoloHero): string {
@@ -86,12 +92,14 @@ const setClass = (event: Event) => {
         <span class="name">{{ hero.name }}</span>
         <PlayerTag :hero="hero" />
         <span class="muted small">
-          {{ hero.heroClass }} · proj {{ hero.projected }}<template v-if="gameText(hero)"> · <span v-if="hero.locked" aria-hidden="true">🔒 </span>{{ gameText(hero) }}</template>
+          {{ hero.heroClass }}<template v-if="gameText(hero)"> · <span v-if="hero.locked" aria-hidden="true">🔒 </span>{{ gameText(hero) }}</template>
         </span>
         <TraitChips :traits="hero.traits" />
         <span v-if="problem(hero)" class="problem small">{{ problem(hero) }}</span>
       </span>
       <span class="numbers">
+        <span class="proj"><strong>{{ hero.projected }}</strong> <span class="small">proj</span></span>
+        <span class="over small" :class="{ up: (over.get(hero.id) ?? 0) >= 1, down: (over.get(hero.id) ?? 0) <= -1 }">{{ overText(hero) }}</span>
         <span class="level">{{ levelText(hero) }}</span>
         <span class="cost small">{{ goldText(hero.cost) }}</span>
         <button
@@ -114,6 +122,20 @@ const setClass = (event: Event) => {
 <style scoped>
 .small {
   font-size: 13px;
+}
+.proj strong {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--gold);
+}
+.over {
+  color: var(--text-muted);
+}
+.over.up {
+  color: var(--gold-bright);
+}
+.over.down {
+  color: var(--danger);
 }
 .filters {
   display: flex;
