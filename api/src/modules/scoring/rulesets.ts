@@ -150,7 +150,12 @@ export interface SoloRules {
   weakMultiplier: number
   /** Damage multiplier for the class the monster resists */
   resistMultiplier: number
-  /** Turns the best party's projection into what such a party deals (Champion, synergies, crits) */
+  /**
+   * The party monsters' HP is set against, from the pool when the run is confirmed: the exact best party the cap buys
+   * (`best`, rulesets 4-5), or the party a player would plausibly build, the highest Levels the cap buys (`typical`)
+   */
+  hpParty: 'best' | 'typical'
+  /** Turns that party's projection into what such a party deals (Champion, synergies, crits) */
   projectionScale: number
   /** A bench spot's worth against a fighter's 1 when finding the best party: it only covers byes */
   benchWeight: number
@@ -357,6 +362,7 @@ export const SOLO_V1: Ruleset = {
     lives: 3,
     weakMultiplier: 1.25,
     resistMultiplier: 0.75,
+    hpParty: 'best',
     projectionScale: 1.12,
     benchWeight: 0.35,
     chapterFactor: 1,
@@ -384,8 +390,21 @@ export const SOLO_V2: Ruleset = {
   solo: { ...soloRulesOf(SOLO_V1), cap: 350, projectionScale: 0.98 }
 }
 
+/**
+ * Solo's third ruleset (decided 2026-11-17): monsters' HP is set against the typical party, the highest Levels the cap
+ * buys, rather than the exact best one. A player's party bought by Level was dealing about half what monsters set
+ * against the best party needed. Same budget and prices; the projection scale is the typical party's, measured on
+ * 2012-2025: such parties deal 1.02 of their projection, and win 71% of runs (the best party 97%; one bought by
+ * Level alone, an average hero at each Level, 25%).
+ */
+export const SOLO_V3: Ruleset = {
+  ...SOLO_V2,
+  version: 6,
+  solo: { ...soloRulesOf(SOLO_V2), hpParty: 'typical', projectionScale: 1.02 }
+}
+
 const RULESETS = new Map<number, Ruleset>(
-  [RULESET_V1, CROSSOVER_V1, COOP_V1, SOLO_V1, SOLO_V2].map(ruleset => [ruleset.version, ruleset])
+  [RULESET_V1, CROSSOVER_V1, COOP_V1, SOLO_V1, SOLO_V2, SOLO_V3].map(ruleset => [ruleset.version, ruleset])
 )
 
 export const CURRENT_RULESET_VERSION = RULESET_V1.version
@@ -394,7 +413,7 @@ export const RULESET_FOR_MODE: Readonly<Record<LeagueMode, number>> = {
   classic: RULESET_V1.version,
   crossover: CROSSOVER_V1.version,
   coop: COOP_V1.version,
-  solo: SOLO_V2.version
+  solo: SOLO_V3.version
 }
 
 export function getRuleset(version: number): Ruleset {

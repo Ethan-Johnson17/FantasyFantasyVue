@@ -4,7 +4,7 @@ import { HERO_CLASSES, type HeroClass } from '../src/modules/heroes/classes.js'
 import { SOLO_V1 } from '../src/modules/scoring/rulesets.js'
 import { BOSS_NAME } from '../src/modules/season/campaign.js'
 import { ENCOUNTERS } from '../src/modules/season/encounters.js'
-import { bestParty, soloCost, soloEncounters, soloMonsters, soloWindows, type BuyableHero } from '../src/modules/solo/soloRules.js'
+import { bestParty, soloCost, soloEncounters, soloMonsters, soloWindows, typicalParty, type BuyableHero } from '../src/modules/solo/soloRules.js'
 
 const rules = SOLO_V1.solo!
 
@@ -126,6 +126,39 @@ describe('the best party under the cap', () => {
     const two = bestParty([...pool].reverse(), rules.cap, { fighters: 5, bench: 3, paladins: 2 }, rules.benchWeight)
     expect(two.fighters.map(hero => hero.id)).toEqual(one.fighters.map(hero => hero.id))
     expect(two.bench.map(hero => hero.id)).toEqual(one.bench.map(hero => hero.id))
+  })
+})
+
+describe('the typical party', () => {
+  const hero = (id: string, heroClass: HeroClass, level: number, value: number) => ({ id, heroClass, level, cost: soloCost(level, rules.costs), value })
+  const slots = { fighters: 2, bench: 1, paladins: 1 }
+
+  it('buys the highest Levels, not the best value: a cheap hero projected well is left out', () => {
+    // 50 gold buys Levels 5, 4 and 2 (25 + 16 + 4 = 45), or a Level 1 projected at 40 with Levels 5 and 4 (42)
+    const pool = [hero('five', 'Mage', 5, 10), hero('four', 'Warrior', 4, 9), hero('two', 'Ranger', 2, 3), hero('steal', 'Rogue', 1, 40)]
+    const best = bestParty(pool, 50, slots, rules.benchWeight)
+    expect(best.fighters.map(entry => entry.id)).toContain('steal')
+    const typical = typicalParty(pool, 50, slots, rules.benchWeight)
+    expect([...typical.fighters, ...typical.bench].map(entry => entry.id).sort()).toEqual(['five', 'four', 'two'])
+    // The five projected highest fight, and the projection is theirs
+    expect(typical.fighters.map(entry => entry.id)).toEqual(['five', 'four'])
+    expect(typical.projected).toBe(19)
+    expect(best.projected).toBeGreaterThan(typical.projected)
+  })
+
+  it('takes the best projected of heroes at the same Level', () => {
+    const pool = [hero('dull', 'Mage', 3, 5), hero('bright', 'Mage', 3, 12), hero('mid', 'Warrior', 3, 8), hero('one', 'Ranger', 1, 1)]
+    const typical = typicalParty(pool, 9 + 9 + 1, slots, rules.benchWeight)
+    expect(typical.fighters.map(entry => entry.id)).toEqual(['bright', 'mid'])
+    expect(typical.bench.map(entry => entry.id)).toEqual(['one'])
+  })
+
+  it('keeps the cap and the Paladin limit', () => {
+    const pool = [hero('d1', 'Paladin', 4, 20), hero('d2', 'Paladin', 4, 19), hero('m', 'Mage', 3, 6), hero('w', 'Warrior', 3, 5), hero('r', 'Ranger', 1, 1)]
+    const typical = typicalParty(pool, 30, slots, rules.benchWeight)
+    const party = [...typical.fighters, ...typical.bench]
+    expect(party.filter(entry => entry.heroClass === 'Paladin')).toHaveLength(1)
+    expect(party.reduce((sum, entry) => sum + entry.cost, 0)).toBeLessThanOrEqual(30)
   })
 })
 
