@@ -110,7 +110,9 @@ players' data. To test a branch end to end later, give previews their own databa
 
 Crossover leagues follow the NFL season being played. A GitHub Actions workflow
 (`.github/workflows/import-stats.yml`) re-imports that season nightly, and hourly from Thursday night to Tuesday
-morning, from September to February. The repository is public, so its runs are free. It needs the production
+morning, from September to February. A week goes final once an import runs after 6 AM Eastern on Tuesday, so
+Tuesday also has runs every 30 minutes until midday Eastern: GitHub delays and skips scheduled runs when it's busy.
+If a week still hasn't gone final, **Actions → Import stats → Run workflow** brings it in. The repository is public, so its runs are free. It needs the production
 database address as a secret:
 
 1. On GitHub: the repository → **Settings → Secrets and variables → Actions → New repository secret**.

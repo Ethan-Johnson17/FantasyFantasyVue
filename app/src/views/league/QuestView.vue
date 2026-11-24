@@ -10,7 +10,7 @@ import FormError from '../../components/FormError.vue'
 import { chapterTitle, damageText, hpShown, weekStory } from '../../campaign'
 import { critLabel } from '../../heroes'
 import { useLeague } from '../../league'
-import { kickoffText, timeUntil } from '../../time'
+import { goesFinalText, kickoffText, timeUntil } from '../../time'
 
 /*
  * Co-op's quest board (docs/COOP_SPEC.md): the monster the whole league is fighting, the lives left, who's dealing
@@ -120,8 +120,8 @@ const linkTo = (target: number) => `/leagues/${league.value?.id ?? ''}/quest/${S
   <template v-if="campaign && league">
     <CampaignBoard :campaign="campaign" :weak-multiplier="rules?.weakMultiplier" :resist-multiplier="rules?.resistMultiplier" :solo="solo" />
     <p v-if="campaign.nextWeek && campaign.outcome === 'ongoing' && solo" class="muted small">
-      Week {{ campaign.nextWeek.week }} goes final {{ timeUntil(new Date(campaign.nextWeek.at)) }}. Your Quest party's damage counts against the
-      monster.
+      Week {{ campaign.nextWeek.week }} · {{ goesFinalText(new Date(campaign.nextWeek.at)) }}. Your Quest party's damage counts against
+      the monster.
     </p>
     <p v-else-if="campaign.nextWeek && campaign.outcome === 'ongoing'" class="muted small">
       Week {{ campaign.nextWeek.week }}'s battle {{ timeUntil(new Date(campaign.nextWeek.at)) }}. Every party's damage counts against the

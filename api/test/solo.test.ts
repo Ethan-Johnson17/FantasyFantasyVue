@@ -524,6 +524,10 @@ describe('playing the campaign', () => {
     const mine = (await host.get('/api/leagues/mine')).body[0]
     expect(mine.outlook.campaign).toMatchObject({ chapter: 1, monster: monster.name, livesLeft: 3, outcome: 'ongoing' })
     expect(mine.outlook.nextBattle).toMatchObject({ week: 2, monster: monster.name })
+    // When the next week's first game kicks off, so screens can say the battle is under way
+    const firstGame = await NflGameModel.findOne({ season: SEASON, seasonType: 'REG', week: league.nflWeeks![1]!.nflWeek }).sort({ kickoff: 1 })
+    expect(mine.outlook.nextBattle.kicksOffAt).toBe(firstGame!.kickoff.toISOString())
+    expect((await host.get(`/api/leagues/${id}`)).body.nextKicksOffAt).toBe(firstGame!.kickoff.toISOString())
   })
 
   it('moves Levels as weeks go final, adds new players to the pool, and keeps the prices paid', async () => {
