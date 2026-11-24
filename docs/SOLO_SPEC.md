@@ -84,6 +84,9 @@ natural 20s and 1s, the Champion leading the Quest party, synergies, and attribu
 - **Swaps: up to 2 per NFL week.** A swap releases one hero and signs any other hero from the pool, as long as the
   party stays under the cap at signing prices. Unused swaps don't carry over *(default)*. A week's swaps reset when it
   goes final.
+- **Swaps made together** (decided 2026-11-17): both of a week's swaps can be made at once, and the gold from both
+  releases counts toward both signings. With every gold piece spent, one-for-one swaps could only trade down, so an
+  upgrade took a downgrade the week before; now a cheaper replacement elsewhere pays for it in the same move.
 - **Locks:** each hero locks at their game's kickoff, as in Crossover. A locked hero can't join or leave the Quest
   party, be released, or be signed, and the Champion can't change to or from a locked hero.
 - **Byes:** a hero on bye shows Resting and deals nothing; there's no auto-swap, so the bench and swaps are how a
@@ -235,9 +238,10 @@ a league of one with `mode: "solo"`, so the calendar, week results, campaign boa
   the total is checked again); a Quest party of 5 from them; a Champion from the Quest party, or null. Week 1 is the
   first NFL week kicking off afterwards; the monsters' HP comes from the best party the cap could buy from the same
   pool, so every run starting that week faces the same strength. Prices paid are stored with each hero.
-- **`POST /api/leagues/:id/solo/swaps`** with `{ releaseHeroId, signHeroId }`: up to 2 per NFL week, counted until
-  the week resolves; neither hero may have kicked off; the party stays under the cap at the prices paid and within the
-  Paladin limit, or nothing changes. The signed hero takes the released hero's place in the Quest party *(default)*,
+- **`POST /api/leagues/:id/solo/swaps`** with `{ swaps: [{ releaseHeroId, signHeroId }, …] }` (or a single
+  `{ releaseHeroId, signHeroId }`): up to 2 per NFL week, counted until the week resolves; no hero may have kicked
+  off or appear twice; once every swap is made the party is under the cap at the prices paid and within the Paladin
+  limit, or nothing changes. Each signed hero takes their paired release's place in the Quest party *(default)*,
   and releasing the Champion leaves the party without one until another is named *(default)*. Swaps show in
   `GET /api/leagues/:id/moves` as `kind: "swap"`.
 - **The Quest party and Champion** are set with Crossover's `PUT /api/leagues/:id/quest-party` and `PUT /champion`,
@@ -272,10 +276,11 @@ Built 2026-11-10. Solo shows only once `GET /api/rules` says `solo.available`.
   the roster size or the Paladin limit can't be signed, with the reason shown. The first 5 signed go to the Quest
   party and the rest to the bench; either can be moved, and ♛ names a Champion from the Quest party. Confirming asks
   first, then opens the quest board.
-- **The market** (the same page once the run is under way): swaps left this week and the gold to spend; choose a hero
-  to release, then sign one from the pool. Heroes who have kicked off can't be chosen, and a signing that would break
-  the cap (at prices paid) or the Paladin limit is refused with the reason. Each swap asks first. If the party is left
-  without a Champion, it says so.
+- **The market** (the same page once the run is under way): swaps left this week and the gold to spend; choose one
+  hero to release, or two to pool their gold, then sign as many from the pool, in the same order. The gold to spend
+  counts every release and signing chosen. Heroes who have kicked off can't be chosen, and a signing that would break
+  the cap (at prices paid) or the Paladin limit is refused with the reason. The swaps are made, after asking, once each
+  release has a signing; saying no takes back the last signing. If the party is left without a Champion, it says so.
 - **Tabs:** Run, Party, Quest and Market. There's no Matchup, Heroes or Chat tab, and old matchup links go to the
   quest board.
 - **Party:** Crossover's Party tab with the Quest party alone: the monster, Quest projection, Champion, synergies, the
