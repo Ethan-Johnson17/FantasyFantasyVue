@@ -42,6 +42,27 @@ describe('pickSpotlight', () => {
 })
 
 describe('My leagues spotlight', () => {
+  it('says a Solo battle is under way after kickoff, then waits for the final scores instead of "now"', async () => {
+    const playing = active('s', battle({ at: inHours(40), kicksOffAt: inHours(-2), opponent: null, monster: 'Grimjaw' }), {
+      mode: 'solo',
+      nextResolvesAt: inHours(40)
+    })
+    let { wrapper } = await mountView(LeaguesView, fakeApi({ listMyLeagues: vi.fn().mockResolvedValue([playing]) }))
+    await flushPromises()
+    expect(wrapper.find('.spotlight').text()).toContain('Week 3 · Battle in progress')
+    expect(wrapper.find('.league').text()).toContain('Next battle in progress')
+
+    const waiting = active('s', battle({ at: inHours(-3), kicksOffAt: inHours(-90), opponent: null, monster: 'Grimjaw' }), {
+      mode: 'solo',
+      nextResolvesAt: inHours(-3)
+    })
+    ;({ wrapper } = await mountView(LeaguesView, fakeApi({ listMyLeagues: vi.fn().mockResolvedValue([waiting]) })))
+    await flushPromises()
+    expect(wrapper.find('.spotlight').text()).toContain('Week 3 · Waiting for final scores')
+    expect(wrapper.find('.league').text()).toContain('Waiting for final scores')
+    expect(wrapper.text()).not.toMatch(/battle now/i)
+  })
+
   it('leads with the next battle and flags what needs fixing', async () => {
     const league = active('a', battle({ noChampion: true, restingStarters: 2 }), {
       standing: { rank: 2, wins: 1, losses: 1, draws: 0 },
@@ -57,7 +78,7 @@ describe('My leagues spotlight', () => {
     const spot = wrapper.find('.spotlight')
     expect(spot.text()).toMatch(/Up next · League a/)
     expect(spot.text()).toMatch(/Dragon Slayers\s*vs\s*Ember Wolves/)
-    expect(spot.text()).toMatch(/Week 3 · battle in 4h \d+m|Week 3 · battle in 5h/)
+    expect(spot.text()).toMatch(/Week 3 · Battle in 4h \d+m|Week 3 · Battle in 5h/)
     expect(spot.findAll('.alert').map(a => a.text())).toEqual(['♛ No Champion named', '2 starters resting'])
     expect(spot.findAll('a').map(a => a.attributes('href'))).toEqual(['/leagues/a/matchup', '/leagues/a/party'])
 

@@ -118,7 +118,8 @@ export interface ApiClient {
   /** Solo: the run's pool, budget, monsters and swaps */
   getSolo(leagueId: string): Promise<SoloRun>
   confirmSolo(leagueId: string, input: SoloConfirmInput): Promise<SoloRun>
-  swapSolo(leagueId: string, swap: { releaseHeroId: string; signHeroId: string }): Promise<SoloRun>
+  /** One or more swaps made together, so the gold from every release counts toward every signing */
+  swapSolo(leagueId: string, body: { swaps: { releaseHeroId: string; signHeroId: string }[] }): Promise<SoloRun>
 }
 
 export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchImpl: FetchLike = fetch): ApiClient {
@@ -206,7 +207,7 @@ export function createApiClient(baseUrl: string, getToken: TokenProvider, fetchI
     startSolo: party => request('POST', '/api/leagues/solo', { party }),
     getSolo: id => request('GET', `/api/leagues/${segment(id)}/solo`),
     confirmSolo: (id, input) => request('POST', `/api/leagues/${segment(id)}/solo/confirm`, input),
-    swapSolo: (id, swap) => request('POST', `/api/leagues/${segment(id)}/solo/swaps`, swap)
+    swapSolo: (id, body) => request('POST', `/api/leagues/${segment(id)}/solo/swaps`, body)
   }
 }
 

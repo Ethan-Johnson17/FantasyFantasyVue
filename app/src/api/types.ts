@@ -64,6 +64,8 @@ export interface LeagueDetail extends LeagueSummary {
   rulesetVersion: number
   parties: Party[]
   draft: DraftResult | null
+  /** Crossover and Solo, while the season runs: when the next week's first game kicks off */
+  nextKicksOffAt?: string | null
   /** Open trade offers waiting on my party (0 for non-members) */
   tradeOffers?: number
 }
@@ -88,6 +90,8 @@ export interface PartyOutlook {
   nextBattle: {
     week: number
     at: string
+    /** Crossover and Solo: when the week's first game kicks off (null for Classic and Co-op) */
+    kicksOffAt?: string | null
     /** null against the dungeon monster */
     opponent: { name: string; crest: Crest } | null
     monster: string | null

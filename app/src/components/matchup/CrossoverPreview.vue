@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { Matchup, MatchupSide } from '../../api/types'
 import { levelText, synergyInfo } from '../../heroes'
-import { kickoffText, timeUntil } from '../../time'
+import { goesFinalText, kickoffText } from '../../time'
 import ClassIcon from '../ClassIcon.vue'
 import CrestShield from '../CrestShield.vue'
 import EncounterCard from '../EncounterCard.vue'
@@ -98,7 +98,7 @@ const sides = computed(() => (props.matchup.opponent ? [props.matchup.me, props.
     </dl>
     <p class="when small">
       <template v-if="matchup.games">{{ matchup.games.final }} of {{ matchup.games.total }} games final · </template>
-      Goes final {{ timeUntil(new Date(matchup.resolvesAt)) }} · players lock at kickoff
+      {{ goesFinalText(new Date(matchup.resolvesAt)) }} · players lock at kickoff
     </p>
   </section>
 
