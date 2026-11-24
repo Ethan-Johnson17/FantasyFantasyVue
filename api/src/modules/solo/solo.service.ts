@@ -20,7 +20,7 @@ import { crossoverWeeks, firstWeekAfter, latestFinalWeek } from '../season/nflWe
 import { lockedThisWeek, nextWeek, readyWeekCount, weekGames } from '../season/season.service.js'
 import { currentNflSeason } from '../stats/seasons.js'
 import { NflGameModel } from '../stats/stats.models.js'
-import { bestParty, soloCost, soloEncounters, soloMonsters, soloWindows } from './soloRules.js'
+import { bestParty, soloCost, soloEncounters, soloMonsters, soloWindows, typicalParty } from './soloRules.js'
 
 /*
  * Solo runs (docs/SOLO_SPEC.md): one private party, bought under a budget from the whole current-season pool, against
@@ -349,15 +349,19 @@ export async function confirmRun(viewer: AccountDocument, leagueId: string, inpu
   const total = picked.reduce((sum, hero) => sum + price(hero), 0)
   if (total > solo.cap) throw new BadRequest(`Your party costs ${String(total)} gold; the cap is ${String(solo.cap)}`)
 
+  // The party the monsters are set against (docs/SOLO_SPEC.md, "HP"): the typical one, or the exact best before ruleset 6
   const values = await poolValues(stored.season, ruleset, stored.solo?.poolWeek ?? when.poolWeek)
-  const best = bestParty(
-    pool.map(hero => ({ id: hero.id, heroClass: hero.heroClass, cost: price(hero), value: values.get(`${hero.source.kind}:${hero.source.id}`) ?? 0 })),
-    solo.cap,
-    { fighters: size, bench: lineup.rosterSize - size, paladins: paladins ?? lineup.rosterSize },
-    solo.benchWeight
-  )
+  const items = pool.map(hero => ({
+    id: hero.id,
+    heroClass: hero.heroClass,
+    level: hero.level ?? 1,
+    cost: price(hero),
+    value: values.get(`${hero.source.kind}:${hero.source.id}`) ?? 0
+  }))
+  const slots = { fighters: size, bench: lineup.rosterSize - size, paladins: paladins ?? lineup.rosterSize }
+  const against = solo.hpParty === 'typical' ? typicalParty(items, solo.cap, slots, solo.benchWeight) : bestParty(items, solo.cap, slots, solo.benchWeight)
   const nflWeeks = await crossoverWeeks(when.season, when.firstWeek)
-  const monsters = soloMonsters(stored.seed, nflWeeks.length, best.projected, solo)
+  const monsters = soloMonsters(stored.seed, nflWeeks.length, against.projected, solo)
 
   await inTransaction(async session => {
     const claimed = await LeagueModel.updateOne(

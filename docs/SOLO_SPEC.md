@@ -107,14 +107,30 @@ Co-op's campaign (docs/COOP_SPEC.md), for one party:
 
 ### HP
 
-> HP = the best party's projected damage at the start × 1.12 × weeks in the chapter's window × difficulty factor ×
-> a seeded variation of up to ±15%
+> HP = the typical party's projected damage at the start × 1.02 × weeks in the chapter's window × difficulty factor ×
+> a seeded variation of up to ±15% (ruleset 6, decided 2026-11-17)
 
-- **The best party's projected damage:** when the run is confirmed, the server finds the party worth the most under
-  the cap from that week's pool (the same exact search the simulation uses: five fighters and a bench of three, at
-  most 2 defenses) and adds up its five fighters' projected class damage per game. It uses only what's known at the
-  start, and every run that starts in the same week faces the same strength. **×1.12** turns that projection into what
-  such a party actually deals, with the Champion, synergies and crits (measured on 2012-2025).
+- **The typical party's projected damage:** when the run is confirmed, the server finds the party a player would
+  plausibly build from that week's pool: the highest Levels the cap buys (as the market sorts by Level), the best
+  projected among heroes of the same Level and price, five fighters and a bench of three, at most 2 defenses. It adds
+  up the five projected highest fighters' class damage per game. It uses only what's known at the start, and every
+  run that starts in the same week faces the same strength. **×1.02** turns that projection into what such a party
+  actually deals, with the Champion, synergies and crits (measured on 2012-2025).
+- **Why the typical party** (balancing, 2026-11-17): rulesets 4 and 5 set HP against the exact best party, which
+  exploits what Levels miss (a cheap hero projected well, the classes' damage multipliers). The balancing target, a
+  sensible build winning about 2 in 3, had been measured on that same best party, so a party bought by hand faced
+  monsters it couldn't keep up with: the first real run, bought by Level, projected 69 a week against monsters needing
+  about 120. Simulated on 2012-2025 at 350 gold, HP from the typical party:
+
+  | Party | Damage a week | Win |
+  |---|---|---|
+  | Bought by Level alone: an average hero at each Level | 77 | 25% |
+  | **Typical:** the highest Levels, best projected within a Level (the target) | **95** | **71%** |
+  | The exact best party | 120 | 97% |
+  | The best party, never naming a Champion | 106 | 88% |
+
+  Reading projections pays off, so the market sorts by value and shows each party's projection (2026-11-17). Runs
+  confirmed before ruleset 6 keep the HP they were given.
 - **Why from the projection** (balancing, 2026-11-10): parties bought early in the season deal more than those bought
   mid-season (1.13 against 0.90 of average), partly because more of the pool is projected well. With one fixed weekly
   value, runs starting in NFL week 2 won 94% and those in week 7 44%; from the projection, 85% and 46%, the rest being
@@ -233,8 +249,8 @@ a league of one with `mode: "solo"`, so the calendar, week results, campaign boa
 - **`POST /api/leagues/:id/solo/confirm`** with `{ heroIds, questParty, champion }`: 8 different heroes from the
   pool, at most 2 Paladins, under the cap at the prices of the moment (so if Levels moved since the pool was shown,
   the total is checked again); a Quest party of 5 from them; a Champion from the Quest party, or null. Week 1 is the
-  first NFL week kicking off afterwards; the monsters' HP comes from the best party the cap could buy from the same
-  pool, so every run starting that week faces the same strength. Prices paid are stored with each hero.
+  first NFL week kicking off afterwards; the monsters' HP comes from the typical party the cap could buy from the
+  same pool (the exact best party before ruleset 6), so every run starting that week faces the same strength. Prices paid are stored with each hero.
 - **`POST /api/leagues/:id/solo/swaps`** with `{ releaseHeroId, signHeroId }`: up to 2 per NFL week, counted until
   the week resolves; neither hero may have kicked off; the party stays under the cap at the prices paid and within the
   Paladin limit, or nothing changes. The signed hero takes the released hero's place in the Quest party *(default)*,

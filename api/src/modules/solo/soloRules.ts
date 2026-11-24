@@ -123,6 +123,34 @@ export function bestParty<T extends BuyableHero>(
   return { fighters, bench, projected: fighters.reduce((sum, hero) => sum + hero.value, 0) }
 }
 
+/** Far above any projected damage, so the highest Levels always win and projection only breaks ties */
+const LEVEL_WEIGHT = 1000
+
+/**
+ * The party a player would plausibly build (decided 2026-11-17): the highest Levels the cap buys, as the market sorts
+ * by Level, choosing the best projected among heroes of the same Level and price, with the five projected highest
+ * fighting. The exact best party exploits what Levels miss (a cheap hero projected well, class damage multipliers), so
+ * monsters set against it needed nearly twice what a party bought by Level deals.
+ */
+export function typicalParty<T extends BuyableHero & { level: number }>(
+  items: readonly T[],
+  cap: number,
+  slots: PartySlots,
+  benchWeight: number
+): { fighters: T[]; bench: T[]; projected: number } {
+  const byId = new Map(items.map(item => [item.id, item]))
+  const ranked = bestParty(
+    items.map(item => ({ ...item, value: item.level * LEVEL_WEIGHT + item.value })),
+    cap,
+    slots,
+    benchWeight
+  )
+  const byValue = (a: T, b: T) => b.value - a.value || a.id.localeCompare(b.id)
+  const party = [...ranked.fighters, ...ranked.bench].flatMap(item => byId.get(item.id) ?? []).sort(byValue)
+  const fighters = party.slice(0, slots.fighters)
+  return { fighters, bench: party.slice(slots.fighters), projected: fighters.reduce((sum, hero) => sum + hero.value, 0) }
+}
+
 /**
  * Each monster's window in weeks, for a run of `weeks`: the boss gets round(weeks / 7) (at least 1), and the rest are
  * shared among the chapters before it, any spare weeks going to the later ones.

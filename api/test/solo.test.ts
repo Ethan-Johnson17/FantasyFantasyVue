@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { HeroModel } from '../src/modules/heroes/hero.model.js'
 import { LeagueModel } from '../src/modules/leagues/league.model.js'
 import { PartyModel } from '../src/modules/leagues/party.model.js'
-import { SOLO_V1, SOLO_V2 } from '../src/modules/scoring/rulesets.js'
+import { loadCrossoverCandidates } from '../src/modules/draft/crossoverCandidates.js'
+import { getRuleset, SOLO_V1, SOLO_V2, SOLO_V3 } from '../src/modules/scoring/rulesets.js'
+import { soloCost, soloMonsters, typicalParty } from '../src/modules/solo/soloRules.js'
 import { monsterMultiplier, type CoopMonster } from '../src/modules/season/campaign.js'
 import { WeekResultModel } from '../src/modules/season/weekResult.model.js'
 import { DefenseWeekStatModel, NflGameModel, NflPlayerModel, PlayerWeekStatModel, StatsImportModel } from '../src/modules/stats/stats.models.js'
@@ -111,7 +113,7 @@ describe('starting a Solo run', () => {
   it('creates a private run of one party, with no PIN to share', async () => {
     const res = await host.post('/api/leagues/solo', { party })
     expect(res.status).toBe(201)
-    expect(res.body).toMatchObject({ mode: 'solo', status: 'forming', visibility: 'private', maxParties: 1, partyCount: 1, rulesetVersion: 5 })
+    expect(res.body).toMatchObject({ mode: 'solo', status: 'forming', visibility: 'private', maxParties: 1, partyCount: 1, rulesetVersion: 6 })
     expect(res.body.pin).toBeUndefined()
     expect(res.body.parties).toHaveLength(1)
     expect(res.body.parties[0]).toMatchObject({ name: 'Lone Wolves', isMine: true })
@@ -125,7 +127,7 @@ describe('starting a Solo run', () => {
     const id = await startRun()
     await LeagueModel.updateOne({ _id: id }, { $set: { rulesetVersion: SOLO_V1.version } }, { overwriteImmutable: true })
     expect((await soloOf(id)).cap).toBe(350)
-    expect((await LeagueModel.findById(id))!.rulesetVersion).toBe(SOLO_V2.version)
+    expect((await LeagueModel.findById(id))!.rulesetVersion).toBe(SOLO_V3.version)
 
     await host.post(`/api/leagues/${id}/cancel`)
     const { id: confirmed } = await confirmedRun()
@@ -146,7 +148,7 @@ describe('starting a Solo run', () => {
     const res = await host.post(`/api/leagues/${id}/solo/confirm`, { heroIds: ids, questParty: ids.slice(0, 5), champion: null })
     expect(res.status).toBe(200)
     expect(res.body).toMatchObject({ cap: 350, spent: 305 })
-    expect((await LeagueModel.findById(id))!.rulesetVersion).toBe(SOLO_V2.version)
+    expect((await LeagueModel.findById(id))!.rulesetVersion).toBe(SOLO_V3.version)
   })
 
   it('opens with the whole pool: every player who has played, priced by Level squared', async () => {
@@ -310,9 +312,35 @@ describe('confirming the party', () => {
     expect((await host.post(`/api/leagues/${id}/solo/confirm`, { heroIds, questParty, champion: null })).status).toBe(409)
   })
 
+  it('sets the monsters against the typical party the cap buys: the highest Levels, best projected within a Level', async () => {
+    const { id } = await confirmedRun()
+    const league = (await LeagueModel.findById(id).select('+seed'))!
+    expect(league.rulesetVersion).toBe(SOLO_V3.version)
+    const ruleset = getRuleset(league.rulesetVersion)
+    const solo = ruleset.solo!
+    // The same pool values and party the server uses, from the week the pool reflects
+    const { candidates } = await loadCrossoverCandidates(SEASON, ruleset, league.solo!.poolWeek)
+    const values = new Map(candidates.map(c => [`${c.sourceKind}:${c.sourceId}`, (c.ppg ?? 0) * ruleset.lineup.classMultipliers[c.heroClass]]))
+    const pool = await HeroModel.find({ leagueId: id }).select('+source')
+    const typical = typicalParty(
+      pool.map(hero => ({
+        id: hero.id,
+        heroClass: hero.heroClass,
+        level: hero.level ?? 1,
+        cost: soloCost(hero.level ?? 1, solo.costs),
+        value: values.get(`${hero.source.kind}:${hero.source.id}`) ?? 0
+      })),
+      solo.cap,
+      { fighters: 5, bench: 3, paladins: 2 },
+      solo.benchWeight
+    )
+    const expected = soloMonsters(league.seed!, league.nflWeeks!.length, typical.projected, solo)
+    expect(league.campaign!.monsters.map(monster => monster.hp)).toEqual(expected.map(monster => monster.hp))
+  })
+
   it('gives every run starting the same week monsters of the same strength', async () => {
     const one = await confirmedRun()
-    // Alice builds an all Level 1 party: her monsters follow the best party the cap could buy, not hers.
+    // Alice builds an all Level 1 party: her monsters follow the typical party the cap could buy, not hers.
     const id = await startRun(alice)
     const pool = (await soloOf(id, alice)).pool as PoolHero[]
     const cheap = pick(pool, [
@@ -626,7 +654,7 @@ describe('the rules', () => {
     const rulesView = (await request(buildTestApp()).get('/api/rules')).body.solo
     expect(rulesView).toMatchObject({
       available: true,
-      version: 5,
+      version: 6,
       rosterSize: 8,
       partySize: 5,
       classLimits: { Paladin: 2 },
